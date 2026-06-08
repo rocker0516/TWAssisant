@@ -8,7 +8,7 @@ evaluate() 把單檔資料打包成 StockContext，跑可插拔 ExitSignal，_ag
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 
 import pandas as pd
 from sqlalchemy import select
@@ -73,6 +73,13 @@ def _build_context(session: Session, stock_id: str, td: date) -> StockContext | 
         "kd_k", "kd_d", "macd", "macd_signal", "macd_hist", "atr14", "bias_20", "bias_60",
     ])
     inst = frame(models.Institutional, ["stock_id", "date", "foreign_net", "trust_net", "dealer_net", "total_net"])
+    events = session.execute(
+        select(models.Event).where(
+            models.Event.stock_id == stock_id,
+            models.Event.is_risk.is_(True),
+            models.Event.date >= td - timedelta(days=10),
+        ).order_by(models.Event.date.desc())
+    ).scalars().all()
     return StockContext(
         stock=stock, date=td, prices=prices, inds=inds, inst=inst,
         valuation=_latest(session, models.Valuation, ["pe", "pb", "dividend_yield"],
@@ -81,6 +88,7 @@ def _build_context(session: Session, stock_id: str, td: date) -> StockContext | 
                         [models.RevenueMonthly.year.desc(), models.RevenueMonthly.month.desc()], stock_id),
         financials=_latest(session, models.FinancialQuarter, ["eps", "gross_margin", "op_margin", "net_margin", "roe"],
                            [models.FinancialQuarter.year.desc(), models.FinancialQuarter.quarter.desc()], stock_id),
+        events=list(events),
     )
 
 

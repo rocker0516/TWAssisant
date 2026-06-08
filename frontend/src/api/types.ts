@@ -288,6 +288,26 @@ export interface components {
             /** Short Balance */
             short_balance: number | null;
         };
+        /** EventDTO */
+        EventDTO: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Category */
+            category: string | null;
+            /** Title */
+            title: string;
+            /** Summary */
+            summary: string | null;
+            /** Is Risk */
+            is_risk: boolean;
+            /** Source */
+            source: string | null;
+            /** Url */
+            url: string | null;
+        };
         /** FundamentalSummary */
         FundamentalSummary: {
             /** Pe */
@@ -582,6 +602,8 @@ export interface components {
             };
             chip: components["schemas"]["ChipSummary"] | null;
             fundamental: components["schemas"]["FundamentalSummary"] | null;
+            /** Events */
+            events: components["schemas"]["EventDTO"][];
         };
         /** TokenBody */
         TokenBody: {

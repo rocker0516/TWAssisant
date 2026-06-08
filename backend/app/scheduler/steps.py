@@ -13,6 +13,7 @@ from sqlalchemy import select
 
 from ..engines.exit_engine import ExitEngine
 from ..engines.indicators import IndicatorEngine
+from ..engines.news_engine import NewsEngine
 from ..engines.scoring import ScoringEngine
 from ..engines.sector_engine import SectorEngine
 from ..notify import build_daily_message, send_discord
@@ -162,6 +163,16 @@ class SectorStep(PipelineStep):
 
     def run(self, ctx: PipelineContext) -> dict:
         return SectorEngine().run(ctx.session, ctx.trading_date)
+
+
+class NewsStep(PipelineStep):
+    """重訊/事件分類 → events（P4，非必要）。掛了用既有事件不影響選股。"""
+
+    name = "news"
+    required = False
+
+    def run(self, ctx: PipelineContext) -> dict:
+        return NewsEngine().run(ctx.session, ctx.trading_date)
 
 
 class ScoringStep(PipelineStep):

@@ -64,6 +64,16 @@ class FundamentalSummary(BaseModel):
     revenue_yoy: float | None = None
 
 
+class EventDTO(BaseModel):
+    date: date
+    category: str | None
+    title: str
+    summary: str | None
+    is_risk: bool
+    source: str | None
+    url: str | None
+
+
 class StockDetail(BaseModel):
     stock_id: str
     name: str
@@ -76,6 +86,7 @@ class StockDetail(BaseModel):
     scores: dict[str, ScoreDTO | None]  # {"wave": ..., "long": ...}
     chip: ChipSummary | None
     fundamental: FundamentalSummary | None
+    events: list[EventDTO]
 
 
 class Candle(BaseModel):

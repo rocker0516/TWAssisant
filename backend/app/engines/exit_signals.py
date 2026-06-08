@@ -162,10 +162,26 @@ class FundamentalWeakSignal(ExitSignal):
         return hits
 
 
+class NewsRiskSignal(ExitSignal):
+    """消息面利空（P4）：持股近期有利空事件 → 警戒。"""
+
+    def check(self, holding, pos, ctx):
+        if not ctx.events:
+            return []
+        risks = [e for e in ctx.events if e.is_risk]
+        if not risks:
+            return []
+        latest = risks[0]
+        # 處置警示視為較重（WARN），其餘利空為早期（EARLY）
+        sev = Sev.WARN if (latest.category == "處置警示") else Sev.EARLY
+        return [Hit("news_risk", sev, f"利空消息：{latest.title[:20]}")]
+
+
 # 註冊順序即評估順序；加訊號只加這裡
 ALL_SIGNALS: list[ExitSignal] = [
     StopLossSignal(),
     TrailingStopSignal(),
     TechWeakSignal(),
     FundamentalWeakSignal(),
+    NewsRiskSignal(),
 ]

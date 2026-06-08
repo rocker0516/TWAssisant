@@ -127,6 +127,25 @@ export default function StockDetailPage() {
             <Row label="股價淨值比" value={fmtNum(d.fundamental?.pb)} />
             <Row label="殖利率" value={fmtPct(d.fundamental?.dividend_yield)} />
           </Card>
+          <Card title="重要消息">
+            {d.events.length === 0 ? (
+              <p className="text-sm text-muted">近期無重大訊息</p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {d.events.map((e, i) => (
+                  <li key={i} className="text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className={`rounded px-1.5 py-0.5 text-xs ${e.is_risk ? "bg-down/20 text-down" : e.category === "題材" ? "bg-up/20 text-up" : "bg-panel2 text-muted"}`}>
+                        {e.category ?? "—"}
+                      </span>
+                      <span className="text-xs text-muted">{e.date}</span>
+                    </div>
+                    <div className="mt-0.5 text-gray-200">{e.title}</div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
         </div>
       </div>
     </div>

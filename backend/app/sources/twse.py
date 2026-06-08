@@ -31,6 +31,17 @@ def _roc_ym(s: str) -> tuple[int | None, int | None]:
         return None, None
     return int(s[:-2]) + 1911, int(s[-2:])
 
+
+def _roc_date(s: str) -> date | None:
+    """民國日期 '1150527' → date(2026,5,27)。"""
+    s = str(s).strip().replace("/", "")
+    if len(s) < 7 or not s.isdigit():
+        return None
+    try:
+        return date(int(s[:-4]) + 1911, int(s[-4:-2]), int(s[-2:]))
+    except ValueError:
+        return None
+
 _UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 
 
@@ -292,7 +303,51 @@ class TwseSource(BaseSource, PriceProvider, ChipProvider, FundamentalProvider, N
             return pd.DataFrame(columns=schemas.FINANCIAL_COLS)
         return pd.DataFrame(rows)[schemas.FINANCIAL_COLS]
 
-    # ── NewsProvider（P4 填重訊解析）──
+    # ── NewsProvider（重大訊息 + 處置股，皆 TWSE OpenAPI 免費）──
 
     def fetch_events(self, start: date, end: date) -> pd.DataFrame:
-        return pd.DataFrame(columns=schemas.EVENT_COLS)
+        """每日重大訊息(t187ap04_L 當日快照) + 處置股(punish)。
+
+        分類/標利空交給 NewsEngine；此處只回原始事件。日期參數忽略（皆當日/最新）。
+        """
+        rows: list[dict] = []
+        rows.extend(self._fetch_material())
+        rows.extend(self._fetch_punish())
+        if not rows:
+            return pd.DataFrame(columns=schemas.EVENT_COLS)
+        return pd.DataFrame(rows)[schemas.EVENT_COLS]
+
+    def _openapi_list(self, path: str) -> list[dict]:
+        resp = self._request(f"{_OPENAPI}{path}")
+        data = resp.json()
+        return data if isinstance(data, list) else []
+
+    def _fetch_material(self) -> list[dict]:
+        out: list[dict] = []
+        for r in self._openapi_list("/opendata/t187ap04_L"):
+            sid = (r.get("公司代號") or "").strip()
+            title = r.get("主旨") or r.get("標題") or ""
+            d = _roc_date(r.get("事實發生日") or r.get("發言日期") or r.get("出表日期") or "")
+            if not sid or not title:
+                continue
+            out.append({
+                "stock_id": sid, "date": d, "category": None, "title": title,
+                "summary": r.get("說明") or r.get("符合條款"), "is_risk": False,
+                "source": "重訊", "url": None,
+            })
+        return out
+
+    def _fetch_punish(self) -> list[dict]:
+        out: list[dict] = []
+        for r in self._openapi_list("/announcement/punish"):
+            sid = (r.get("Code") or "").strip()
+            if not sid:
+                continue
+            out.append({
+                "stock_id": sid, "date": _roc_date(r.get("Date") or ""),
+                "category": "處置警示",
+                "title": f"處置股票：{r.get('ReasonsOfDisposition', '')}".strip("："),
+                "summary": (r.get("Detail") or "")[:500], "is_risk": True,
+                "source": "處置", "url": r.get("LinkInformation"),
+            })
+        return out

@@ -16,6 +16,7 @@ from .deps import get_session
 from .schemas import (
     Candle,
     ChipSummary,
+    EventDTO,
     FundamentalSummary,
     OhlcvResponse,
     RecommendationItem,
@@ -178,6 +179,11 @@ def stock_detail(stock_id: str, session: Session = Depends(get_session)) -> Stoc
         revenue_yoy=rev.yoy if rev else None,
     )
 
+    events = session.execute(
+        select(models.Event).where(models.Event.stock_id == stock_id)
+        .order_by(models.Event.date.desc(), models.Event.id.desc()).limit(10)
+    ).scalars().all()
+
     return StockDetail(
         stock_id=stock.id,
         name=stock.name,
@@ -190,6 +196,11 @@ def stock_detail(stock_id: str, session: Session = Depends(get_session)) -> Stoc
         scores=scores,
         chip=chip,
         fundamental=fundamental,
+        events=[
+            EventDTO(date=e.date, category=e.category, title=e.title, summary=e.summary,
+                     is_risk=e.is_risk, source=e.source, url=e.url)
+            for e in events
+        ],
     )
 
 

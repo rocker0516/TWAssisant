@@ -25,6 +25,7 @@ class StockContext:
     revenue: pd.DataFrame | None = None
     financials: pd.DataFrame | None = None
     sector: models.SectorDaily | None = None  # P3
+    events: list[models.Event] | None = None  # P4（近期利空，給 NewsRiskSignal）
 
     # ── 行情 / 指標 ──
 
