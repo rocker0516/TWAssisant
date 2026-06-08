@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ..llm.store import cache_key, get_cached
 from ..storage import models
 from .deps import get_session
 from .schemas import SectorConstituent, SectorDetail, SectorItem, SectorList
@@ -77,4 +78,5 @@ def sector_detail(sector_id: int, session: Session = Depends(get_session)) -> Se
             recommended=bool((w and w.passed) or (ll and ll.passed)),
         ))
     items.sort(key=lambda c: (c.change_pct if c.change_pct is not None else -999), reverse=True)
-    return SectorDetail(sector=_to_item(sd, sector.name), constituents=items)
+    interp = get_cached(session, cache_key("sector", sector_id, d)) if d else None
+    return SectorDetail(sector=_to_item(sd, sector.name), constituents=items, interpretation=interp)

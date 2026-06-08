@@ -239,6 +239,7 @@ class SectorConstituent(BaseModel):
 class SectorDetail(BaseModel):
     sector: SectorItem
     constituents: list[SectorConstituent]
+    interpretation: str | None = None  # AI 類股方向解讀（盤後批次快取）
 
 
 # ─────────── 觀察清單（P6）───────────
@@ -339,6 +340,7 @@ class EventBrief(BaseModel):
 
 class OverviewResponse(BaseModel):
     market: MarketSummary
+    market_note: str | None = None  # AI 盤勢總結（盤後批次快取）
     holdings_alerts: list[AlertBrief]
     reco_wave_count: int
     reco_long_count: int

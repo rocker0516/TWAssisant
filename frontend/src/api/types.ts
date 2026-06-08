@@ -313,6 +313,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/stocks/{stock_id}/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stock Health */
+        get: operations["stock_health_stocks__stock_id__health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assistant/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Assistant Chat */
+        post: operations["assistant_chat_assistant_chat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -454,6 +488,25 @@ export interface components {
             macd_signal?: number | null;
             /** Macd Hist */
             macd_hist?: number | null;
+        };
+        /** ChatMsg */
+        ChatMsg: {
+            /** Role */
+            role: string;
+            /** Content */
+            content: string;
+        };
+        /** ChatRequest */
+        ChatRequest: {
+            /**
+             * Context
+             * @default {}
+             */
+            context: {
+                [key: string]: unknown;
+            };
+            /** History */
+            history: components["schemas"]["ChatMsg"][];
         };
         /** ChipSummary */
         ChipSummary: {
@@ -672,6 +725,8 @@ export interface components {
         /** OverviewResponse */
         OverviewResponse: {
             market: components["schemas"]["MarketSummary"];
+            /** Market Note */
+            market_note?: string | null;
             /** Holdings Alerts */
             holdings_alerts: components["schemas"]["AlertBrief"][];
             /** Reco Wave Count */
@@ -798,6 +853,8 @@ export interface components {
             sector: components["schemas"]["SectorItem"];
             /** Constituents */
             constituents: components["schemas"]["SectorConstituent"][];
+            /** Interpretation */
+            interpretation?: string | null;
         };
         /** SectorItem */
         SectorItem: {
@@ -1655,6 +1712,70 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    stock_health_stocks__stock_id__health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stock_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    assistant_chat_assistant_chat_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

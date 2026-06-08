@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 
 from .api.routes import router as api_router
+from .api.routes_assistant import router as assistant_router
 from .api.routes_holdings import router as holdings_router
 from .api.routes_overview import router as overview_router
 from .api.routes_sectors import router as sectors_router
@@ -41,6 +42,7 @@ app.include_router(sectors_router)
 app.include_router(overview_router)
 app.include_router(watchlists_router)
 app.include_router(settings_router)
+app.include_router(assistant_router)
 
 
 @app.on_event("startup")

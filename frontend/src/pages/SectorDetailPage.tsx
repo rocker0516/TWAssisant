@@ -1,5 +1,6 @@
 import { Link, useParams } from "react-router-dom";
 import { useSectorDetail } from "../api/client";
+import { Markdown } from "../components/Markdown";
 import { changeColor, fmtNum, fmtPct, scoreColor, trendColor } from "../lib/format";
 
 function DirCard({ label, value }: { label: string; value: string | null | undefined }) {
@@ -67,6 +68,14 @@ export default function SectorDetailPage() {
           <p className="mt-3 text-xs text-muted">方向與輪動為趨勢判讀，非預測保證。</p>
         </div>
       </div>
+
+      {/* AI 類股方向解讀（盤後批次，進頁即顯示）*/}
+      {data.interpretation && (
+        <div className="mb-5 rounded-xl border border-edge bg-panel p-4">
+          <div className="mb-2 text-sm font-semibold">🤖 AI 類股方向解讀</div>
+          <Markdown>{data.interpretation}</Markdown>
+        </div>
+      )}
 
       {/* 成分股（領漲排序、★已推薦）*/}
       <div className="overflow-hidden rounded-xl border border-edge">

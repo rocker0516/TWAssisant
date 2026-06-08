@@ -16,6 +16,7 @@ from ..engines.indicators import IndicatorEngine
 from ..engines.news_engine import NewsEngine
 from ..engines.scoring import ScoringEngine
 from ..engines.sector_engine import SectorEngine
+from ..llm.batch import run_batch
 from ..notify import build_daily_message, send_discord
 from ..sources import registry
 from ..sources.base import SourceError
@@ -193,6 +194,16 @@ class ExitStep(PipelineStep):
 
     def run(self, ctx: PipelineContext) -> dict:
         return ExitEngine().run(ctx.session, ctx.trading_date)
+
+
+class LLMBatchStep(PipelineStep):
+    """LLM 批次翻白話 → llm_cache（P5，非必要）。掛了白天讀舊快取。"""
+
+    name = "llm"
+    required = False
+
+    def run(self, ctx: PipelineContext) -> dict:
+        return run_batch(ctx.session, ctx.trading_date)
 
 
 class NotifyStep(PipelineStep):

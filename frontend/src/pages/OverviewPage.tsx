@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useOverview } from "../api/client";
+import { Markdown } from "../components/Markdown";
 import { changeColor, fmtNum, fmtPct, scoreColor, trendColor, TRACK_LABELS } from "../lib/format";
 
 function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
@@ -42,6 +43,13 @@ export default function OverviewPage() {
         <Stat label="投信(張)" value={fmtNum(m.trust_net, 0)} color={changeColor(m.trust_net)} />
         <Stat label="自營(張)" value={fmtNum(m.dealer_net, 0)} color={changeColor(m.dealer_net)} />
       </div>
+
+      {data.market_note && (
+        <div className="mb-5 rounded-xl border border-edge bg-panel p-4">
+          <div className="mb-2 text-sm font-semibold">🤖 盤勢總結</div>
+          <Markdown>{data.market_note}</Markdown>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* 持股提醒（最優先）*/}

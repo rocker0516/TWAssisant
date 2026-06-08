@@ -16,6 +16,7 @@ from .steps import (
     ExitStep,
     FetchStep,
     IndicatorStep,
+    LLMBatchStep,
     NewsStep,
     NotifyStep,
     ScoringStep,
@@ -25,11 +26,11 @@ from .trading_calendar import is_trading_day, resolve_trading_date
 
 
 def build_pipeline() -> DailyPipeline:
-    # 執行順序（依賴）：Fetch→Indicator→Sector→News→Scoring→Exit→Notify。LLM(P5) 後續加。
+    # 依賴順序：Fetch→Indicator→Sector→News→Scoring→Exit→LLM→Notify。
     return DailyPipeline(
         steps=[
             FetchStep(), IndicatorStep(), SectorStep(), NewsStep(),
-            ScoringStep(), ExitStep(), NotifyStep(),
+            ScoringStep(), ExitStep(), LLMBatchStep(), NotifyStep(),
         ]
     )
 

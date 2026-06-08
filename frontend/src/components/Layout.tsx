@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { FloatingAssistant } from "./FloatingAssistant";
 
 type NavItem = { to: string; label: string; icon: string; enabled: boolean };
 
@@ -52,6 +53,7 @@ export default function Layout() {
       <main className="flex-1 overflow-x-hidden">
         <Outlet />
       </main>
+      <FloatingAssistant />
     </div>
   );
 }

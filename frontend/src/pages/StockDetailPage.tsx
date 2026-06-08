@@ -1,9 +1,39 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useOhlcv, useStockDetail, type ScoreDTO } from "../api/client";
 import { KLineChart } from "../components/KLineChart";
+import { Markdown } from "../components/Markdown";
 import { ReasonChips } from "../components/ReasonChips";
 import { ScoreDisplay } from "../components/ScoreDisplay";
 import { changeColor, fmtNum, fmtPct, TRACK_LABELS } from "../lib/format";
+import { streamSSE } from "../lib/sse";
+
+function HealthCard({ stockId }: { stockId: string }) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    setText("");
+    setBusy(true);
+    try {
+      await streamSSE(`/stocks/${stockId}/health`, {}, (c) => setText((t) => t + c));
+    } catch {
+      setText("（健檢產生失敗，請稍後再試）");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="rounded-xl border border-edge bg-panel p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-sm font-semibold">🤖 AI 健檢</span>
+        <button onClick={run} disabled={busy} className="rounded-md bg-sky-600 px-2.5 py-1 text-xs font-medium disabled:opacity-50">
+          {busy ? "產生中…" : text ? "重新產生" : "生成健檢"}
+        </button>
+      </div>
+      {text ? <Markdown>{text}</Markdown> : <p className="text-sm text-muted">點「生成健檢」由 AI 綜合技術/籌碼/基本面/類股解讀（不自動生成、保持數據導向）。</p>}
+    </div>
+  );
+}
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -146,6 +176,7 @@ export default function StockDetailPage() {
               </ul>
             )}
           </Card>
+          <HealthCard stockId={d.stock_id} />
         </div>
       </div>
     </div>
