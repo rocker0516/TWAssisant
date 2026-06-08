@@ -11,8 +11,10 @@ from datetime import date, timedelta
 import pandas as pd
 from sqlalchemy import select
 
+from ..engines.exit_engine import ExitEngine
 from ..engines.indicators import IndicatorEngine
 from ..engines.scoring import ScoringEngine
+from ..notify import build_daily_message, send_discord
 from ..sources import registry
 from ..sources.base import SourceError
 from ..storage import models, repositories as repo
@@ -159,3 +161,27 @@ class ScoringStep(PipelineStep):
 
     def run(self, ctx: PipelineContext) -> dict:
         return ScoringEngine().run(ctx.session, ctx.trading_date)
+
+
+class ExitStep(PipelineStep):
+    """持股出場評估：日更持有最高價（P2）。"""
+
+    name = "exit"
+    required = True
+
+    def run(self, ctx: PipelineContext) -> dict:
+        return ExitEngine().run(ctx.session, ctx.trading_date)
+
+
+class NotifyStep(PipelineStep):
+    """Discord 推播持股提醒 + 推薦檔數（P2，非必要）。"""
+
+    name = "notify"
+    required = False
+
+    def run(self, ctx: PipelineContext) -> dict:
+        msg = build_daily_message(ctx.session, ctx.trading_date)
+        if msg is None:
+            return {"status": "ok", "sent": False, "note": "無可報內容"}
+        sent = send_discord(msg)
+        return {"status": "ok", "sent": sent, "note": None if sent else "未設定 webhook"}

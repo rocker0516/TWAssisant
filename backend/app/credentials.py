@@ -54,14 +54,25 @@ def _from_file() -> dict[str, str]:
         return {}
     with _CREDENTIALS_FILE.open("rb") as f:
         data = tomllib.load(f)
-    sources = data.get("sources", {})
-    return {k: v for k, v in sources.items() if isinstance(v, str) and v}
+    out = {k: v for k, v in data.get("sources", {}).items() if isinstance(v, str) and v}
+    webhook = data.get("notify", {}).get("webhook")
+    if isinstance(webhook, str) and webhook:
+        out["discord_webhook"] = webhook
+    return out
 
 
 def get_token(name: str) -> str | None:
     """取得來源 token。name 例：'fugle' / 'finmind'。"""
     key = f"{name}_token"
     return _from_keychain(key) or _from_file().get(key)
+
+
+def get_discord_webhook() -> str | None:
+    """Discord 通知 webhook URL（含 token，視為祕密，不入庫）。
+
+    credentials.toml: [notify] webhook = "https://..."；或 Keychain s=discord_webhook。
+    """
+    return _from_keychain("discord_webhook") or _from_file().get("discord_webhook")
 
 
 def set_token(name: str, token: str) -> None:

@@ -55,6 +55,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/holdings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Holdings */
+        get: operations["list_holdings_holdings_get"];
+        put?: never;
+        /** Create Holding */
+        post: operations["create_holding_holdings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/holdings/{holding_id}/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Transaction */
+        post: operations["add_transaction_holdings__holding_id__transactions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/holdings/{holding_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Holding */
+        delete: operations["delete_holding_holdings__holding_id__delete"];
+        options?: never;
+        head?: never;
+        /** Patch Holding */
+        patch: operations["patch_holding_holdings__holding_id__patch"];
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -219,6 +272,121 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HoldingCreate */
+        HoldingCreate: {
+            /** Stock Id */
+            stock_id: string;
+            /** Track */
+            track: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Price */
+            price: number;
+            /** Shares */
+            shares: number;
+            /** Fee */
+            fee?: number | null;
+            /** Stop Loss Override */
+            stop_loss_override?: number | null;
+            /** Trail Trigger Override */
+            trail_trigger_override?: number | null;
+            /** Trail Pullback Override */
+            trail_pullback_override?: number | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** HoldingItem */
+        HoldingItem: {
+            /** Id */
+            id: number;
+            /** Stock Id */
+            stock_id: string;
+            /** Name */
+            name: string;
+            /** Track */
+            track: string;
+            /** Status */
+            status: string;
+            /** Opened Date */
+            opened_date: string | null;
+            /** Closed Date */
+            closed_date: string | null;
+            /** Shares */
+            shares: number;
+            /** Avg Cost */
+            avg_cost: number | null;
+            /** Close */
+            close: number | null;
+            /** Change Pct */
+            change_pct: number | null;
+            /** Market Value */
+            market_value: number | null;
+            /** Unrealized Pnl */
+            unrealized_pnl: number | null;
+            /** Return Pct */
+            return_pct: number | null;
+            /** Realized Pnl */
+            realized_pnl: number | null;
+            /** Light */
+            light: string;
+            /** Level */
+            level: string;
+            /** Signals */
+            signals: string[];
+            /** Hard Stop */
+            hard_stop: number | null;
+            /** Highest */
+            highest: number | null;
+            /** Drawdown Pct */
+            drawdown_pct: number | null;
+            /** Trail Active */
+            trail_active: boolean;
+            /** Stop Loss Override */
+            stop_loss_override: number | null;
+            /** Trail Trigger Override */
+            trail_trigger_override: number | null;
+            /** Trail Pullback Override */
+            trail_pullback_override: number | null;
+            /** Note */
+            note: string | null;
+            /** Transactions */
+            transactions: components["schemas"]["TransactionDTO"][];
+        };
+        /** HoldingPatch */
+        HoldingPatch: {
+            /** Stop Loss Override */
+            stop_loss_override?: number | null;
+            /** Trail Trigger Override */
+            trail_trigger_override?: number | null;
+            /** Trail Pullback Override */
+            trail_pullback_override?: number | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** HoldingsResponse */
+        HoldingsResponse: {
+            /** Status */
+            status: string;
+            /** Items */
+            items: components["schemas"]["HoldingItem"][];
+            summary: components["schemas"]["HoldingsSummary"];
+        };
+        /** HoldingsSummary */
+        HoldingsSummary: {
+            /** Count */
+            count: number;
+            /** Total Market Value */
+            total_market_value: number;
+            /** Total Unrealized Pnl */
+            total_unrealized_pnl: number;
+            /** Total Return Pct */
+            total_return_pct: number | null;
+            /** Total Realized Pnl */
+            total_realized_pnl: number;
+        };
         /** OhlcvResponse */
         OhlcvResponse: {
             /** Stock Id */
@@ -328,6 +496,48 @@ export interface components {
              */
             save: boolean;
         };
+        /** TransactionCreate */
+        TransactionCreate: {
+            /** Type */
+            type: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Price */
+            price: number;
+            /** Shares */
+            shares: number;
+            /** Fee */
+            fee?: number | null;
+            /** Tax */
+            tax?: number | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** TransactionDTO */
+        TransactionDTO: {
+            /** Id */
+            id: number;
+            /** Type */
+            type: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Price */
+            price: number;
+            /** Shares */
+            shares: number;
+            /** Fee */
+            fee: number | null;
+            /** Tax */
+            tax: number | null;
+            /** Note */
+            note: string | null;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -432,6 +642,173 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OhlcvResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_holdings_holdings_get: {
+        parameters: {
+            query?: {
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoldingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_holding_holdings_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HoldingCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoldingItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_transaction_holdings__holding_id__transactions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                holding_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransactionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoldingItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_holding_holdings__holding_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                holding_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_holding_holdings__holding_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                holding_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HoldingPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoldingItem"];
                 };
             };
             /** @description Validation Error */

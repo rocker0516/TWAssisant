@@ -7,7 +7,7 @@ const NAV: NavItem[] = [
   { to: "/overview", label: "今日總覽", icon: "🏠", enabled: false },
   { to: "/recommendations", label: "進場推薦", icon: "🎯", enabled: true },
   { to: "/sectors", label: "類股行情", icon: "📊", enabled: false },
-  { to: "/holdings", label: "我的持股", icon: "💼", enabled: false },
+  { to: "/holdings", label: "我的持股", icon: "💼", enabled: true },
   { to: "/watchlists", label: "觀察清單", icon: "⭐", enabled: false },
   { to: "/settings", label: "設定", icon: "⚙️", enabled: false },
 ];

@@ -98,3 +98,92 @@ class Candle(BaseModel):
 class OhlcvResponse(BaseModel):
     stock_id: str
     candles: list[Candle]
+
+
+# ─────────── 持股（P2）───────────
+
+
+class HoldingCreate(BaseModel):
+    stock_id: str
+    track: str  # wave / long
+    date: date
+    price: float
+    shares: int
+    fee: float | None = None
+    stop_loss_override: float | None = None
+    trail_trigger_override: float | None = None
+    trail_pullback_override: float | None = None
+    note: str | None = None
+
+
+class TransactionCreate(BaseModel):
+    type: str  # add / sell（buy 由建立持股時自動產生）
+    date: date
+    price: float
+    shares: int
+    fee: float | None = None
+    tax: float | None = None
+    note: str | None = None
+
+
+class HoldingPatch(BaseModel):
+    stop_loss_override: float | None = None
+    trail_trigger_override: float | None = None
+    trail_pullback_override: float | None = None
+    note: str | None = None
+
+
+class TransactionDTO(BaseModel):
+    id: int
+    type: str
+    date: date
+    price: float
+    shares: int
+    fee: float | None
+    tax: float | None
+    note: str | None
+
+
+class HoldingItem(BaseModel):
+    id: int
+    stock_id: str
+    name: str
+    track: str
+    status: str
+    opened_date: date | None
+    closed_date: date | None
+    shares: int
+    avg_cost: float | None
+    close: float | None
+    change_pct: float | None  # 當日漲跌
+    market_value: float | None
+    unrealized_pnl: float | None
+    return_pct: float | None
+    realized_pnl: float | None
+    # 出場狀態（ExitEngine）
+    light: str
+    level: str
+    signals: list[str]
+    hard_stop: float | None
+    highest: float | None
+    drawdown_pct: float | None
+    trail_active: bool
+    stop_loss_override: float | None
+    trail_trigger_override: float | None
+    trail_pullback_override: float | None
+    note: str | None
+    transactions: list[TransactionDTO]
+
+
+class HoldingsSummary(BaseModel):
+    count: int
+    total_market_value: float
+    total_unrealized_pnl: float
+    total_return_pct: float | None
+    total_realized_pnl: float
+
+
+class HoldingsResponse(BaseModel):
+    status: str
+    items: list[HoldingItem]
+    summary: HoldingsSummary
