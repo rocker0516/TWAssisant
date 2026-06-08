@@ -239,3 +239,109 @@ class SectorConstituent(BaseModel):
 class SectorDetail(BaseModel):
     sector: SectorItem
     constituents: list[SectorConstituent]
+
+
+# ─────────── 觀察清單（P6）───────────
+
+
+class WatchlistItemDTO(BaseModel):
+    id: int
+    stock_id: str
+    name: str
+    added_price: float | None
+    target_price: float | None
+    added_date: date | None
+    reason: str | None
+    note: str | None
+    close: float | None
+    change_pct: float | None
+    wave_score: float | None
+    long_score: float | None
+    light: str  # green / yellow / white
+    reminders: list[str]
+
+
+class WatchlistDTO(BaseModel):
+    id: int
+    name: str
+    items: list[WatchlistItemDTO]
+
+
+class WatchlistsResponse(BaseModel):
+    watchlists: list[WatchlistDTO]
+
+
+class WatchlistCreate(BaseModel):
+    name: str
+
+
+class WatchlistItemCreate(BaseModel):
+    stock_id: str
+    target_price: float | None = None
+    added_price: float | None = None
+    added_date: date | None = None
+    reason: str | None = None
+    note: str | None = None
+
+
+class ToHolding(BaseModel):
+    track: str
+    date: date
+    price: float
+    shares: int
+
+
+# ─────────── 首頁總覽（P6）───────────
+
+
+class MarketSummary(BaseModel):
+    date: date | None
+    turnover_billion: float | None  # 成交額（億）
+    advancers: int
+    decliners: int
+    unchanged: int
+    foreign_net: int | None
+    trust_net: int | None
+    dealer_net: int | None
+
+
+class AlertBrief(BaseModel):
+    stock_id: str
+    name: str
+    light: str
+    return_pct: float | None
+    signals: list[str]
+
+
+class RecoBrief(BaseModel):
+    stock_id: str
+    name: str
+    track: str
+    total_score: float | None
+
+
+class SectorBrief(BaseModel):
+    id: int
+    name: str
+    strength_score: float | None
+    trend_short: str | None
+    rotation_stage: str | None
+
+
+class EventBrief(BaseModel):
+    stock_id: str
+    name: str
+    date: date
+    category: str | None
+    title: str
+    is_risk: bool
+
+
+class OverviewResponse(BaseModel):
+    market: MarketSummary
+    holdings_alerts: list[AlertBrief]
+    reco_wave_count: int
+    reco_long_count: int
+    reco_top: list[RecoBrief]
+    sectors_top: list[SectorBrief]
+    recent_events: list[EventBrief]

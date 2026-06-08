@@ -3,7 +3,10 @@ import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
+import { applyTheme, getStoredTheme } from "./lib/theme";
 import "./index.css";
+
+applyTheme(getStoredTheme());
 
 // 盤後日資料：白天不變 → staleTime 設整天，減少重抓
 const queryClient = new QueryClient({

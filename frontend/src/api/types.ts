@@ -142,6 +142,177 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Overview */
+        get: operations["overview_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watchlists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Watchlists */
+        get: operations["list_watchlists_watchlists_get"];
+        put?: never;
+        /** Create Watchlist */
+        post: operations["create_watchlist_watchlists_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watchlists/{wl_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Watchlist */
+        delete: operations["delete_watchlist_watchlists__wl_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watchlists/{wl_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Item */
+        post: operations["add_item_watchlists__wl_id__items_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watchlist-items/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Item */
+        delete: operations["delete_item_watchlist_items__item_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watchlist-items/{item_id}/to-holding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Item To Holding */
+        post: operations["item_to_holding_watchlist_items__item_id__to_holding_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Settings */
+        get: operations["get_settings_settings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/settings/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Settings */
+        put: operations["update_settings_settings__key__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/settings/{key}/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset Settings */
+        post: operations["reset_settings_settings__key__reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/settings/recompute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Recompute */
+        post: operations["recompute_settings_recompute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -237,6 +408,19 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AlertBrief */
+        AlertBrief: {
+            /** Stock Id */
+            stock_id: string;
+            /** Name */
+            name: string;
+            /** Light */
+            light: string;
+            /** Return Pct */
+            return_pct: number | null;
+            /** Signals */
+            signals: string[];
+        };
         /** Candle */
         Candle: {
             /**
@@ -287,6 +471,24 @@ export interface components {
             margin_balance: number | null;
             /** Short Balance */
             short_balance: number | null;
+        };
+        /** EventBrief */
+        EventBrief: {
+            /** Stock Id */
+            stock_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Category */
+            category: string | null;
+            /** Title */
+            title: string;
+            /** Is Risk */
+            is_risk: boolean;
         };
         /** EventDTO */
         EventDTO: {
@@ -441,12 +643,58 @@ export interface components {
             /** Total Realized Pnl */
             total_realized_pnl: number;
         };
+        /** MarketSummary */
+        MarketSummary: {
+            /** Date */
+            date: string | null;
+            /** Turnover Billion */
+            turnover_billion: number | null;
+            /** Advancers */
+            advancers: number;
+            /** Decliners */
+            decliners: number;
+            /** Unchanged */
+            unchanged: number;
+            /** Foreign Net */
+            foreign_net: number | null;
+            /** Trust Net */
+            trust_net: number | null;
+            /** Dealer Net */
+            dealer_net: number | null;
+        };
         /** OhlcvResponse */
         OhlcvResponse: {
             /** Stock Id */
             stock_id: string;
             /** Candles */
             candles: components["schemas"]["Candle"][];
+        };
+        /** OverviewResponse */
+        OverviewResponse: {
+            market: components["schemas"]["MarketSummary"];
+            /** Holdings Alerts */
+            holdings_alerts: components["schemas"]["AlertBrief"][];
+            /** Reco Wave Count */
+            reco_wave_count: number;
+            /** Reco Long Count */
+            reco_long_count: number;
+            /** Reco Top */
+            reco_top: components["schemas"]["RecoBrief"][];
+            /** Sectors Top */
+            sectors_top: components["schemas"]["SectorBrief"][];
+            /** Recent Events */
+            recent_events: components["schemas"]["EventBrief"][];
+        };
+        /** RecoBrief */
+        RecoBrief: {
+            /** Stock Id */
+            stock_id: string;
+            /** Name */
+            name: string;
+            /** Track */
+            track: string;
+            /** Total Score */
+            total_score: number | null;
         };
         /** RecommendationItem */
         RecommendationItem: {
@@ -514,6 +762,19 @@ export interface components {
             loss_pct: number | null;
             /** Reasons */
             reasons: string[] | null;
+        };
+        /** SectorBrief */
+        SectorBrief: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Strength Score */
+            strength_score: number | null;
+            /** Trend Short */
+            trend_short: string | null;
+            /** Rotation Stage */
+            rotation_stage: string | null;
         };
         /** SectorConstituent */
         SectorConstituent: {
@@ -605,6 +866,20 @@ export interface components {
             /** Events */
             events: components["schemas"]["EventDTO"][];
         };
+        /** ToHolding */
+        ToHolding: {
+            /** Track */
+            track: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Price */
+            price: number;
+            /** Shares */
+            shares: number;
+        };
         /** TokenBody */
         TokenBody: {
             /** Token */
@@ -669,6 +944,71 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** WatchlistCreate */
+        WatchlistCreate: {
+            /** Name */
+            name: string;
+        };
+        /** WatchlistDTO */
+        WatchlistDTO: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Items */
+            items: components["schemas"]["WatchlistItemDTO"][];
+        };
+        /** WatchlistItemCreate */
+        WatchlistItemCreate: {
+            /** Stock Id */
+            stock_id: string;
+            /** Target Price */
+            target_price?: number | null;
+            /** Added Price */
+            added_price?: number | null;
+            /** Added Date */
+            added_date?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** WatchlistItemDTO */
+        WatchlistItemDTO: {
+            /** Id */
+            id: number;
+            /** Stock Id */
+            stock_id: string;
+            /** Name */
+            name: string;
+            /** Added Price */
+            added_price: number | null;
+            /** Target Price */
+            target_price: number | null;
+            /** Added Date */
+            added_date: string | null;
+            /** Reason */
+            reason: string | null;
+            /** Note */
+            note: string | null;
+            /** Close */
+            close: number | null;
+            /** Change Pct */
+            change_pct: number | null;
+            /** Wave Score */
+            wave_score: number | null;
+            /** Long Score */
+            long_score: number | null;
+            /** Light */
+            light: string;
+            /** Reminders */
+            reminders: string[];
+        };
+        /** WatchlistsResponse */
+        WatchlistsResponse: {
+            /** Watchlists */
+            watchlists: components["schemas"]["WatchlistDTO"][];
         };
     };
     responses: never;
@@ -988,6 +1328,333 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    overview_overview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OverviewResponse"];
+                };
+            };
+        };
+    };
+    list_watchlists_watchlists_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchlistsResponse"];
+                };
+            };
+        };
+    };
+    create_watchlist_watchlists_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchlistCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchlistDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_watchlist_watchlists__wl_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wl_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_item_watchlists__wl_id__items_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wl_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchlistItemCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchlistItemDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_item_watchlist_items__item_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    item_to_holding_watchlist_items__item_id__to_holding_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ToHolding"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_settings_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    update_settings_settings__key__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_settings_settings__key__reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recompute_settings_recompute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };

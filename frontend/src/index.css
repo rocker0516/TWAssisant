@@ -4,13 +4,29 @@
 
 :root {
   color-scheme: dark;
+  --c-bg: 15 17 21;
+  --c-panel: 24 27 34;
+  --c-panel2: 31 35 44;
+  --c-edge: 42 47 58;
+  --c-muted: 139 147 167;
+  --c-text: 230 232 238;
+}
+
+html.light {
+  color-scheme: light;
+  --c-bg: 245 246 248;
+  --c-panel: 255 255 255;
+  --c-panel2: 240 242 245;
+  --c-edge: 214 218 224;
+  --c-muted: 100 110 125;
+  --c-text: 26 30 38;
 }
 
 body {
   margin: 0;
   font-family: "Noto Sans TC", -apple-system, "PingFang TC", "Segoe UI", sans-serif;
-  background: theme(colors.bg);
-  color: #e6e8ee;
+  background: rgb(var(--c-bg));
+  color: rgb(var(--c-text));
 }
 
 ::-webkit-scrollbar {
@@ -18,6 +34,6 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: theme(colors.edge);
+  background: rgb(var(--c-edge));
   border-radius: 5px;
 }

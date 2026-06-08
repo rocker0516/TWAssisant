@@ -24,6 +24,20 @@ DEFAULTS = {
     "long": {"stop_cap": 0.15, "trail_trigger": 0.20, "trail_pullback": 0.20},
 }
 
+# 可由設定頁覆寫（即時生效）。ExitEngine 每次評估前以 set_config 注入（百分比→比例）。
+import copy as _copy
+
+_ACTIVE: dict = _copy.deepcopy(DEFAULTS)
+
+
+def set_config(percent_cfg: dict) -> None:
+    """設定頁的出場參數（百分比，如 stop_cap=8）→ 比例（0.08）寫入 _ACTIVE。"""
+    for track in ("wave", "long"):
+        tc = (percent_cfg or {}).get(track, {})
+        for k in ("stop_cap", "trail_trigger", "trail_pullback"):
+            if k in tc and tc[k] is not None:
+                _ACTIVE.setdefault(track, {})[k] = tc[k] / 100.0
+
 
 class Sev(IntEnum):
     EARLY = 1
@@ -59,7 +73,7 @@ class Position:
 
 
 def _cfg(holding: models.Holding, key: str) -> float:
-    return DEFAULTS.get(holding.track, DEFAULTS["wave"])[key]
+    return _ACTIVE.get(holding.track, _ACTIVE["wave"])[key]
 
 
 class ExitSignal(ABC):

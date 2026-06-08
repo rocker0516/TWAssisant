@@ -16,6 +16,9 @@ export type SectorList = components["schemas"]["SectorList"];
 export type SectorItem = components["schemas"]["SectorItem"];
 export type SectorDetail = components["schemas"]["SectorDetail"];
 export type SectorConstituent = components["schemas"]["SectorConstituent"];
+export type OverviewResponse = components["schemas"]["OverviewResponse"];
+export type WatchlistsResponse = components["schemas"]["WatchlistsResponse"];
+export type WatchlistItemCreate = components["schemas"]["WatchlistItemCreate"];
 
 export type Track = "wave" | "long";
 export type HoldingStatus = "open" | "closed";
@@ -121,5 +124,101 @@ export function useSectorDetail(sectorId: string | undefined) {
     queryKey: ["sector", sectorId],
     queryFn: () => getJson<SectorDetail>(`/sectors/${sectorId}`),
     enabled: !!sectorId,
+  });
+}
+
+// ── 總覽 ──
+
+export function useOverview() {
+  return useQuery({ queryKey: ["overview"], queryFn: () => getJson<OverviewResponse>("/overview") });
+}
+
+// ── 設定 ──
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AppSettings = Record<string, any>;
+
+export function useSettings() {
+  return useQuery({ queryKey: ["settings"], queryFn: () => getJson<AppSettings>("/settings") });
+}
+
+export function useUpdateSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key, partial }: { key: string; partial: unknown }) =>
+      sendJson<AppSettings>("PUT", `/settings/${key}`, partial),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["settings"] }),
+  });
+}
+
+export function useResetSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (key: string) => sendJson<AppSettings>("POST", `/settings/${key}/reset`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["settings"] }),
+  });
+}
+
+export function useRecompute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => sendJson<unknown>("POST", "/settings/recompute"),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["recommendations"] });
+      qc.invalidateQueries({ queryKey: ["sectors"] });
+      qc.invalidateQueries({ queryKey: ["overview"] });
+    },
+  });
+}
+
+// ── 資料來源測試（設定頁）──
+
+export function useTestSource() {
+  return useMutation({
+    mutationFn: ({ name, token, save }: { name: string; token?: string; save?: boolean }) =>
+      sendJson<{ ok: boolean; reason: string }>("POST", `/sources/${name}/test`, { token, save }),
+  });
+}
+
+// ── 觀察清單 ──
+
+export function useWatchlists() {
+  return useQuery({ queryKey: ["watchlists"], queryFn: () => getJson<WatchlistsResponse>("/watchlists") });
+}
+
+export function useCreateWatchlist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => sendJson("POST", "/watchlists", { name }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["watchlists"] }),
+  });
+}
+
+export function useAddWatchItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ wlId, body }: { wlId: number; body: WatchlistItemCreate }) =>
+      sendJson("POST", `/watchlists/${wlId}/items`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["watchlists"] }),
+  });
+}
+
+export function useDeleteWatchItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (itemId: number) => sendJson("DELETE", `/watchlist-items/${itemId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["watchlists"] }),
+  });
+}
+
+export function useItemToHolding() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId, body }: { itemId: number; body: { track: string; date: string; price: number; shares: number } }) =>
+      sendJson("POST", `/watchlist-items/${itemId}/to-holding`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["watchlists"] });
+      qc.invalidateQueries({ queryKey: ["holdings"] });
+    },
   });
 }

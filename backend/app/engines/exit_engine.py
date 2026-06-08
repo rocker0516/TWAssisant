@@ -17,8 +17,8 @@ from sqlalchemy.orm import Session
 from ..storage import models
 from .base import BaseEngine
 from .context import StockContext
+from . import exit_signals
 from .exit_signals import ALL_SIGNALS, Hit, Position, Sev
-from .stoploss import _CAP  # 共用停損上限
 
 _LIGHT = {"red": "🔴", "orange": "🟠", "yellow": "🟡", "green": "🟢"}
 
@@ -104,9 +104,15 @@ class ExitEngine(BaseEngine):
         highs = [h for h in session.execute(stmt).scalars().all() if h is not None]
         return max(highs) if highs else None
 
+    def _load_exit_config(self, session: Session) -> None:
+        row = session.get(models.Setting, "exit")
+        if row and isinstance(row.value, dict):
+            exit_signals.set_config(row.value)
+
     def evaluate(
         self, session: Session, holding: models.Holding, td: date, *, avg_cost: float, close: float
     ) -> ExitStatus:
+        self._load_exit_config(session)
         highest = self.highest_since(session, holding.stock_id, holding.opened_date, td) or close
         highest = max(highest, close)
         pos = Position(shares=1, avg_cost=avg_cost, highest=highest, close=close)
@@ -119,7 +125,7 @@ class ExitEngine(BaseEngine):
                     hits.extend(sig.check(holding, pos, ctx))
 
         level = _aggregate(hits)
-        cap = _CAP.get(holding.track, 0.08)
+        cap = exit_signals._ACTIVE.get(holding.track, exit_signals._ACTIVE["wave"])["stop_cap"]
         hard_stop = holding.stop_loss_override or round(avg_cost * (1 - cap), 2)
         return ExitStatus(
             level=level,

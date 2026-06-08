@@ -4,12 +4,12 @@ type NavItem = { to: string; label: string; icon: string; enabled: boolean };
 
 // 6 入口（設計定案）。P1 只開「進場推薦」，其餘標建置中。
 const NAV: NavItem[] = [
-  { to: "/overview", label: "今日總覽", icon: "🏠", enabled: false },
+  { to: "/overview", label: "今日總覽", icon: "🏠", enabled: true },
   { to: "/recommendations", label: "進場推薦", icon: "🎯", enabled: true },
   { to: "/sectors", label: "類股行情", icon: "📊", enabled: true },
   { to: "/holdings", label: "我的持股", icon: "💼", enabled: true },
-  { to: "/watchlists", label: "觀察清單", icon: "⭐", enabled: false },
-  { to: "/settings", label: "設定", icon: "⚙️", enabled: false },
+  { to: "/watchlists", label: "觀察清單", icon: "⭐", enabled: true },
+  { to: "/settings", label: "設定", icon: "⚙️", enabled: true },
 ];
 
 export default function Layout() {
