@@ -1,0 +1,57 @@
+import { NavLink, Outlet } from "react-router-dom";
+
+type NavItem = { to: string; label: string; icon: string; enabled: boolean };
+
+// 6 入口（設計定案）。P1 只開「進場推薦」，其餘標建置中。
+const NAV: NavItem[] = [
+  { to: "/overview", label: "今日總覽", icon: "🏠", enabled: false },
+  { to: "/recommendations", label: "進場推薦", icon: "🎯", enabled: true },
+  { to: "/sectors", label: "類股行情", icon: "📊", enabled: false },
+  { to: "/holdings", label: "我的持股", icon: "💼", enabled: false },
+  { to: "/watchlists", label: "觀察清單", icon: "⭐", enabled: false },
+  { to: "/settings", label: "設定", icon: "⚙️", enabled: false },
+];
+
+export default function Layout() {
+  return (
+    <div className="flex min-h-screen">
+      <aside className="flex w-52 shrink-0 flex-col border-r border-edge bg-panel">
+        <div className="px-4 py-5">
+          <div className="text-lg font-bold">TWAssistant</div>
+          <div className="text-xs text-muted">台股操作助手</div>
+        </div>
+        <nav className="flex flex-col gap-0.5 px-2">
+          {NAV.map((n) =>
+            n.enabled ? (
+              <NavLink
+                key={n.to}
+                to={n.to}
+                className={({ isActive }) =>
+                  `flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition ${
+                    isActive ? "bg-sky-900/50 text-sky-200" : "text-gray-300 hover:bg-panel2"
+                  }`
+                }
+              >
+                <span>{n.icon}</span>
+                {n.label}
+              </NavLink>
+            ) : (
+              <div
+                key={n.to}
+                className="flex cursor-not-allowed items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-600"
+                title="建置中"
+              >
+                <span>{n.icon}</span>
+                {n.label}
+                <span className="ml-auto text-[10px] text-gray-700">建置中</span>
+              </div>
+            ),
+          )}
+        </nav>
+      </aside>
+      <main className="flex-1 overflow-x-hidden">
+        <Outlet />
+      </main>
+    </div>
+  );
+}

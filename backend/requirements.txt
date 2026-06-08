@@ -1,0 +1,27 @@
+# TWAssistant backend — P0 dependencies
+# 只本機單人跑，鎖大版本即可
+
+# Web / API
+fastapi>=0.110,<1.0
+uvicorn[standard]>=0.29,<1.0
+
+# Data layer
+SQLAlchemy>=2.0,<3.0
+
+# Config / validation
+pydantic>=2.6,<3.0
+pydantic-settings>=2.2,<3.0
+python-dotenv>=1.0,<2.0
+
+# HTTP client for data sources
+httpx>=0.27,<1.0
+
+# Data wrangling (來源輸出統一成 DataFrame)
+pandas>=2.2,<3.0
+
+# Scheduling (launchd 為主，APScheduler 當後端常開時備援)
+APScheduler>=3.10,<4.0
+
+# --- 後續階段才需要（先列註解，避免 P0 安裝負擔）---
+# pandas-ta>=0.3.14b      # P1 IndicatorEngine
+# anthropic>=0.40         # P5 LLM 層

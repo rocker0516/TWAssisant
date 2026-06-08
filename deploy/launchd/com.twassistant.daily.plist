@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  TWAssistant 每日盤後 pipeline（21:30，融資券約 21:00 才齊）。
+  安裝：deploy/launchd/install.sh
+  路徑以本機專案為準；搬移專案後請同步修改下方 WorkingDirectory 與 Program。
+  關機 / 睡眠錯過 21:30：launchd 會在機器喚醒後補跑一次（搭配 pipeline 冪等）。
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.twassistant.daily</string>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/panbaiyu/Desktop/python/TWAssisant/backend</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/panbaiyu/Desktop/python/TWAssisant/backend/.venv/bin/python</string>
+        <string>-m</string>
+        <string>app.scheduler.run</string>
+    </array>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>21</integer>
+        <key>Minute</key>
+        <integer>30</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/panbaiyu/Desktop/python/TWAssisant/backend/data/pipeline.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/panbaiyu/Desktop/python/TWAssisant/backend/data/pipeline.err.log</string>
+</dict>
+</plist>

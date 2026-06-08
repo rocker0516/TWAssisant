@@ -1,0 +1,242 @@
+"""FinMind 來源：主檔 + 籌碼 + 基本面。
+
+流量三招（架構②）：
+  1. 按日期全市場端點（stock_ids=None → 不帶 data_id，一次抓整個市場）
+  2. 增量抓（FetchStep 只給 last_date+1 ~ today）
+  3. token bucket 限流 + 退避重試（BaseSource 已提供）
+
+FinMind v4 data 端點回 {status, msg, data:[...]}，status!=200 視為失敗。
+"""
+
+from __future__ import annotations
+
+from datetime import date
+
+import pandas as pd
+
+from .base import BaseSource, SourceError
+from .interfaces import ChipProvider, FundamentalProvider, PriceProvider, UniverseProvider
+from . import schemas
+
+_FOREIGN = {"Foreign_Investor", "Foreign_Dealer_Self"}
+_TRUST = {"Investment_Trust"}
+_DEALER = {"Dealer_self", "Dealer_Hedging"}
+
+
+class FinMindSource(BaseSource, UniverseProvider, PriceProvider, ChipProvider, FundamentalProvider):
+    name = "finmind"
+    base_url = "https://api.finmindtrade.com/api/v4"
+    requires_token = True
+
+    # ── 底層：呼叫 data 端點 ──
+
+    def _data(
+        self,
+        dataset: str,
+        start: date | None = None,
+        end: date | None = None,
+        data_id: str | None = None,
+    ) -> pd.DataFrame:
+        params: dict[str, str] = {"dataset": dataset}
+        if data_id:
+            params["data_id"] = data_id
+        if start:
+            params["start_date"] = start.isoformat()
+        if end:
+            params["end_date"] = end.isoformat()
+        if self.token:
+            params["token"] = self.token
+
+        resp = self._request("/data", params=params)
+        payload = resp.json()
+        status = payload.get("status")
+        if status != 200:
+            msg = payload.get("msg", "unknown")
+            # 402 / upper limit → 當作限流原因回報
+            raise SourceError(f"FinMind {status}: {msg}", status=status)
+        return pd.DataFrame(payload.get("data", []))
+
+    def _probe(self) -> None:
+        # 抓台積電一天，驗 token 與連線
+        self._data("TaiwanStockPrice", date(2024, 1, 2), date(2024, 1, 2), data_id="2330")
+
+    # ── UniverseProvider ──
+
+    def fetch_universe(self) -> pd.DataFrame:
+        df = self._data("TaiwanStockInfo")
+        if df.empty:
+            return pd.DataFrame(columns=schemas.UNIVERSE_COLS)
+        out = pd.DataFrame()
+        out["id"] = df["stock_id"].astype(str)
+        out["name"] = df["stock_name"]
+        out["industry_category"] = df.get("industry_category")
+        out["sector_name"] = df.get("industry_category")
+        # type: twse=上市 / tpex=上櫃
+        out["market"] = df.get("type", pd.Series()).map({"twse": "上市", "tpex": "上櫃"})
+        out["listed_date"] = pd.to_datetime(df.get("date"), errors="coerce").dt.date
+        out["is_etf"] = df.get("industry_category", "").eq("ETF") | out["id"].str.startswith("00")
+        # 同股號可能多列，留一筆
+        out = out.drop_duplicates(subset=["id"], keep="first")
+        return out[schemas.UNIVERSE_COLS]
+
+    # ── PriceProvider（全市場日K：TaiwanStockPrice 支援 by-date 一次抓）──
+
+    def fetch_prices(
+        self, start: date, end: date, stock_ids: list[str] | None = None
+    ) -> pd.DataFrame:
+        df = self._data(
+            "TaiwanStockPrice",
+            start,
+            end,
+            data_id=stock_ids[0] if stock_ids and len(stock_ids) == 1 else None,
+        )
+        if df.empty:
+            return pd.DataFrame(columns=schemas.PRICE_COLS)
+        out = pd.DataFrame()
+        out["stock_id"] = df["stock_id"].astype(str)
+        out["date"] = pd.to_datetime(df["date"]).dt.date
+        out["open"] = pd.to_numeric(df["open"], errors="coerce")
+        out["high"] = pd.to_numeric(df["max"], errors="coerce")
+        out["low"] = pd.to_numeric(df["min"], errors="coerce")
+        out["close"] = pd.to_numeric(df["close"], errors="coerce")
+        out["volume"] = pd.to_numeric(df["Trading_Volume"], errors="coerce").astype("Int64")
+        out["turnover"] = pd.to_numeric(df["Trading_money"], errors="coerce")
+        return out[schemas.PRICE_COLS]
+
+    # ── ChipProvider ──
+
+    def fetch_institutional(
+        self, start: date, end: date, stock_ids: list[str] | None = None
+    ) -> pd.DataFrame:
+        df = self._data(
+            "TaiwanStockInstitutionalInvestorsBuySell",
+            start,
+            end,
+            data_id=stock_ids[0] if stock_ids and len(stock_ids) == 1 else None,
+        )
+        if df.empty:
+            return pd.DataFrame(columns=schemas.INSTITUTIONAL_COLS)
+        df["buy"] = pd.to_numeric(df["buy"], errors="coerce").fillna(0)
+        df["sell"] = pd.to_numeric(df["sell"], errors="coerce").fillna(0)
+        df["net"] = (df["buy"] - df["sell"]) / 1000.0  # 股 → 張
+
+        def bucket(name: str) -> str:
+            if name in _FOREIGN:
+                return "foreign_net"
+            if name in _TRUST:
+                return "trust_net"
+            if name in _DEALER:
+                return "dealer_net"
+            return "other"
+
+        df["cat"] = df["name"].map(bucket)
+        pivot = (
+            df.pivot_table(index=["date", "stock_id"], columns="cat", values="net", aggfunc="sum")
+            .reset_index()
+        )
+        for col in ("foreign_net", "trust_net", "dealer_net"):
+            if col not in pivot:
+                pivot[col] = 0
+        out = pd.DataFrame()
+        out["stock_id"] = pivot["stock_id"].astype(str)
+        out["date"] = pd.to_datetime(pivot["date"]).dt.date
+        for col in ("foreign_net", "trust_net", "dealer_net"):
+            out[col] = pivot[col].round().astype("Int64")
+        out["total_net"] = (pivot["foreign_net"] + pivot["trust_net"] + pivot["dealer_net"]).round().astype("Int64")
+        return out[schemas.INSTITUTIONAL_COLS]
+
+    def fetch_margin(
+        self, start: date, end: date, stock_ids: list[str] | None = None
+    ) -> pd.DataFrame:
+        df = self._data(
+            "TaiwanStockMarginPurchaseShortSale",
+            start,
+            end,
+            data_id=stock_ids[0] if stock_ids and len(stock_ids) == 1 else None,
+        )
+        if df.empty:
+            return pd.DataFrame(columns=schemas.MARGIN_COLS)
+        num = lambda c: pd.to_numeric(df.get(c), errors="coerce")  # noqa: E731
+        out = pd.DataFrame()
+        out["stock_id"] = df["stock_id"].astype(str)
+        out["date"] = pd.to_datetime(df["date"]).dt.date
+        out["margin_balance"] = num("MarginPurchaseTodayBalance").astype("Int64")
+        out["margin_change"] = (
+            num("MarginPurchaseTodayBalance") - num("MarginPurchaseYesterdayBalance")
+        ).astype("Int64")
+        out["short_balance"] = num("ShortSaleTodayBalance").astype("Int64")
+        out["short_change"] = (
+            num("ShortSaleTodayBalance") - num("ShortSaleYesterdayBalance")
+        ).astype("Int64")
+        return out[schemas.MARGIN_COLS]
+
+    # ── FundamentalProvider ──
+
+    def fetch_revenue_monthly(
+        self, start: date, end: date, stock_ids: list[str] | None = None
+    ) -> pd.DataFrame:
+        df = self._data(
+            "TaiwanStockMonthRevenue",
+            start,
+            end,
+            data_id=stock_ids[0] if stock_ids and len(stock_ids) == 1 else None,
+        )
+        if df.empty:
+            return pd.DataFrame(columns=schemas.REVENUE_COLS)
+        out = pd.DataFrame()
+        out["stock_id"] = df["stock_id"].astype(str)
+        out["year"] = pd.to_numeric(df["revenue_year"], errors="coerce").astype("Int64")
+        out["month"] = pd.to_numeric(df["revenue_month"], errors="coerce").astype("Int64")
+        out["revenue"] = pd.to_numeric(df["revenue"], errors="coerce")
+        out["yoy"] = None  # YoY/MoM 由 P1 引擎用歷史月營收回算
+        out["mom"] = None
+        return out[schemas.REVENUE_COLS]
+
+    def fetch_financials(
+        self, start: date, end: date, stock_ids: list[str] | None = None
+    ) -> pd.DataFrame:
+        """FinancialStatements 為 long 格式（type/value），pivot 取 EPS 等。"""
+        df = self._data(
+            "TaiwanStockFinancialStatements",
+            start,
+            end,
+            data_id=stock_ids[0] if stock_ids and len(stock_ids) == 1 else None,
+        )
+        if df.empty:
+            return pd.DataFrame(columns=schemas.FINANCIAL_COLS)
+        df["value"] = pd.to_numeric(df["value"], errors="coerce")
+        pivot = (
+            df.pivot_table(index=["stock_id", "date"], columns="type", values="value", aggfunc="last")
+            .reset_index()
+        )
+        d = pd.to_datetime(pivot["date"])
+        out = pd.DataFrame()
+        out["stock_id"] = pivot["stock_id"].astype(str)
+        out["year"] = d.dt.year
+        out["quarter"] = d.dt.quarter
+        out["eps"] = pivot.get("EPS")
+        out["revenue"] = pivot.get("Revenue")
+        out["gross_margin"] = None
+        out["op_margin"] = None
+        out["net_margin"] = None
+        out["roe"] = None
+        return out[schemas.FINANCIAL_COLS]
+
+    def fetch_valuation(
+        self, start: date, end: date, stock_ids: list[str] | None = None
+    ) -> pd.DataFrame:
+        df = self._data(
+            "TaiwanStockPER",
+            start,
+            end,
+            data_id=stock_ids[0] if stock_ids and len(stock_ids) == 1 else None,
+        )
+        if df.empty:
+            return pd.DataFrame(columns=schemas.VALUATION_COLS)
+        out = pd.DataFrame()
+        out["stock_id"] = df["stock_id"].astype(str)
+        out["date"] = pd.to_datetime(df["date"]).dt.date
+        out["pe"] = pd.to_numeric(df.get("PER"), errors="coerce")
+        out["pb"] = pd.to_numeric(df.get("PBR"), errors="coerce")
+        out["dividend_yield"] = pd.to_numeric(df.get("dividend_yield"), errors="coerce")
+        return out[schemas.VALUATION_COLS]

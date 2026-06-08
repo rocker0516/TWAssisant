@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  font-family: "Noto Sans TC", -apple-system, "PingFang TC", "Segoe UI", sans-serif;
+  background: theme(colors.bg);
+  color: #e6e8ee;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: theme(colors.edge);
+  border-radius: 5px;
+}
