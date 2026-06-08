@@ -82,6 +82,13 @@ class ScoringEngine(BaseEngine):
             ["eps", "gross_margin", "op_margin", "net_margin", "roe"],
             [models.FinancialQuarter.stock_id, models.FinancialQuarter.year, models.FinancialQuarter.quarter],
         )
+        # 類股方向（P3）→ Track 算 sector_adjust
+        sector_daily = {
+            sd.sector_id: sd
+            for sd in session.execute(
+                select(models.SectorDaily).where(models.SectorDaily.date == td)
+            ).scalars().all()
+        }
 
         rows: list[dict] = []
         scored = 0
@@ -101,6 +108,7 @@ class ScoringEngine(BaseEngine):
                 valuation=valuation.get(sid),
                 revenue=revenue.get(sid),
                 financials=financials.get(sid),
+                sector=sector_daily.get(stock.sector_id),
             )
             for track in self.tracks:
                 rows.append(track.evaluate(ctx, config.get(track.track_key, {})))

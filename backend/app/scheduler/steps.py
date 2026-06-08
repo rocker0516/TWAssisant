@@ -14,6 +14,7 @@ from sqlalchemy import select
 from ..engines.exit_engine import ExitEngine
 from ..engines.indicators import IndicatorEngine
 from ..engines.scoring import ScoringEngine
+from ..engines.sector_engine import SectorEngine
 from ..notify import build_daily_message, send_discord
 from ..sources import registry
 from ..sources.base import SourceError
@@ -153,8 +154,18 @@ class IndicatorStep(PipelineStep):
         return IndicatorEngine().run(ctx.session, ctx.trading_date)
 
 
+class SectorStep(PipelineStep):
+    """類股強弱/方向/輪動 → sector_daily（P3）。需在 Scoring 前。"""
+
+    name = "sector"
+    required = True
+
+    def run(self, ctx: PipelineContext) -> dict:
+        return SectorEngine().run(ctx.session, ctx.trading_date)
+
+
 class ScoringStep(PipelineStep):
-    """雙軌評分 → scores（P1）。"""
+    """雙軌評分 → scores（P1，含類股修正）。"""
 
     name = "scoring"
     required = True

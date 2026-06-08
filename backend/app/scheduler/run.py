@@ -12,14 +12,21 @@ from datetime import date, datetime
 
 from ..storage.database import init_db
 from .pipeline import DailyPipeline
-from .steps import ExitStep, FetchStep, IndicatorStep, NotifyStep, ScoringStep
+from .steps import (
+    ExitStep,
+    FetchStep,
+    IndicatorStep,
+    NotifyStep,
+    ScoringStep,
+    SectorStep,
+)
 from .trading_calendar import is_trading_day, resolve_trading_date
 
 
 def build_pipeline() -> DailyPipeline:
-    # 後續階段在此追加 Sector/News/LLM steps
+    # 執行順序（依賴）：Fetch→Indicator→Sector→Scoring→Exit→Notify。News/LLM 後續加。
     return DailyPipeline(
-        steps=[FetchStep(), IndicatorStep(), ScoringStep(), ExitStep(), NotifyStep()]
+        steps=[FetchStep(), IndicatorStep(), SectorStep(), ScoringStep(), ExitStep(), NotifyStep()]
     )
 
 

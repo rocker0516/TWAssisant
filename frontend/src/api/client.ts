@@ -12,6 +12,10 @@ export type HoldingItem = components["schemas"]["HoldingItem"];
 export type HoldingCreate = components["schemas"]["HoldingCreate"];
 export type TransactionCreate = components["schemas"]["TransactionCreate"];
 export type HoldingPatch = components["schemas"]["HoldingPatch"];
+export type SectorList = components["schemas"]["SectorList"];
+export type SectorItem = components["schemas"]["SectorItem"];
+export type SectorDetail = components["schemas"]["SectorDetail"];
+export type SectorConstituent = components["schemas"]["SectorConstituent"];
 
 export type Track = "wave" | "long";
 export type HoldingStatus = "open" | "closed";
@@ -103,5 +107,19 @@ export function useDeleteHolding() {
   return useMutation({
     mutationFn: (id: number) => sendJson<{ ok: boolean }>("DELETE", `/holdings/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["holdings"] }),
+  });
+}
+
+// ── 類股 ──
+
+export function useSectors() {
+  return useQuery({ queryKey: ["sectors"], queryFn: () => getJson<SectorList>("/sectors") });
+}
+
+export function useSectorDetail(sectorId: string | undefined) {
+  return useQuery({
+    queryKey: ["sector", sectorId],
+    queryFn: () => getJson<SectorDetail>(`/sectors/${sectorId}`),
+    enabled: !!sectorId,
   });
 }

@@ -34,6 +34,25 @@ class Track(ABC):
         overrides = (config or {}).get("weights", {})
         return {s.category: overrides.get(s.category, s.default_weight) for s in self.scorers}
 
+    def _sector_adjust(self, ctx: StockContext) -> tuple[float, str | None]:
+        """類股修正（設計定案）：波段=強勢加分/弱勢扣分但不排除；長線=輕加分。±5~10。"""
+        sd = ctx.sector
+        if sd is None:
+            return 0.0, None
+        strength = sd.strength_score if sd.strength_score is not None else 50.0
+        if self.track_key == "wave":
+            if strength >= 65 or sd.trend_short == "偏多":
+                return 5.0, "類股偏多 +5"
+            if strength <= 40 or sd.trend_short == "偏空":
+                return -8.0, "類股偏空 −8"
+            return 0.0, None
+        # long：輕加分、不排除
+        if sd.trend_long == "偏多":
+            return 5.0, "類股中長多 +5"
+        if sd.trend_long == "偏空":
+            return -3.0, "類股中長空 −3"
+        return 0.0, None
+
     def evaluate(self, ctx: StockContext, config: dict | None = None) -> dict:
         config = config or {}
         threshold = config.get("threshold", self.default_threshold)
@@ -52,7 +71,9 @@ class Track(ABC):
         weights = self._weights(config)
         total = float(WeightedScorer.weighted_total(sub_scores, weights))
 
-        sector_adjust = 0.0  # P3 SectorEngine 接入
+        sector_adjust, sector_reason = self._sector_adjust(ctx)
+        if sector_reason:
+            reasons.append(sector_reason)
         total = float(round(min(100.0, max(0.0, total + sector_adjust)), 2))
 
         plan = self._stoploss.compute(ctx, self.track_key)

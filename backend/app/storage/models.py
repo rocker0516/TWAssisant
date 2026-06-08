@@ -192,7 +192,14 @@ class SectorDaily(Base):
     rotation_stage: Mapped[str | None] = mapped_column(String(20))  # 起漲/主升/高檔鈍化/轉弱/破底
     momentum_5: Mapped[float | None] = mapped_column(Float)
     momentum_20: Mapped[float | None] = mapped_column(Float)
-    foreign_net: Mapped[int | None] = mapped_column(Integer)
+    foreign_net: Mapped[int | None] = mapped_column(Integer)  # 近5日法人淨買超（張）
+    # 三維度子分數 + 熱力圖/排行用
+    dim_momentum: Mapped[float | None] = mapped_column(Float)
+    dim_fund: Mapped[float | None] = mapped_column(Float)
+    dim_tech: Mapped[float | None] = mapped_column(Float)
+    turnover_share: Mapped[float | None] = mapped_column(Float)  # 成交佔比 %（熱力圖大小）
+    above_ma20: Mapped[float | None] = mapped_column(Float)  # 站上月線家數比
+    constituents: Mapped[int | None] = mapped_column(Integer)
 
 
 # ─────────────────────────── E 引擎結果（前端只讀）───────────────────────────

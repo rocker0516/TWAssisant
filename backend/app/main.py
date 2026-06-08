@@ -16,6 +16,7 @@ from sqlalchemy import func, select
 
 from .api.routes import router as api_router
 from .api.routes_holdings import router as holdings_router
+from .api.routes_sectors import router as sectors_router
 from .config import settings
 from .credentials import set_token
 from .sources import registry
@@ -33,6 +34,7 @@ app.add_middleware(
 
 app.include_router(api_router)
 app.include_router(holdings_router)
+app.include_router(sectors_router)
 
 
 @app.on_event("startup")

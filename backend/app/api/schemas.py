@@ -187,3 +187,44 @@ class HoldingsResponse(BaseModel):
     status: str
     items: list[HoldingItem]
     summary: HoldingsSummary
+
+
+# ─────────── 類股（P3）───────────
+
+
+class SectorItem(BaseModel):
+    id: int
+    name: str
+    strength_score: float | None
+    dim_momentum: float | None
+    dim_fund: float | None
+    dim_tech: float | None
+    trend_short: str | None
+    trend_long: str | None
+    rotation_stage: str | None
+    momentum_5: float | None
+    momentum_20: float | None
+    foreign_net: int | None
+    turnover_share: float | None
+    above_ma20: float | None
+    constituents: int | None
+
+
+class SectorList(BaseModel):
+    date: date | None
+    items: list[SectorItem]
+
+
+class SectorConstituent(BaseModel):
+    stock_id: str
+    name: str
+    close: float | None
+    change_pct: float | None
+    wave_score: float | None
+    long_score: float | None
+    recommended: bool
+
+
+class SectorDetail(BaseModel):
+    sector: SectorItem
+    constituents: list[SectorConstituent]

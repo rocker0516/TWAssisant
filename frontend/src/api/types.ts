@@ -108,6 +108,40 @@ export interface paths {
         patch: operations["patch_holding_holdings__holding_id__patch"];
         trace?: never;
     };
+    "/sectors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Sectors */
+        get: operations["list_sectors_sectors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sectors/{sector_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Sector Detail */
+        get: operations["sector_detail_sectors__sector_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -461,6 +495,69 @@ export interface components {
             /** Reasons */
             reasons: string[] | null;
         };
+        /** SectorConstituent */
+        SectorConstituent: {
+            /** Stock Id */
+            stock_id: string;
+            /** Name */
+            name: string;
+            /** Close */
+            close: number | null;
+            /** Change Pct */
+            change_pct: number | null;
+            /** Wave Score */
+            wave_score: number | null;
+            /** Long Score */
+            long_score: number | null;
+            /** Recommended */
+            recommended: boolean;
+        };
+        /** SectorDetail */
+        SectorDetail: {
+            sector: components["schemas"]["SectorItem"];
+            /** Constituents */
+            constituents: components["schemas"]["SectorConstituent"][];
+        };
+        /** SectorItem */
+        SectorItem: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Strength Score */
+            strength_score: number | null;
+            /** Dim Momentum */
+            dim_momentum: number | null;
+            /** Dim Fund */
+            dim_fund: number | null;
+            /** Dim Tech */
+            dim_tech: number | null;
+            /** Trend Short */
+            trend_short: string | null;
+            /** Trend Long */
+            trend_long: string | null;
+            /** Rotation Stage */
+            rotation_stage: string | null;
+            /** Momentum 5 */
+            momentum_5: number | null;
+            /** Momentum 20 */
+            momentum_20: number | null;
+            /** Foreign Net */
+            foreign_net: number | null;
+            /** Turnover Share */
+            turnover_share: number | null;
+            /** Above Ma20 */
+            above_ma20: number | null;
+            /** Constituents */
+            constituents: number | null;
+        };
+        /** SectorList */
+        SectorList: {
+            /** Date */
+            date: string | null;
+            /** Items */
+            items: components["schemas"]["SectorItem"][];
+        };
         /** StockDetail */
         StockDetail: {
             /** Stock Id */
@@ -809,6 +906,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HoldingItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_sectors_sectors_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SectorList"];
+                };
+            };
+        };
+    };
+    sector_detail_sectors__sector_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sector_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SectorDetail"];
                 };
             };
             /** @description Validation Error */
