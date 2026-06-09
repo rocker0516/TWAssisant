@@ -89,6 +89,16 @@ class ScoringEngine(BaseEngine):
                 select(models.SectorDaily).where(models.SectorDaily.date == td)
             ).scalars().all()
         }
+        # 處置警示（近15日）→ 共用硬篩排除（不推薦處置股）。一次撈，規則不各自查 DB。
+        from datetime import timedelta
+
+        disposed: dict[str, list] = {}
+        for ev in session.execute(
+            select(models.Event).where(
+                models.Event.category == "處置警示", models.Event.date >= td - timedelta(days=15)
+            )
+        ).scalars().all():
+            disposed.setdefault(ev.stock_id, []).append(ev)
 
         rows: list[dict] = []
         scored = 0
@@ -109,6 +119,7 @@ class ScoringEngine(BaseEngine):
                 revenue=revenue.get(sid),
                 financials=financials.get(sid),
                 sector=sector_daily.get(stock.sector_id),
+                events=disposed.get(sid),
             )
             for track in self.tracks:
                 rows.append(track.evaluate(ctx, config.get(track.track_key, {})))

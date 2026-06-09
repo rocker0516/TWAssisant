@@ -49,9 +49,9 @@ class Settings(BaseSettings):
     source_bindings: dict[str, str] = Field(
         default_factory=lambda: {
             "universe": "finmind",
-            "price": "twse",
-            "chip": "twse",
-            "fundamental": "twse",
+            "price": "twmarket",  # 上市(TWSE)+上櫃(TPEX) 合併
+            "chip": "twmarket",
+            "fundamental": "twse",  # 估值/營收/財報目前僅上市，上櫃待補
             "news": "twse",
         }
     )
@@ -63,6 +63,7 @@ class Settings(BaseSettings):
             "finmind": {"rate": 0.8, "capacity": 5, "timeout": 20.0},
             "fugle": {"rate": 3.0, "capacity": 10, "timeout": 15.0},
             "twse": {"rate": 1.0, "capacity": 3, "timeout": 20.0},
+            "tpex": {"rate": 1.0, "capacity": 3, "timeout": 25.0},
         }
     )
 

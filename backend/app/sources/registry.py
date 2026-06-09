@@ -17,6 +17,8 @@ from .interfaces import (
     PriceProvider,
     UniverseProvider,
 )
+from .combined import CombinedMarketSource
+from .tpex import TpexSource
 from .twse import TwseSource
 
 # 來源名稱 → 類別
@@ -24,6 +26,8 @@ _SOURCE_CLASSES: dict[str, type[BaseSource]] = {
     "finmind": FinMindSource,
     "fugle": FugleSource,
     "twse": TwseSource,
+    "tpex": TpexSource,
+    "twmarket": CombinedMarketSource,
 }
 
 # 能力 → 期望介面（給型別檢查 / 文件）

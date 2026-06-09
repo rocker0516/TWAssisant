@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+import math
+
 import pandas as pd
 
 from .base import FilterRule, ScoreRule, clamp
@@ -73,7 +75,13 @@ class GrowthScore(ScoreRule):
 
     def score(self, ctx: StockContext) -> float:
         yoy = _get(ctx.revenue, "yoy")
-        return clamp(50 + yoy * 2.5) if yoy is not None else 0.0  # ±20% → 0~100
+        if yoy is None:
+            return 0.0
+        # 對數壓縮：中度成長給合理分、極端值（營建股完工認列 +數千%）邊際遞減，
+        # 避免單月 YoY 灌爆並霸榜。負成長線性扣分。
+        if yoy >= 0:
+            return clamp(50 + 30 * math.log10(1 + yoy / 15))
+        return clamp(50 + yoy)
 
     def reason(self, ctx, value):
         yoy = _get(ctx.revenue, "yoy")

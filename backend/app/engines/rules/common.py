@@ -1,8 +1,7 @@
 """共用硬篩（兩軌通用，架構③ COMMON_FILTERS）。
 
-設計定案：排除 ETF / 近20日均量≥500張 / 掛牌滿60交易日。
-全額交割·處置·警示·連續漲跌停·暴量異常：尚無資料源，P4 接重訊/狀態後補
-（先以暴量過濾擋掉最離譜的異常）。
+設計定案：排除 ETF / 近20日均量≥500張 / 掛牌滿60交易日 / 處置警示（P4 資料）。
+全額交割·連續漲跌停：尚無資料源（先以暴量過濾擋掉最離譜的異常）。
 """
 
 from __future__ import annotations
@@ -51,9 +50,21 @@ class NotAbnormalVolumeFilter(FilterRule):
         return vol <= vma * 6
 
 
+class NotDisposedFilter(FilterRule):
+    """排除處置 / 警示股（ctx.events 由 ScoringEngine 載入近期處置警示）。"""
+
+    name = "not_disposed"
+
+    def passes(self, ctx: StockContext) -> bool:
+        if not ctx.events:
+            return True
+        return not any(e.category == "處置警示" for e in ctx.events)
+
+
 COMMON_FILTERS: list[FilterRule] = [
     NotEtfFilter(),
     MinLiquidityFilter(),
     ListedLongEnoughFilter(),
     NotAbnormalVolumeFilter(),
+    NotDisposedFilter(),
 ]
