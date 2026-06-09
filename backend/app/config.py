@@ -51,7 +51,7 @@ class Settings(BaseSettings):
             "universe": "finmind",
             "price": "twmarket",  # 上市(TWSE)+上櫃(TPEX) 合併
             "chip": "twmarket",
-            "fundamental": "twse",  # 估值/營收/財報目前僅上市，上櫃待補
+            "fundamental": "twmarket",  # 估值/營收/財報 上市+上櫃
             "news": "twse",
         }
     )

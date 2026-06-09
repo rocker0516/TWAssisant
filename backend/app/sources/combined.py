@@ -11,12 +11,12 @@ from datetime import date
 import pandas as pd
 
 from .base import BaseSource, SourceError
-from .interfaces import ChipProvider, PriceProvider
+from .interfaces import ChipProvider, FundamentalProvider, PriceProvider
 from .tpex import TpexSource
 from .twse import TwseSource
 
 
-class CombinedMarketSource(BaseSource, PriceProvider, ChipProvider):
+class CombinedMarketSource(BaseSource, PriceProvider, ChipProvider, FundamentalProvider):
     name = "twmarket"
     requires_token = False
 
@@ -52,6 +52,18 @@ class CombinedMarketSource(BaseSource, PriceProvider, ChipProvider):
     def fetch_margin(self, start, end, stock_ids=None):
         from . import schemas
         return self._merge("fetch_margin", start, end, schemas.MARGIN_COLS)
+
+    def fetch_valuation(self, start, end, stock_ids=None):
+        from . import schemas
+        return self._merge("fetch_valuation", start, end, schemas.VALUATION_COLS)
+
+    def fetch_revenue_monthly(self, start, end, stock_ids=None):
+        from . import schemas
+        return self._merge("fetch_revenue_monthly", start, end, schemas.REVENUE_COLS)
+
+    def fetch_financials(self, start, end, stock_ids=None):
+        from . import schemas
+        return self._merge("fetch_financials", start, end, schemas.FINANCIAL_COLS)
 
     def health(self) -> dict:
         return {"name": self.name, "twse": self._twse.health(), "tpex": self._tpex.health()}

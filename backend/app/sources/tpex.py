@@ -11,14 +11,15 @@ from datetime import date, timedelta
 import pandas as pd
 
 from .base import BaseSource
-from .interfaces import ChipProvider, PriceProvider
-from .twse import _UA, _cell, _num
+from .interfaces import ChipProvider, FundamentalProvider, PriceProvider
+from .twse import _UA, _cell, _num, _roc_ym
 from . import schemas
 
 _BASE = "https://www.tpex.org.tw/www/zh-tw"
+_OPENAPI = "https://www.tpex.org.tw/openapi/v1"
 
 
-class TpexSource(BaseSource, PriceProvider, ChipProvider):
+class TpexSource(BaseSource, PriceProvider, ChipProvider, FundamentalProvider):
     name = "tpex"
     base_url = _BASE
     requires_token = False
@@ -103,6 +104,59 @@ class TpexSource(BaseSource, PriceProvider, ChipProvider):
         for c in ("foreign_net", "trust_net", "dealer_net", "total_net"):
             df[c] = df[c].astype("Int64")
         return df[schemas.INSTITUTIONAL_COLS]
+
+    # ── FundamentalProvider（上櫃，openapi 當日/最新快照）──
+
+    def _openapi(self, name: str) -> list[dict]:
+        data = self._request(f"{_OPENAPI}/{name}").json()
+        return data if isinstance(data, list) else []
+
+    def fetch_valuation(self, start: date, end: date, stock_ids: list[str] | None = None) -> pd.DataFrame:
+        rows: list[dict] = []
+        for r in self._openapi("tpex_mainboard_peratio_analysis"):
+            sid = (r.get("SecuritiesCompanyCode") or "").strip()
+            if not sid:
+                continue
+            rows.append({
+                "stock_id": sid, "date": end,  # 快照，戳當期日期
+                "pe": _num(r.get("PriceEarningRatio")), "pb": _num(r.get("PriceBookRatio")),
+                "dividend_yield": _num(r.get("YieldRatio")),
+            })
+        return pd.DataFrame(rows)[schemas.VALUATION_COLS] if rows else pd.DataFrame(columns=schemas.VALUATION_COLS)
+
+    def fetch_revenue_monthly(self, start: date, end: date, stock_ids: list[str] | None = None) -> pd.DataFrame:
+        rows: list[dict] = []
+        for r in self._openapi("mopsfin_t187ap05_O"):
+            year, month = _roc_ym(r.get("資料年月", ""))
+            if year is None:
+                continue
+            rows.append({
+                "stock_id": str(r.get("公司代號", "")).strip(), "year": year, "month": month,
+                "revenue": _num(r.get("營業收入-當月營收")), "yoy": _num(r.get("營業收入-去年同月增減(%)")),
+                "mom": _num(r.get("營業收入-上月比較增減(%)")),
+            })
+        return pd.DataFrame(rows)[schemas.REVENUE_COLS] if rows else pd.DataFrame(columns=schemas.REVENUE_COLS)
+
+    def fetch_financials(self, start: date, end: date, stock_ids: list[str] | None = None) -> pd.DataFrame:
+        rows: list[dict] = []
+        for r in self._openapi("mopsfin_t187ap14_O"):
+            y = _num(r.get("Year"))
+            q = _num(r.get("季別"))
+            if y is None or q is None:
+                continue
+            year = int(y) + 1911 if y < 1911 else int(y)
+            rev = _num(r.get("營業收入"))
+            op = _num(r.get("營業利益"))
+            net = _num(r.get("稅後淨利"))
+            rows.append({
+                "stock_id": str(r.get("SecuritiesCompanyCode", "")).strip(), "year": year, "quarter": int(q),
+                "eps": _num(r.get("基本每股盈餘")), "revenue": rev,
+                "gross_margin": None,
+                "op_margin": round(op / rev * 100, 2) if rev and op is not None else None,
+                "net_margin": round(net / rev * 100, 2) if rev and net is not None else None,
+                "roe": None,
+            })
+        return pd.DataFrame(rows)[schemas.FINANCIAL_COLS] if rows else pd.DataFrame(columns=schemas.FINANCIAL_COLS)
 
     def fetch_margin(self, start: date, end: date, stock_ids: list[str] | None = None) -> pd.DataFrame:
         # 位置：2前資餘 6資餘 10前券餘 14券餘（張）
