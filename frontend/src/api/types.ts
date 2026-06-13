@@ -1063,6 +1063,8 @@ export interface components {
             loss_pct: number | null;
             /** Reasons */
             reasons: string[] | null;
+            /** Spark */
+            spark?: number[] | null;
         };
         /** RecommendationList */
         RecommendationList: {

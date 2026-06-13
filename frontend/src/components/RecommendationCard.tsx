@@ -4,6 +4,7 @@ import { changeColor, fmtNum, fmtPct, positionMeta, TRACK_LABELS } from "../lib/
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { ReasonChips } from "./ReasonChips";
 import { ScoreDisplay } from "./ScoreDisplay";
+import { Sparkline } from "./Sparkline";
 
 export function RecommendationCard({ item }: { item: RecommendationItem }) {
   return (
@@ -39,6 +40,8 @@ export function RecommendationCard({ item }: { item: RecommendationItem }) {
           <ConfidenceBadge confidence={item.confidence} coverage={item.coverage} stability={item.stability} />
         </div>
       </div>
+
+      <Sparkline data={item.spark} />
 
       <div className="grid grid-cols-2 gap-2 text-sm">
         <div>

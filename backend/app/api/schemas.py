@@ -42,6 +42,7 @@ class RecommendationItem(BaseModel):
     stop_loss: float | None
     loss_pct: float | None
     reasons: list[str] | None
+    spark: list[float] | None = None  # 近期收盤序列（約近 20 個交易日，由舊到新）
 
 
 class RecommendationList(BaseModel):

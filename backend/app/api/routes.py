@@ -46,25 +46,31 @@ def _threshold(session: Session, track: str) -> float:
     return float(cfg.get(track, {}).get("threshold", 70.0))
 
 
-def _price_change(session: Session, stock_id: str, d: date) -> tuple[float | None, float | None, float | None]:
-    """回 (close, change, change_pct)。"""
+_SPARK_DAYS = 20  # 推薦卡片近期走勢取樣的交易日數
+
+
+def _recent_prices(
+    session: Session, stock_id: str, d: date, n: int = _SPARK_DAYS
+) -> tuple[float | None, float | None, list[float] | None]:
+    """回 (close, change_pct, spark)。spark 為近 n 個交易日收盤、由舊到新。"""
     rows = session.execute(
         select(models.DailyPrice.close)
         .where(models.DailyPrice.stock_id == stock_id, models.DailyPrice.date <= d)
         .order_by(models.DailyPrice.date.desc())
-        .limit(2)
+        .limit(n)
     ).scalars().all()
     if not rows:
         return None, None, None
     close = rows[0]
-    if len(rows) < 2 or rows[1] in (None, 0) or close is None:
-        return close, None, None
-    change = close - rows[1]
-    return close, round(change, 2), round(change / rows[1] * 100, 2)
+    change_pct = None
+    if len(rows) >= 2 and rows[1] not in (None, 0) and close is not None:
+        change_pct = round((close - rows[1]) / rows[1] * 100, 2)
+    spark = [c for c in reversed(rows) if c is not None]
+    return close, change_pct, (spark if len(spark) >= 2 else None)
 
 
 def _to_item(session: Session, sc: models.Score, name: str, sector_name: str | None, d: date) -> RecommendationItem:
-    close, _, change_pct = _price_change(session, sc.stock_id, d)
+    close, change_pct, spark = _recent_prices(session, sc.stock_id, d)
     return RecommendationItem(
         stock_id=sc.stock_id,
         name=name,
@@ -82,6 +88,7 @@ def _to_item(session: Session, sc: models.Score, name: str, sector_name: str | N
         stop_loss=sc.stop_loss,
         loss_pct=sc.loss_pct,
         reasons=sc.reasons,
+        spark=spark,
     )
 
 
