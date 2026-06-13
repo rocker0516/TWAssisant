@@ -17,8 +17,10 @@ from sqlalchemy.orm import Session
 
 from ..llm.assistant import assistant_system, health_facts
 from ..llm.client import HAIKU, SONNET, LLMClient
+from ..llm.tools import ASSISTANT_TOOLS, run_tool
 from ..llm.translators import StockHealthTranslator
 from ..storage import models
+from ..storage.database import session_scope
 from .deps import get_session
 
 router = APIRouter(tags=["assistant"])
@@ -64,6 +66,14 @@ def assistant_chat(body: ChatRequest, session: Session = Depends(get_session)) -
         raise HTTPException(400, "history 不可為空")
 
     def gen():
-        yield from _sse(_client.stream(system, messages, model=SONNET, max_tokens=900))
+        # 串流期間另開一個活的 session 給工具用（請求用 session 在 handler 返回後即關閉）
+        with session_scope() as tool_session:
+            def executor(name: str, tool_input: dict) -> str:
+                return run_tool(tool_session, name, tool_input)
+
+            yield from _sse(_client.stream_tools(
+                system, messages, tools=ASSISTANT_TOOLS, executor=executor,
+                model=SONNET, max_tokens=900,
+            ))
 
     return StreamingResponse(gen(), media_type="text/event-stream")

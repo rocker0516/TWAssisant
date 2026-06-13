@@ -8,7 +8,7 @@ cache_control，同日多檔第2次起命中）、退避重試、失敗回 None�
 from __future__ import annotations
 
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
 from ..credentials import get_token
 
@@ -79,3 +79,35 @@ class LLMClient:
         with client.messages.stream(**kwargs) as stream:
             for text in stream.text_stream:
                 yield text
+
+    def stream_tools(
+        self, system: str, messages: list[dict], *, tools: list[dict],
+        executor: Callable[[str, dict], str], model: str = SONNET, max_tokens: int = 900,
+        max_turns: int = 5,
+    ) -> Iterator[str]:
+        """帶工具的多輪串流（助手 tool-use 用）。
+
+        每輪串流文字 → 若 stop_reason=tool_use，執行工具、把結果回灌再續，直到模型不再叫工具
+        或達 max_turns。executor(name, input)->str 由呼叫端綁定一個活的 DB session。
+        """
+        client = self._ensure()
+        if client is None:
+            yield "（尚未設定 Claude API 金鑰，請至設定頁的資料來源填入）"
+            return
+        msgs = list(messages)
+        sys_blocks = self._system_blocks(system)
+        for _turn in range(max_turns):
+            with client.messages.stream(
+                model=model, max_tokens=max_tokens, system=sys_blocks, messages=msgs, tools=tools,
+            ) as stream:
+                for text in stream.text_stream:
+                    yield text
+                final = stream.get_final_message()
+            if final.stop_reason != "tool_use":
+                return
+            results = [
+                {"type": "tool_result", "tool_use_id": b.id, "content": executor(b.name, b.input)}
+                for b in final.content if getattr(b, "type", "") == "tool_use"
+            ]
+            msgs.append({"role": "assistant", "content": final.content})
+            msgs.append({"role": "user", "content": results})
