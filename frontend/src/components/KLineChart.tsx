@@ -1,12 +1,14 @@
 import { useEffect, useRef } from "react";
-import { createChart, type IChartApi, type Time } from "lightweight-charts";
-import type { Candle } from "../api/client";
+import { createChart, LineStyle, type IChartApi, type Time } from "lightweight-charts";
+import type { Candle, LevelDTO } from "../api/client";
 
 const UP = "#e11d48"; // 紅漲
 const DOWN = "#16a34a"; // 綠跌
 const MA_COLORS: Record<string, string> = { ma5: "#eab308", ma20: "#38bdf8", ma60: "#a855f7" };
+const SUPPORT_COLOR = "#16a34a"; // 支撐：綠
+const RESIST_COLOR = "#e11d48"; // 壓力：紅
 
-export function KLineChart({ candles }: { candles: Candle[] }) {
+export function KLineChart({ candles, levels = [] }: { candles: Candle[]; levels?: LevelDTO[] }) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -53,9 +55,23 @@ export function KLineChart({ candles }: { candles: Candle[] }) {
         })),
     );
 
+    // 支撐/壓力水平線（強度越高線越粗；虛線標價）
+    for (const lv of levels) {
+      if (lv.price == null) continue;
+      const isSup = lv.kind === "support";
+      candleSeries.createPriceLine({
+        price: lv.price,
+        color: isSup ? SUPPORT_COLOR : RESIST_COLOR,
+        lineWidth: lv.strength >= 70 ? 2 : 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: `${isSup ? "支撐" : "壓力"} ${lv.strength}`,
+      });
+    }
+
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [candles]);
+  }, [candles, levels]);
 
   return <div ref={ref} className="h-[420px] w-full" />;
 }
