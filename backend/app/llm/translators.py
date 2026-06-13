@@ -59,6 +59,7 @@ def _levels_facts(levels: list | None) -> str:
 class BaseTranslator(ABC):
     model: str = HAIKU
     role: str = ""
+    max_tokens: int = 700  # 單主題夠用；彙整多標的/多事件的長輸出 digest 各自覆寫調高
 
     @property
     def system(self) -> str:
@@ -68,7 +69,9 @@ class BaseTranslator(ABC):
     def build_facts(self, **data) -> str: ...
 
     def translate(self, client: LLMClient, **data) -> str | None:
-        return client.complete(self.system, self.build_facts(**data), model=self.model)
+        return client.complete(
+            self.system, self.build_facts(**data), model=self.model, max_tokens=self.max_tokens
+        )
 
 
 class SectorTranslator(BaseTranslator):
@@ -187,6 +190,7 @@ def _event_lines(events: list[dict], limit: int) -> str:
 
 
 class NewsMarketTranslator(BaseTranslator):
+    max_tokens = 1200  # 彙整最多 30 則事件、多段落觀察，700 會截尾
     role = ("任務：根據近期全市場的重大訊息與新聞，整理一段『市場層級的消息重點』。"
             "請歸納出主要題材方向、值得留意的利空叢集，給出整體觀察，不要逐條複述標題。")
 
@@ -222,6 +226,7 @@ class NewsStockTranslator(BaseTranslator):
 
 
 class NewsFocusTranslator(BaseTranslator):
+    max_tokens = 1600  # 單篇涵蓋全部持股+觀察標的，逐檔一段，輸出最長
     role = ("任務：針對使用者『持股 + 觀察清單』的標的，整理近期相關消息重點，"
             "特別點出帶利空的標的提醒留意，再點出有題材的標的。請以標的為單位歸納，不要逐條複述標題。")
 
