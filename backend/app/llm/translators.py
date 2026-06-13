@@ -43,6 +43,19 @@ def _net(v: float | None) -> str:
     return "買超" if v > 0 else "賣超" if v < 0 else "持平"
 
 
+def _levels_facts(levels: list | None) -> str:
+    """技術支撐/壓力（量價客觀算出）。這是規範①的刻意例外：這些價位是分析主體，
+    允許 LLM 引用，但不得自行新增或更動數字。回多行字串（空則回空字串）。"""
+    if not levels:
+        return ""
+    lines = ["技術支撐/壓力（系統由均線、波段前低、量價套牢區客觀算出，可引用解讀但勿更改數字）："]
+    for l in levels:
+        side = "支撐" if l.kind == "support" else "壓力"
+        m = "、".join(l.methods[:3])
+        lines.append(f"- {side} {l.price:g}（{m}；距現價{l.distance_pct:+g}%、強度{l.strength}）")
+    return "\n".join(lines) + "\n"
+
+
 class BaseTranslator(ABC):
     model: str = HAIKU
     role: str = ""
@@ -73,15 +86,36 @@ class SectorTranslator(BaseTranslator):
 
 
 class MarketTranslator(BaseTranslator):
-    role = "任務：根據盤後大盤概況做一段盤勢總結。"
+    role = ("任務：根據盤後大盤概況做一段盤勢總結。廣度/分化請依下方『量化指標』陳述，"
+            "不要憑漲跌家數臆測；站上均線占比低或投信買超集中＝廣度差/個股分化。")
 
-    def build_facts(self, *, advancers, decliners, foreign_net, trust_net, turnover_billion) -> str:
-        breadth = "上漲家數明顯居多" if advancers > decliners * 1.3 else (
+    def build_facts(self, *, advancers, decliners, foreign_net, trust_net, turnover_billion,
+                    breadth=None) -> str:
+        ad = "上漲家數明顯居多" if advancers > decliners * 1.3 else (
             "下跌家數明顯居多" if decliners > advancers * 1.3 else "漲跌家數相當")
-        return (
-            f"市場廣度：{breadth}\n外資動向：{_net(foreign_net)}\n投信動向：{_net(trust_net)}\n"
-            f"成交量能：{'相對活絡' if (turnover_billion or 0) > 3000 else '一般'}"
-        )
+        lines = [
+            f"漲跌家數：{ad}（漲 {advancers} / 跌 {decliners}）",
+            f"外資動向：{_net(foreign_net)}",
+            f"投信動向：{_net(trust_net)}",
+            f"成交量能：{'相對活絡' if (turnover_billion or 0) > 3000 else '一般'}",
+        ]
+        b = breadth or {}
+        if b.get("pct_above_ma20") is not None:
+            lvl = "偏弱" if b["pct_above_ma20"] < 40 else ("偏強" if b["pct_above_ma20"] > 60 else "中性")
+            lines.append(
+                f"市場廣度（量化）：站上月線 {b['pct_above_ma20']}%、站上季線 {b.get('pct_above_ma60')}% → {lvl}"
+            )
+        if b.get("foreign_buy_count") is not None:
+            lines.append(
+                f"外資買賣超家數：買超 {b['foreign_buy_count']} 檔 / 賣超 {b['foreign_sell_count']} 檔"
+            )
+        if b.get("trust_buy_count") is not None:
+            conc = b.get("trust_top10_concentration")
+            conc_txt = f"，買超前10檔占 {conc}%（{'高度集中=護盤集中少數' if conc and conc > 50 else '相對分散'}）" if conc is not None else ""
+            lines.append(
+                f"投信買賣超家數：買超 {b['trust_buy_count']} 檔 / 賣超 {b['trust_sell_count']} 檔{conc_txt}"
+            )
+        return "\n".join(lines)
 
 
 class HoldingAlertTranslator(BaseTranslator):
@@ -97,13 +131,107 @@ class HoldingAlertTranslator(BaseTranslator):
 
 
 class StockHealthTranslator(BaseTranslator):
-    role = "任務：對一檔個股做『健檢』，綜合技術、籌碼、基本面與所屬類股，給出整體方向解讀。"
+    role = ("任務：對一檔標的做『健檢』，綜合技術、籌碼、基本面與所屬類股，給出整體方向解讀。"
+            "若提供了技術支撐/壓力，請點出『目前最關鍵的支撐與壓力各一』並說明為何（多來源重疊者較硬），"
+            "以及跌破支撐或站上壓力分別代表的觀察意義；引用系統給的價位即可，勿自行編造數字。"
+            "若為 ETF，則改以 ETF 角度解讀（追蹤標的、類型、規模、技術動能與法人籌碼），"
+            "不要套用個股的月營收/本益比邏輯。")
 
     def build_facts(self, *, name, wave_level, wave_passed, long_level, long_passed,
-                    chip_net, revenue_trend, pe_level, sector_trend, has_risk) -> str:
+                    chip_net, revenue_trend, pe_level, sector_trend, has_risk,
+                    is_etf=False, etf=None, levels=None) -> str:
+        lv = _levels_facts(levels)
+        if is_etf:
+            base = (
+                f"ETF：{name}\n波段軌評分定位：{wave_level}（{'達進場門檻' if wave_passed else '未達門檻'}）\n"
+                f"長線軌評分定位：{long_level}（{'達進場門檻' if long_passed else '未達門檻'}）\n"
+                f"法人籌碼：{_net(chip_net)}\n所屬類股方向：{sector_trend}\n"
+                f"近期是否有重大利空：{'有' if has_risk else '無'}\n"
+                f"{lv}"
+                f"（註：ETF 無個股月營收/本益比，請勿據此評論）"
+            )
+            if not etf:
+                return f"{base}\n基本資料：未涵蓋（多為債券型 ETF，請以技術與籌碼面為主解讀）"
+            idx = etf.get("track_index") or "（主動式／未對應指數）"
+            foreign = etf.get("has_foreign")
+            foreign_txt = "含國外成分股" if foreign else "純國內成分股" if foreign is False else "成分地區未知"
+            scale = etf["scale_label"]
+            scale_txt = scale if etf.get("scale_billion") is None else f"{scale}（約 {etf['scale_billion']:.0f} 億）"
+            return f"{base}\n類型：{etf['kind']}\n追蹤標的：{idx}\n成分地區：{foreign_txt}\n規模：{scale_txt}"
         return (
             f"個股：{name}\n波段軌評分定位：{wave_level}（{'達進場門檻' if wave_passed else '未達門檻'}）\n"
             f"長線軌評分定位：{long_level}（{'達進場門檻' if long_passed else '未達門檻'}）\n"
             f"法人籌碼：{_net(chip_net)}\n月營收趨勢：{revenue_trend}\n估值水準：{pe_level}\n"
-            f"所屬類股方向：{sector_trend}\n近期是否有重大利空：{'有' if has_risk else '無'}"
+            f"所屬類股方向：{sector_trend}\n近期是否有重大利空：{'有' if has_risk else '無'}\n"
+            f"{lv}"
+        ).rstrip()
+
+
+# ─────────────── 近期消息總結（情報頁，架構④）───────────────
+# facts 只放『已蒐集到的事件標題 + 類別 + 質化定位』，要求 LLM 歸納主題/方向，
+# 而非逐條複述標題；不喊單、附免責由 SHARED_RULES 控制。
+
+
+def _event_lines(events: list[dict], limit: int) -> str:
+    """事件條列：日期｜類別｜（個股）標題。category 為利空者標星。"""
+    out: list[str] = []
+    for e in events[:limit]:
+        star = "⚠️" if e.get("is_risk") else ""
+        who = f"{e['name']}｜" if e.get("name") else ""
+        cat = e.get("category") or "中性"
+        out.append(f"- {star}{who}[{cat}] {e['title']}")
+    extra = len(events) - limit
+    if extra > 0:
+        out.append(f"（另有 {extra} 則未列出）")
+    return "\n".join(out) if out else "（近期無顯著事件）"
+
+
+class NewsMarketTranslator(BaseTranslator):
+    role = ("任務：根據近期全市場的重大訊息與新聞，整理一段『市場層級的消息重點』。"
+            "請歸納出主要題材方向、值得留意的利空叢集，給出整體觀察，不要逐條複述標題。")
+
+    def build_facts(self, *, days, total, risk_count, theme_count, events) -> str:
+        return (
+            f"統計窗口：近 {days} 日，共 {total} 則事件（其中重大利空 {risk_count} 則、題材 {theme_count} 則）\n"
+            f"代表性事件：\n{_event_lines(events, 30)}"
         )
+
+
+class NewsThemeTranslator(BaseTranslator):
+    role = ("任務：整理某一『類股』近期的消息重點，幫使用者掌握該族群最近發生什麼。"
+            "請歸納題材與風險方向，結合該類股目前的強弱方向，不要逐條複述標題。")
+
+    def build_facts(self, *, sector, direction, total, risk_count, events) -> str:
+        return (
+            f"類股：{sector}\n目前方向定位：{direction}\n"
+            f"近期事件數：{total}（重大利空 {risk_count} 則）\n"
+            f"事件：\n{_event_lines(events, 15)}"
+        )
+
+
+class NewsStockTranslator(BaseTranslator):
+    role = ("任務：整理某一檔個股近期消息重點，結合其基本面定位給出觀察。"
+            "請歸納消息對營運/題材的意涵與風險，不要逐條複述標題。")
+
+    def build_facts(self, *, name, events, revenue_trend, pe_level, has_risk) -> str:
+        return (
+            f"個股：{name}\n月營收趨勢：{revenue_trend}\n估值水準：{pe_level}\n"
+            f"近期是否有重大利空：{'有' if has_risk else '無'}\n"
+            f"近期事件：\n{_event_lines(events, 15)}"
+        )
+
+
+class NewsFocusTranslator(BaseTranslator):
+    role = ("任務：針對使用者『持股 + 觀察清單』的標的，整理近期相關消息重點，"
+            "特別點出帶利空的標的提醒留意，再點出有題材的標的。請以標的為單位歸納，不要逐條複述標題。")
+
+    def build_facts(self, *, stocks) -> str:
+        # stocks: [{name, role, has_risk, events:[...]}]
+        blocks: list[str] = []
+        for s in stocks:
+            tag = "（持股）" if s.get("role") == "holding" else "（觀察）"
+            risk = "⚠️ 含利空" if s.get("has_risk") else ""
+            titles = "；".join(e["title"] for e in s["events"][:4]) or "近期無顯著消息"
+            blocks.append(f"- {s['name']}{tag}{risk}：{titles}")
+        body = "\n".join(blocks) if blocks else "（持股與觀察清單近期無顯著消息）"
+        return f"關注標的近期消息：\n{body}"

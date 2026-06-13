@@ -16,6 +16,7 @@ from ..engines.exit_engine import ExitEngine
 from ..services.holding_service import HoldingService
 from ..storage import models
 from .client import LLMClient
+from .news_digest import run_news_batch
 from .store import cache_key, put_cached
 from .translators import HoldingAlertTranslator, MarketTranslator, SectorTranslator
 
@@ -64,7 +65,9 @@ def run_batch(session: Session, td: date, client: LLMClient | None = None) -> di
         dec = sum(1 for k, c in cur.items() if c is not None and pv.get(k) is not None and c < pv[k])
         turnover = (session.execute(select(func.sum(models.DailyPrice.turnover)).where(models.DailyPrice.date == td)).scalar() or 0) / 1e8
         f, t = session.execute(select(func.sum(models.Institutional.foreign_net), func.sum(models.Institutional.trust_net)).where(models.Institutional.date == td)).one()
-        text = MarketTranslator().translate(client, advancers=adv, decliners=dec, foreign_net=f, trust_net=t, turnover_billion=turnover)
+        from ..engines.market_breadth import compute_breadth
+        text = MarketTranslator().translate(client, advancers=adv, decliners=dec, foreign_net=f, trust_net=t,
+                                            turnover_billion=turnover, breadth=compute_breadth(session, td))
         if text:
             put_cached(session, cache_key("market", "tw", td), "market", "tw", td, text, model)
             market = 1
@@ -93,4 +96,7 @@ def run_batch(session: Session, td: date, client: LLMClient | None = None) -> di
             holdings += 1
     session.flush()
 
-    return {"status": "ok", "sectors": sectors, "market": market, "holdings": holdings}
+    # 近期消息總結（情報頁四視角）
+    news = run_news_batch(session, td, client)
+
+    return {"status": "ok", "sectors": sectors, "market": market, "holdings": holdings, "news": news}

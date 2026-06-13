@@ -10,8 +10,10 @@ from datetime import date
 
 import pandas as pd
 
+from ..config import settings
 from .base import BaseSource, SourceError
-from .interfaces import ChipProvider, FundamentalProvider, PriceProvider
+from .finmind import FinMindSource
+from .interfaces import ChipProvider, FundamentalProvider, NewsProvider, PriceProvider
 from .tpex import TpexSource
 from .twse import TwseSource
 
@@ -67,3 +69,56 @@ class CombinedMarketSource(BaseSource, PriceProvider, ChipProvider, FundamentalP
 
     def health(self) -> dict:
         return {"name": self.name, "twse": self._twse.health(), "tpex": self._tpex.health()}
+
+
+class CombinedNewsSource(BaseSource, NewsProvider):
+    """合併新聞來源：TWSE 重訊/處置 + FinMind 個股新聞（+ 選用研報）。
+
+    綁定 news → twnews，NewsEngine 一次取得多源事件。單一來源失敗不影響其他
+    （各自 try）。FinMind 需 token，未設定時其 fetch_events 會 SourceError 被略過。
+    研報來源預設關閉（config.research_enabled），易壞故不拖垮主流程。
+    """
+
+    name = "twnews"
+    requires_token = False
+
+    def __init__(self, token: str | None = None) -> None:
+        super().__init__(token)
+        self._twse = TwseSource()
+        self._finmind = FinMindSource()
+
+    def _probe(self) -> None:
+        self._twse._probe()
+
+    def fetch_events(self, start: date, end: date) -> pd.DataFrame:
+        from . import schemas
+
+        subsources: list[NewsProvider] = [self._twse, self._finmind]
+        if settings.research_enabled:
+            from .research import ResearchSource
+
+            subsources.append(ResearchSource())
+
+        frames: list[pd.DataFrame] = []
+        for src in subsources:
+            try:
+                df = src.fetch_events(start, end)
+                if not df.empty:
+                    frames.append(df)
+            except SourceError:
+                continue  # 單一來源失敗，續抓其他
+        if not frames:
+            return pd.DataFrame(columns=schemas.EVENT_COLS)
+        return pd.concat(frames, ignore_index=True)
+
+    def fetch_stock_events(self, stock_id: str, start: date, end: date) -> pd.DataFrame:
+        """逐檔個股新聞：委派給 FinMind（免費層 TaiwanStockNews 逐檔可用）。"""
+        try:
+            return self._finmind.fetch_stock_events(stock_id, start, end)
+        except SourceError:
+            from . import schemas
+
+            return pd.DataFrame(columns=schemas.EVENT_COLS)
+
+    def health(self) -> dict:
+        return {"name": self.name, "twse": self._twse.health(), "finmind": self._finmind.health()}

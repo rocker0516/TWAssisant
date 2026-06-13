@@ -52,7 +52,7 @@ class Settings(BaseSettings):
             "price": "twmarket",  # 上市(TWSE)+上櫃(TPEX) 合併
             "chip": "twmarket",
             "fundamental": "twmarket",  # 估值/營收/財報 上市+上櫃
-            "news": "twse",
+            "news": "twnews",  # TWSE 重訊/處置 + FinMind 個股新聞（合併）
         }
     )
 
@@ -66,6 +66,9 @@ class Settings(BaseSettings):
             "tpex": {"rate": 1.0, "capacity": 3, "timeout": 25.0},
         }
     )
+
+    # --- 外部研報來源（公開研報無穩定免費 API、爬蟲易壞）：預設關閉，留接口供後續補強 ---
+    research_enabled: bool = False
 
     # --- 重試 ---
     max_retries: int = 3

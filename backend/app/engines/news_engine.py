@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 import pandas as pd
 from sqlalchemy import select
@@ -44,13 +44,53 @@ def classify(title: str, summary: str | None) -> tuple[str, bool]:
 class NewsEngine(BaseEngine):
     name = "news"
 
+    # 抓取窗口：給冷啟動/補跑用（重訊/處置為當日快照）。
+    # append-only + (stock_id,date,title) 去重，重跑安全。
+    lookback_days = 7
+    # 個股新聞窗口較短（FinMind 免費層一檔一日一呼叫，控量）。
+    stock_news_days = 3
+    # 最多對幾檔抓個股新聞（持股+觀察+今日推薦，去重後取前 N）。
+    max_focus_news = 30
+
+    def _focus_ids(self, session: Session, td: date) -> list[str]:
+        """聚焦股：持股(open) + 觀察清單 + 今日達門檻推薦（去重保序、取前 N）。"""
+        ids: list[str] = []
+        ids += session.execute(
+            select(models.Holding.stock_id).where(models.Holding.status == "open").distinct()
+        ).scalars().all()
+        ids += session.execute(select(models.WatchlistItem.stock_id).distinct()).scalars().all()
+        ids += session.execute(
+            select(models.Score.stock_id)
+            .where(models.Score.date == td, models.Score.passed.is_(True))
+            .order_by(models.Score.total_score.desc()).limit(self.max_focus_news)
+        ).scalars().all()
+        return list(dict.fromkeys(str(i) for i in ids))[:self.max_focus_news]
+
     def run(self, session: Session, trading_date: date) -> dict:
-        try:
-            df = registry.provider("news").fetch_events(trading_date, trading_date)
-        except SourceError as exc:
-            return {"status": "error", "reason": exc.reason}
+        start = trading_date - timedelta(days=self.lookback_days)
+        provider = registry.provider("news")
+
+        frames: list[pd.DataFrame] = []
+        # ① 整市場重訊/處置（Combined 內部各源自行容錯，不 raise）
+        whole = provider.fetch_events(start, trading_date)
+        if not whole.empty:
+            frames.append(whole)
+
+        # ② 聚焦股個股新聞（FinMind 免費層逐檔）
+        news_start = trading_date - timedelta(days=self.stock_news_days)
+        stock_news = 0
+        for sid in self._focus_ids(session, trading_date):
+            sdf = provider.fetch_stock_events(sid, news_start, trading_date)
+            if not sdf.empty:
+                frames.append(sdf)
+                stock_news += len(sdf)
+
+        df = (
+            pd.concat(frames, ignore_index=True)
+            if frames else pd.DataFrame(columns=["stock_id", "date", "title", "summary", "is_risk", "source", "url", "category"])
+        )
         if df.empty:
-            return {"status": "ok", "events": 0}
+            return {"status": "ok", "events": 0, "stock_news": 0}
 
         known = set(session.execute(select(models.Stock.id)).scalars().all())
         rows: list[dict] = []
@@ -76,4 +116,7 @@ class NewsEngine(BaseEngine):
             )
             session.execute(stmt)
             session.flush()
-        return {"status": "ok", "events": len(rows), "risk": sum(1 for r in rows if r["is_risk"])}
+        return {
+            "status": "ok", "events": len(rows), "stock_news": stock_news,
+            "risk": sum(1 for r in rows if r["is_risk"]),
+        }

@@ -62,10 +62,16 @@ def _market(session: Session, td: date) -> MarketSummary:
             func.sum(models.Institutional.dealer_net),
         ).where(models.Institutional.date == td)
     ).one()
+    from ..engines.market_breadth import compute_breadth
+    b = compute_breadth(session, td)
     return MarketSummary(
         date=td, turnover_billion=round(turnover / 1e8, 1), advancers=adv, decliners=dec,
         unchanged=unch, foreign_net=int(f) if f is not None else None,
         trust_net=int(t) if t is not None else None, dealer_net=int(de) if de is not None else None,
+        pct_above_ma20=b["pct_above_ma20"], pct_above_ma60=b["pct_above_ma60"],
+        foreign_buy_count=b["foreign_buy_count"], foreign_sell_count=b["foreign_sell_count"],
+        trust_buy_count=b["trust_buy_count"], trust_sell_count=b["trust_sell_count"],
+        trust_top10_concentration=b["trust_top10_concentration"],
     )
 
 

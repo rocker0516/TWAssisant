@@ -17,7 +17,7 @@ from .interfaces import (
     PriceProvider,
     UniverseProvider,
 )
-from .combined import CombinedMarketSource
+from .combined import CombinedMarketSource, CombinedNewsSource
 from .tpex import TpexSource
 from .twse import TwseSource
 
@@ -28,6 +28,7 @@ _SOURCE_CLASSES: dict[str, type[BaseSource]] = {
     "twse": TwseSource,
     "tpex": TpexSource,
     "twmarket": CombinedMarketSource,
+    "twnews": CombinedNewsSource,
 }
 
 # 能力 → 期望介面（給型別檢查 / 文件）

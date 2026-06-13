@@ -1,11 +1,13 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { FloatingAssistant } from "./FloatingAssistant";
+import { StockSearch } from "./StockSearch";
 
 type NavItem = { to: string; label: string; icon: string; enabled: boolean };
 
 // 6 入口（設計定案）。P1 只開「進場推薦」，其餘標建置中。
 const NAV: NavItem[] = [
   { to: "/overview", label: "今日總覽", icon: "🏠", enabled: true },
+  { to: "/intel", label: "情報", icon: "📰", enabled: true },
   { to: "/recommendations", label: "進場推薦", icon: "🎯", enabled: true },
   { to: "/sectors", label: "類股行情", icon: "📊", enabled: true },
   { to: "/holdings", label: "我的持股", icon: "💼", enabled: true },
@@ -20,6 +22,9 @@ export default function Layout() {
         <div className="px-4 py-5">
           <div className="text-lg font-bold">TWAssistant</div>
           <div className="text-xs text-muted">台股操作助手</div>
+        </div>
+        <div className="px-3 pb-3">
+          <StockSearch />
         </div>
         <nav className="flex flex-col gap-0.5 px-2">
           {NAV.map((n) =>

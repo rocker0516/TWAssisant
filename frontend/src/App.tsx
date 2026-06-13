@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
 import HoldingsPage from "./pages/HoldingsPage";
+import IntelPage from "./pages/IntelPage";
 import OverviewPage from "./pages/OverviewPage";
 import RecommendationsPage from "./pages/RecommendationsPage";
 import SectorDetailPage from "./pages/SectorDetailPage";
@@ -15,6 +16,7 @@ export default function App() {
       <Route element={<Layout />}>
         <Route index element={<Navigate to="/overview" replace />} />
         <Route path="/overview" element={<OverviewPage />} />
+        <Route path="/intel" element={<IntelPage />} />
         <Route path="/recommendations" element={<RecommendationsPage />} />
         <Route path="/holdings" element={<HoldingsPage />} />
         <Route path="/sectors" element={<SectorsPage />} />

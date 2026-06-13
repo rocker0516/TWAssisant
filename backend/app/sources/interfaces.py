@@ -64,4 +64,11 @@ class FundamentalProvider(ABC):
 class NewsProvider(ABC):
     @abstractmethod
     def fetch_events(self, start: date, end: date) -> pd.DataFrame:
-        """重訊 / 新聞事件。欄位見 schemas.EVENT_COLS。"""
+        """全市場重訊 / 新聞事件。欄位見 schemas.EVENT_COLS。"""
+
+    def fetch_stock_events(self, stock_id: str, start: date, end: date) -> pd.DataFrame:
+        """單一個股新聞（選用能力，預設無）。供無法整市場抓、只能逐檔抓的來源
+        （如 FinMind 免費層 TaiwanStockNews）。欄位見 schemas.EVENT_COLS。"""
+        from . import schemas
+
+        return pd.DataFrame(columns=schemas.EVENT_COLS)

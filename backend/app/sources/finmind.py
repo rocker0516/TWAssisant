@@ -10,12 +10,18 @@ FinMind v4 data 端點回 {status, msg, data:[...]}，status!=200 視為失敗�
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 import pandas as pd
 
 from .base import BaseSource, SourceError
-from .interfaces import ChipProvider, FundamentalProvider, PriceProvider, UniverseProvider
+from .interfaces import (
+    ChipProvider,
+    FundamentalProvider,
+    NewsProvider,
+    PriceProvider,
+    UniverseProvider,
+)
 from . import schemas
 
 _FOREIGN = {"Foreign_Investor", "Foreign_Dealer_Self"}
@@ -23,7 +29,9 @@ _TRUST = {"Investment_Trust"}
 _DEALER = {"Dealer_self", "Dealer_Hedging"}
 
 
-class FinMindSource(BaseSource, UniverseProvider, PriceProvider, ChipProvider, FundamentalProvider):
+class FinMindSource(
+    BaseSource, UniverseProvider, PriceProvider, ChipProvider, FundamentalProvider, NewsProvider
+):
     name = "finmind"
     base_url = "https://api.finmindtrade.com/api/v4"
     requires_token = True
@@ -240,3 +248,49 @@ class FinMindSource(BaseSource, UniverseProvider, PriceProvider, ChipProvider, F
         out["pb"] = pd.to_numeric(df.get("PBR"), errors="coerce")
         out["dividend_yield"] = pd.to_numeric(df.get("dividend_yield"), errors="coerce")
         return out[schemas.VALUATION_COLS]
+
+    # ── NewsProvider（TaiwanStockNews：個股新聞）──
+    #
+    # 注意：TaiwanStockNews「一次只給一天」（帶 end_date 會 400），且整市場（不帶 data_id）
+    # 需付費層；免費(register)層只能「指定個股 + 單日」逐檔抓。故整市場 fetch_events 多半
+    # 在免費層失敗（被 NewsEngine/Combined 略過），改走 fetch_stock_events 逐檔。
+
+    @staticmethod
+    def _map_news(df: pd.DataFrame) -> pd.DataFrame:
+        """TaiwanStockNews 原始欄位 → EVENT_COLS（分類/標利空交給 NewsEngine）。"""
+        if df.empty or "stock_id" not in df:
+            return pd.DataFrame(columns=schemas.EVENT_COLS)
+        out = pd.DataFrame()
+        out["stock_id"] = df["stock_id"].astype(str)
+        out["date"] = pd.to_datetime(df["date"], errors="coerce").dt.date
+        out["category"] = None
+        out["title"] = df.get("title", "").fillna("").astype(str)
+        out["summary"] = None
+        out["is_risk"] = False
+        out["source"] = df.get("source", "").fillna("").replace("", "新聞")
+        out["url"] = df.get("link")
+        out = out[out["title"].str.len() > 0]
+        return out[schemas.EVENT_COLS]
+
+    def fetch_events(self, start: date, end: date) -> pd.DataFrame:
+        """整市場個股新聞（單日，不帶 data_id）。免費層通常被擋 → SourceError 由上層略過。"""
+        return self._map_news(self._data("TaiwanStockNews", start))
+
+    def fetch_stock_events(self, stock_id: str, start: date, end: date) -> pd.DataFrame:
+        """單一個股新聞：逐日呼叫（TaiwanStockNews 一次一天），合併 [start, end]。
+
+        單日失敗（含無資料/限流）略過該日，不中斷其他日。
+        """
+        frames: list[pd.DataFrame] = []
+        d = end
+        while d >= start:
+            try:
+                raw = self._data("TaiwanStockNews", d, data_id=stock_id)
+            except SourceError:
+                raw = pd.DataFrame()
+            if not raw.empty:
+                frames.append(raw)
+            d -= timedelta(days=1)
+        if not frames:
+            return pd.DataFrame(columns=schemas.EVENT_COLS)
+        return self._map_news(pd.concat(frames, ignore_index=True))
