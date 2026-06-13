@@ -15,6 +15,9 @@ class ScoreDTO(BaseModel):
     passed: bool
     total_score: float | None
     sub_scores: dict[str, float] | None
+    coverage: float | None  # 有資料維度占比 0~1
+    confidence: float | None  # 分數可信度 0~100（完整度×共識度×穩定度）
+    stability: float | None  # 近期總分穩定度 0.6~1
     buy_low: float | None
     buy_high: float | None
     stop_loss: float | None
@@ -29,6 +32,9 @@ class RecommendationItem(BaseModel):
     track: str
     total_score: float | None
     sub_scores: dict[str, float] | None
+    coverage: float | None
+    confidence: float | None
+    stability: float | None
     close: float | None
     change_pct: float | None
     buy_low: float | None
@@ -64,6 +70,27 @@ class FundamentalSummary(BaseModel):
     revenue_yoy: float | None = None
 
 
+class StockSearchItem(BaseModel):
+    """查詢框結果項（股號/股名跳轉用）。"""
+
+    stock_id: str
+    name: str
+    market: str | None = None
+    is_etf: bool = False
+
+
+class EtfInfo(BaseModel):
+    """ETF 身分資料（個股無月營收/本益比時改顯示這塊）。"""
+
+    kind: str | None = None           # 指數型 / 債券型 / 主動式
+    fund_type: str | None = None      # 原始基金類型字串
+    track_index: str | None = None    # 追蹤指數（主動式為 None）
+    has_foreign: bool | None = None   # 是否含國外成分股
+    scale_label: str | None = None    # 大型 / 中型 / 小型
+    scale_billion: float | None = None  # 規模估算（億元）= 發行單位數 × 收盤價
+    listed_date: date | None = None
+
+
 class EventDTO(BaseModel):
     date: date
     category: str | None
@@ -83,10 +110,13 @@ class StockDetail(BaseModel):
     close: float | None
     change: float | None
     change_pct: float | None
+    is_etf: bool = False
     scores: dict[str, ScoreDTO | None]  # {"wave": ..., "long": ...}
     chip: ChipSummary | None
     fundamental: FundamentalSummary | None
+    etf: EtfInfo | None = None
     events: list[EventDTO]
+    news_digest: str | None = None  # AI 近期消息重點（盤後批次快取）
 
 
 class Candle(BaseModel):
@@ -109,6 +139,21 @@ class Candle(BaseModel):
 class OhlcvResponse(BaseModel):
     stock_id: str
     candles: list[Candle]
+
+
+class LevelDTO(BaseModel):
+    price: float
+    kind: str  # "support" | "resistance"
+    strength: int  # 0~100
+    methods: list[str]
+    distance_pct: float  # 相對現價（負=下方支撐、正=上方壓力）
+
+
+class LevelsResponse(BaseModel):
+    stock_id: str
+    close: float | None
+    supports: list[LevelDTO]
+    resistances: list[LevelDTO]
 
 
 # ─────────── 持股（P2）───────────
@@ -304,6 +349,14 @@ class MarketSummary(BaseModel):
     foreign_net: int | None
     trust_net: int | None
     dealer_net: int | None
+    # 廣度 / 分化（量化）
+    pct_above_ma20: float | None = None  # 站上月線占比
+    pct_above_ma60: float | None = None  # 站上季線占比
+    foreign_buy_count: int | None = None
+    foreign_sell_count: int | None = None
+    trust_buy_count: int | None = None
+    trust_sell_count: int | None = None
+    trust_top10_concentration: float | None = None  # 投信買超前10檔占比
 
 
 class AlertBrief(BaseModel):
@@ -347,3 +400,36 @@ class OverviewResponse(BaseModel):
     reco_top: list[RecoBrief]
     sectors_top: list[SectorBrief]
     recent_events: list[EventBrief]
+
+
+# ─────────────── 情報頁（近期消息總結）───────────────
+
+
+class IntelEvent(BaseModel):
+    stock_id: str
+    name: str
+    date: date
+    category: str | None
+    title: str
+    is_risk: bool
+    source: str | None
+    url: str | None
+
+
+class ThemeDigest(BaseModel):
+    sector_id: int
+    sector_name: str
+    digest: str
+    event_count: int
+    risk_count: int
+
+
+class IntelResponse(BaseModel):
+    date: date | None
+    market_digest: str | None = None  # AI 全市場消息重點（盤後批次快取）
+    focus_digest: str | None = None   # AI 持股+觀察清單焦點
+    themes: list[ThemeDigest]
+    events: list[IntelEvent]
+    total: int          # 窗口內事件總數（未受篩選影響）
+    risk_count: int     # 窗口內重大利空數
+    has_digest: bool    # 是否已有任何 LLM digest（無 API key/未跑批次時為 False）

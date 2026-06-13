@@ -6,6 +6,7 @@ export const CATEGORY_LABELS: Record<string, string> = {
   volume: "量能",
   chip: "籌碼",
   pattern: "型態",
+  position: "位階",
   // 長線軌
   profit: "獲利",
   growth: "營收成長",
@@ -49,10 +50,31 @@ export function sectorTileColor(trend: string | null | undefined, strength: numb
   return "rgba(120,126,143,0.35)";
 }
 
+// 位階：由波段「位階分」推回相對位置。分數高＝買在相對低（回檔買點）。
+export function positionMeta(posScore: number | null | undefined): { label: string; color: string } | null {
+  if (posScore === null || posScore === undefined) return null;
+  if (posScore >= 60) return { label: "相對低", color: "text-sky-400" };
+  if (posScore >= 35) return { label: "中性", color: "text-muted" };
+  return { label: "偏高", color: "text-amber-400" };
+}
+
 export function scoreColor(v: number | null | undefined): string {
   if (v === null || v === undefined) return "text-muted";
   if (v >= 80) return "text-up";
   if (v >= 70) return "text-amber-400";
   if (v >= 60) return "text-yellow-500";
   return "text-muted";
+}
+
+// 分數可信度（完整度×共識度）→ 燈號。刻意用藍/琥珀/灰，避開台股紅漲綠跌語意。
+// 衡量「這個分數可不可信」，非看多程度。
+export function confidenceMeta(v: number | null | undefined): {
+  label: string;
+  text: string;
+  dot: string;
+} {
+  if (v === null || v === undefined) return { label: "資料不足", text: "text-muted", dot: "bg-gray-500" };
+  if (v >= 75) return { label: "信心高", text: "text-sky-400", dot: "bg-sky-400" };
+  if (v >= 50) return { label: "信心中", text: "text-amber-400", dot: "bg-amber-400" };
+  return { label: "信心低", text: "text-zinc-400", dot: "bg-zinc-500" };
 }

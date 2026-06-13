@@ -303,6 +303,32 @@ class TwseSource(BaseSource, PriceProvider, ChipProvider, FundamentalProvider, N
             return pd.DataFrame(columns=schemas.FINANCIAL_COLS)
         return pd.DataFrame(rows)[schemas.FINANCIAL_COLS]
 
+    # ── ETF 身分資料（基金基本資料彙總表 t187ap47_L，openapi 全快照）──
+
+    def fetch_etf_profiles(
+        self, start: date | None = None, end: date | None = None,
+        stock_ids: list[str] | None = None,
+    ) -> pd.DataFrame:
+        """ETF 基金基本資料（追蹤指數/類型/含國外成分/發行單位數）。日期參數忽略（全快照）。"""
+        rows: list[dict] = []
+        for r in self._openapi_list("/opendata/t187ap47_L"):
+            sid = str(r.get("基金代號", "")).strip()
+            if not sid:
+                continue
+            idx = (r.get("標的指數/追蹤指數名稱") or "").strip()
+            foreign = (r.get("是否包含國外成分股") or "").strip()
+            rows.append({
+                "stock_id": sid,
+                "fund_type": (r.get("基金類型") or "").strip() or None,
+                "track_index": None if idx in ("", "不適用") else idx,
+                "has_foreign": True if foreign == "是" else False if foreign == "否" else None,
+                "units": _num(r.get("發行單位數/轉換數")),
+                "etf_listed_date": _roc_date(r.get("上市日期") or ""),
+            })
+        if not rows:
+            return pd.DataFrame(columns=schemas.ETF_PROFILE_COLS)
+        return pd.DataFrame(rows)[schemas.ETF_PROFILE_COLS]
+
     # ── NewsProvider（重大訊息 + 處置股，皆 TWSE OpenAPI 免費）──
 
     def fetch_events(self, start: date, end: date) -> pd.DataFrame:

@@ -8,21 +8,27 @@ from __future__ import annotations
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ..storage import models
-from .deps import get_session
+from .deps import get_session, get_session_write
+from ..llm.assistant import _etf_kind, _scale_label
+from ..llm.store import cache_key, get_cached
 from .schemas import (
     Candle,
     ChipSummary,
+    EtfInfo,
     EventDTO,
     FundamentalSummary,
+    LevelDTO,
+    LevelsResponse,
     OhlcvResponse,
     RecommendationItem,
     RecommendationList,
     ScoreDTO,
     StockDetail,
+    StockSearchItem,
 )
 
 router = APIRouter()
@@ -66,6 +72,9 @@ def _to_item(session: Session, sc: models.Score, name: str, sector_name: str | N
         track=sc.track,
         total_score=sc.total_score,
         sub_scores=sc.sub_scores,
+        coverage=sc.coverage,
+        confidence=sc.confidence,
+        stability=sc.stability,
         close=close,
         change_pct=change_pct,
         buy_low=sc.buy_low,
@@ -112,12 +121,103 @@ def _score_dto(sc: models.Score | None) -> ScoreDTO | None:
         passed=sc.passed,
         total_score=sc.total_score,
         sub_scores=sc.sub_scores,
+        coverage=sc.coverage,
+        confidence=sc.confidence,
+        stability=sc.stability,
         buy_low=sc.buy_low,
         buy_high=sc.buy_high,
         stop_loss=sc.stop_loss,
         loss_pct=sc.loss_pct,
         reasons=sc.reasons,
     )
+
+
+@router.get("/stocks/search", response_model=list[StockSearchItem])
+def stock_search(
+    q: str = Query(..., min_length=1, description="股號或股名關鍵字"),
+    session: Session = Depends(get_session),
+) -> list[StockSearchItem]:
+    """股號/股名查詢（給查詢框跳轉用）。代號前綴或名稱包含皆比對，依相關度排序取前 10。"""
+    term = q.strip()
+    if not term:
+        return []
+    rows = session.execute(
+        select(models.Stock).where(
+            or_(models.Stock.id.like(f"{term}%"), models.Stock.name.like(f"%{term}%"))
+        ).limit(50)
+    ).scalars().all()
+
+    def rank(s: models.Stock) -> tuple:
+        low = term.lower()
+        if s.id.lower() == low:
+            return (0, s.id)
+        if s.id.lower().startswith(low):
+            return (1, s.id)
+        if low in s.name.lower():
+            return (2, s.id)
+        return (3, s.id)
+
+    ranked = sorted(rows, key=rank)[:10]
+    return [
+        StockSearchItem(stock_id=s.id, name=s.name, market=s.market, is_etf=s.is_etf)
+        for s in ranked
+    ]
+
+
+@router.get("/calibration")
+def calibration(session: Session = Depends(get_session)) -> dict:
+    """分數校準回測結果（波段軌；L4）。讀快取，無則回空殼。重算用 POST /calibration/recompute。"""
+    row = session.get(models.Setting, "calibration")
+    if row and isinstance(row.value, dict):
+        return row.value
+    return {"track": "wave", "buckets": {}, "baseline": {}, "samples": 0,
+            "window": {"score_dates": 0}, "horizons": [], "note": "尚未計算，請按重新計算。"}
+
+
+@router.post("/calibration/recompute")
+def calibration_recompute(session: Session = Depends(get_session_write)) -> dict:
+    """重跑校準（較重，~分鐘級）。as-of 用最新行情日。"""
+    from ..engines.calibration import CalibrationEngine
+
+    as_of = session.execute(select(func.max(models.DailyPrice.date))).scalar() or date.today()
+    return CalibrationEngine().run(session, as_of)
+
+
+@router.get("/expectancy")
+def expectancy(session: Session = Depends(get_session)) -> dict:
+    """逐筆交易期望值回測結果（波段軌）。讀快取，重算用 POST /expectancy/recompute。"""
+    row = session.get(models.Setting, "expectancy")
+    if row and isinstance(row.value, dict):
+        return row.value
+    return {"track": "wave", "overall": {}, "by_score": [], "by_confidence": [],
+            "window": {"entry_dates": 0}, "note": "尚未計算，請按重新計算。"}
+
+
+@router.post("/expectancy/recompute")
+def expectancy_recompute(session: Session = Depends(get_session_write)) -> dict:
+    """重跑逐筆期望值回測（較重，~分鐘級）。"""
+    from ..engines.expectancy import ExpectancyEngine
+
+    as_of = session.execute(select(func.max(models.DailyPrice.date))).scalar() or date.today()
+    return ExpectancyEngine().run(session, as_of)
+
+
+@router.get("/param-sweep")
+def param_sweep(session: Session = Depends(get_session)) -> dict:
+    """出場參數掃描 + walk-forward 結果（波段軌）。讀快取。"""
+    row = session.get(models.Setting, "param_sweep")
+    if row and isinstance(row.value, dict):
+        return row.value
+    return {"track": "wave", "grid_top": [], "walkforward": {}, "note": "尚未計算，請按重新計算。"}
+
+
+@router.post("/param-sweep/recompute")
+def param_sweep_recompute(session: Session = Depends(get_session_write)) -> dict:
+    """重跑參數掃描（最重，~數分鐘）。"""
+    from ..engines.param_sweep import ParamSweepEngine
+
+    as_of = session.execute(select(func.max(models.DailyPrice.date))).scalar() or date.today()
+    return ParamSweepEngine().run(session, as_of)
 
 
 @router.get("/stocks/{stock_id}", response_model=StockDetail)
@@ -179,10 +279,30 @@ def stock_detail(stock_id: str, session: Session = Depends(get_session)) -> Stoc
         revenue_yoy=rev.yoy if rev else None,
     )
 
+    etf_info = None
+    if stock.is_etf:
+        prof = session.get(models.EtfProfile, stock_id)
+        if prof:
+            billion = round(prof.units * close / 1e8, 0) if (prof.units and close) else None
+            etf_info = EtfInfo(
+                kind=_etf_kind(prof.fund_type),
+                fund_type=prof.fund_type,
+                track_index=prof.track_index,
+                has_foreign=prof.has_foreign,
+                scale_label=_scale_label(billion),
+                scale_billion=billion,
+                listed_date=prof.etf_listed_date,
+            )
+
     events = session.execute(
         select(models.Event).where(models.Event.stock_id == stock_id)
         .order_by(models.Event.date.desc(), models.Event.id.desc()).limit(10)
     ).scalars().all()
+
+    market_td = session.execute(select(func.max(models.DailyPrice.date))).scalar()
+    news_digest = (
+        get_cached(session, cache_key("news_stock", stock_id, market_td)) if market_td else None
+    )
 
     return StockDetail(
         stock_id=stock.id,
@@ -193,21 +313,24 @@ def stock_detail(stock_id: str, session: Session = Depends(get_session)) -> Stoc
         close=close,
         change=change,
         change_pct=change_pct,
+        is_etf=stock.is_etf,
         scores=scores,
         chip=chip,
         fundamental=fundamental,
+        etf=etf_info,
         events=[
             EventDTO(date=e.date, category=e.category, title=e.title, summary=e.summary,
                      is_risk=e.is_risk, source=e.source, url=e.url)
             for e in events
         ],
+        news_digest=news_digest,
     )
 
 
 @router.get("/stocks/{stock_id}/ohlcv", response_model=OhlcvResponse)
 def stock_ohlcv(
     stock_id: str,
-    days: int = Query(120, ge=20, le=500),
+    days: int = Query(120, ge=20, le=3000),
     session: Session = Depends(get_session),
 ) -> OhlcvResponse:
     rows = session.execute(
@@ -233,3 +356,33 @@ def stock_ohlcv(
         for p, i in reversed(rows)
     ]
     return OhlcvResponse(stock_id=stock_id, candles=candles)
+
+
+@router.get("/stocks/{stock_id}/levels", response_model=LevelsResponse)
+def stock_levels(
+    stock_id: str,
+    session: Session = Depends(get_session),
+) -> LevelsResponse:
+    """客觀支撐/壓力位（均線群+波段前低+量價套牢區，純算不靠 LLM）。"""
+    from ..engines.support import levels_for_stock
+
+    levels = levels_for_stock(session, stock_id)
+    close = session.execute(
+        select(models.DailyPrice.close)
+        .where(models.DailyPrice.stock_id == stock_id)
+        .order_by(models.DailyPrice.date.desc())
+        .limit(1)
+    ).scalar()
+    dto = [
+        LevelDTO(
+            price=l.price, kind=l.kind, strength=l.strength,
+            methods=l.methods, distance_pct=l.distance_pct,
+        )
+        for l in levels
+    ]
+    return LevelsResponse(
+        stock_id=stock_id,
+        close=float(close) if close is not None else None,
+        supports=[d for d in dto if d.kind == "support"],
+        resistances=[d for d in dto if d.kind == "resistance"],
+    )

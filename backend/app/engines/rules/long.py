@@ -60,9 +60,9 @@ class ProfitScore(ScoreRule):
     category = "profit"
     default_weight = 25.0
 
-    def score(self, ctx: StockContext) -> float:
+    def score(self, ctx: StockContext) -> float | None:
         nm = _get(ctx.financials, "net_margin")
-        return clamp(nm * 4) if nm is not None else 0.0  # 稅後純益率 25%+ → 100
+        return clamp(nm * 4) if nm is not None else None  # 稅後純益率 25%+ → 100；缺財報回 None
 
     def reason(self, ctx, value):
         nm = _get(ctx.financials, "net_margin")
@@ -73,10 +73,10 @@ class GrowthScore(ScoreRule):
     category = "growth"
     default_weight = 25.0
 
-    def score(self, ctx: StockContext) -> float:
+    def score(self, ctx: StockContext) -> float | None:
         yoy = _get(ctx.revenue, "yoy")
         if yoy is None:
-            return 0.0
+            return None
         # 對數壓縮：中度成長給合理分、極端值（營建股完工認列 +數千%）邊際遞減，
         # 避免單月 YoY 灌爆並霸榜。負成長線性扣分。
         if yoy >= 0:
@@ -92,11 +92,11 @@ class ValuationScore(ScoreRule):
     category = "valuation"
     default_weight = 20.0
 
-    def score(self, ctx: StockContext) -> float:
+    def score(self, ctx: StockContext) -> float | None:
         pe = _get(ctx.valuation, "pe")
         dy = _get(ctx.valuation, "dividend_yield") or 0
         if pe is None or pe <= 0:
-            return 0.0
+            return None
         return clamp((30 - pe) / 30 * 70 + dy * 6)
 
     def reason(self, ctx, value):
@@ -108,11 +108,11 @@ class QualityScore(ScoreRule):
     category = "quality"
     default_weight = 20.0
 
-    def score(self, ctx: StockContext) -> float:
+    def score(self, ctx: StockContext) -> float | None:
         op = _get(ctx.financials, "op_margin")
         gm = _get(ctx.financials, "gross_margin")
         if op is None and gm is None:
-            return 0.0
+            return None
         return clamp((op or 0) * 3 + (gm or 0))
 
     def reason(self, ctx, value):
@@ -124,10 +124,10 @@ class TrendAuxScore(ScoreRule):
     category = "trend_aux"
     default_weight = 10.0
 
-    def score(self, ctx: StockContext) -> float:
+    def score(self, ctx: StockContext) -> float | None:
         ind, prev = ctx.ind, ctx.ind_ago(5)
         if ind is None or ind.get("ma60") is None or ctx.close is None:
-            return 0.0
+            return None
         s = 0.0
         if ctx.close > ind["ma60"]:
             s += 50

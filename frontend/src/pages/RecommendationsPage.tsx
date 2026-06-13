@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useRecommendations, type RecommendationItem, type Track } from "../api/client";
+import { useRecommendations, useSettings, type RecommendationItem, type Track } from "../api/client";
 import { RecommendationCard } from "../components/RecommendationCard";
 import { TRACK_LABELS } from "../lib/format";
 
@@ -18,6 +18,8 @@ export default function RecommendationsPage() {
   const [sort, setSort] = useState<SortKey>("score");
   const [showNear, setShowNear] = useState(false);
   const { data, isLoading, isError, error } = useRecommendations(track);
+  const { data: settings } = useSettings();
+  const waveStyle = settings?.scoring?.wave?.style ?? "breakout";
 
   const items = useMemo(() => sortItems(data?.items ?? [], sort), [data, sort]);
   const near = useMemo(() => sortItems(data?.near ?? [], sort), [data, sort]);
@@ -29,6 +31,11 @@ export default function RecommendationsPage() {
           <h1 className="text-xl font-bold">進場推薦</h1>
           <p className="text-sm text-muted">
             盤後資料：{data?.date ?? "—"}　門檻 ≥ {data?.threshold ?? 70} 分
+            {track === "wave" && (
+              <span className="ml-2 rounded bg-sky-900/50 px-1.5 py-0.5 text-xs text-sky-300">
+                風格：{waveStyle === "pullback" ? "回檔低接" : "突破追強"}
+              </span>
+            )}
           </p>
         </div>
       </div>

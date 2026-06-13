@@ -11,10 +11,10 @@ from abc import ABC
 from datetime import date
 
 from .context import StockContext
-from .rules.base import FilterRule, ScoreRule, WeightedScorer
+from .rules.base import FilterRule, ScoreRule, WeightedScorer, score_confidence
 from .rules.common import COMMON_FILTERS
 from .rules.long import LONG_FILTERS, LONG_SCORERS
-from .rules.wave import WAVE_FILTERS, WAVE_SCORERS
+from .rules.wave import WAVE_FILTERS, WAVE_FILTERS_BREAKOUT, WAVE_FILTERS_PULLBACK, WAVE_SCORERS
 from .stoploss import StopLossCalculator
 
 _DEFAULT_THRESHOLD = 70.0
@@ -33,6 +33,10 @@ class Track(ABC):
     def _weights(self, config: dict) -> dict[str, float]:
         overrides = (config or {}).get("weights", {})
         return {s.category: overrides.get(s.category, s.default_weight) for s in self.scorers}
+
+    def _select_filters(self, config: dict) -> list[FilterRule]:
+        """硬篩集合（子類可依 config 切換，如波段軌的進場風格）。"""
+        return self.filters
 
     def _sector_adjust(self, ctx: StockContext) -> tuple[float, str | None]:
         """類股修正（設計定案）：波段=強勢加分/弱勢扣分但不排除；長線=輕加分。±5~10。"""
@@ -57,12 +61,15 @@ class Track(ABC):
         config = config or {}
         threshold = config.get("threshold", self.default_threshold)
 
-        passed_filter = all(f.passes(ctx) for f in self._all_filters)
+        passed_filter = all(f.passes(ctx) for f in COMMON_FILTERS + self._select_filters(config))
 
         sub_scores: dict[str, float] = {}
         reasons: list[str] = []
         for sc in self.scorers:
-            val = float(round(sc.score(ctx), 1))
+            raw = sc.score(ctx)
+            if raw is None:  # 資料不足：不灌 0，從加權剔除（總分只用有料維度，可信度反映缺口）
+                continue
+            val = float(round(raw, 1))
             sub_scores[sc.category] = val
             r = sc.reason(ctx, val)
             if r:
@@ -70,6 +77,7 @@ class Track(ABC):
 
         weights = self._weights(config)
         total = float(WeightedScorer.weighted_total(sub_scores, weights))
+        coverage, confidence = score_confidence(sub_scores, len(self.scorers))
 
         sector_adjust, sector_reason = self._sector_adjust(ctx)
         if sector_reason:
@@ -88,6 +96,8 @@ class Track(ABC):
             "total_score": total,
             "sub_scores": sub_scores,
             "sector_adjust": sector_adjust,
+            "coverage": coverage,
+            "confidence": confidence,
             "buy_low": plan.buy_low,
             "buy_high": plan.buy_high,
             "stop_loss": plan.stop_loss,
@@ -100,6 +110,11 @@ class WaveTrack(Track):
     track_key = "wave"
     filters = WAVE_FILTERS
     scorers = WAVE_SCORERS
+
+    def _select_filters(self, config: dict) -> list:
+        """進場風格：breakout 突破追強(量增) / pullback 回檔低接(已回檔、不要求量增)。"""
+        style = (config or {}).get("style", "breakout")
+        return WAVE_FILTERS_PULLBACK if style == "pullback" else WAVE_FILTERS_BREAKOUT
 
 
 class LongTrack(Track):

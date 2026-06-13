@@ -32,6 +32,9 @@ def _set_sqlite_pragma(dbapi_conn, _record) -> None:
     cur = dbapi_conn.cursor()
     cur.execute("PRAGMA journal_mode=WAL")
     cur.execute("PRAGMA foreign_keys=ON")
+    # 多行程（app + 排程 + 手動腳本）並存：碰到寫鎖時等待而非立即報
+    # "database is locked"。WAL 下讀寫本就並行，這裡再給寫者互讓的緩衝。
+    cur.execute("PRAGMA busy_timeout=30000")
     cur.close()
 
 
@@ -43,6 +46,25 @@ def init_db() -> None:
     from . import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    _ensure_columns()
+
+
+# create_all 只補缺表、不補既有表的新欄；本機 SQLite 用輕量 ADD COLUMN 補欄（冪等）
+_COLUMN_ADDITIONS: dict[str, dict[str, str]] = {
+    "scores": {"coverage": "FLOAT", "confidence": "FLOAT", "stability": "FLOAT"},
+    "indicators": {"ma120": "FLOAT", "ma240": "FLOAT"},  # 半年線/年線（長期支撐）
+}
+
+
+def _ensure_columns() -> None:
+    from sqlalchemy import text
+
+    with engine.begin() as conn:
+        for table, cols in _COLUMN_ADDITIONS.items():
+            existing = {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})"))}
+            for name, ddl in cols.items():
+                if name not in existing:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
 
 
 @contextmanager

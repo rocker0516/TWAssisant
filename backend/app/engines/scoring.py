@@ -6,24 +6,51 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import distinct, select
 from sqlalchemy.orm import Session
 
 from ..storage import models
 from ..storage.repositories import BaseRepository
 from .base import BaseEngine
 from .context import StockContext
+from .rules.base import clamp
 from .tracks import LongTrack, WaveTrack
 
+_STABILITY_LOOKBACK = 5  # 取近 5 個評分日算分數穩定度
+_STABILITY_MIN_POINTS = 3  # 含今日至少 3 點才談穩定度，否則中性不扣
 
-def _load_groups(session: Session, model, cols: list[str], td: date) -> dict[str, pd.DataFrame]:
-    """載入某表 date<=td 的資料，依 stock_id 分組（升冪）。"""
+
+def _stability_factor(prior_totals: list[float | None], today: float | None) -> float:
+    """分數穩定度係數 0.8~1.0（L3）：近期總分波動越大越不可信。
+
+    刻意做成「輕推」——技術分天生隨行情起伏，過重會把整條軌壓平、失去鑑別度
+    （鑑別交給共識度）。標準差以 60 分正規化、下限 0.8（最多扣 20%）；史料不足回
+    1.0 中性。穩定度另存欄位、tooltip 透明顯示。
+    """
+    vals = [v for v in [*prior_totals, today] if v is not None]
+    if len(vals) < _STABILITY_MIN_POINTS:
+        return 1.0
+    mean = sum(vals) / len(vals)
+    std = (sum((v - mean) ** 2 for v in vals) / len(vals)) ** 0.5
+    return clamp(1.0 - std / 60.0, 0.8, 1.0)
+
+
+# 評分只需近窗（規則最長用到 ma60 + 前低 + 斜率）；MA240 等長均線已在 indicators
+# 表預先算好、只讀最新列。下界避免回補長歷史後把全市場×多年 ORM 全載進記憶體（OOM）。
+_SCORING_LOOKBACK_DAYS = 400
+
+
+def _load_groups(
+    session: Session, model, cols: list[str], td: date,
+    lookback_days: int = _SCORING_LOOKBACK_DAYS,
+) -> dict[str, pd.DataFrame]:
+    """載入某表 [td-lookback, td] 的資料，依 stock_id 分組（升冪）。"""
     stmt = (
         select(model)
-        .where(model.date <= td)
+        .where(model.date <= td, model.date >= td - timedelta(days=lookback_days))
         .order_by(model.stock_id, model.date)
     )
     rows = session.execute(stmt).scalars().all()
@@ -125,7 +152,32 @@ class ScoringEngine(BaseEngine):
                 rows.append(track.evaluate(ctx, config.get(track.track_key, {})))
             scored += 1
 
+        self._apply_stability(session, td, rows)
+
         n = BaseRepository(models.Score).upsert_many(session, rows)
         session.flush()
         passed = {t.track_key: sum(1 for r in rows if r["track"] == t.track_key and r["passed"]) for t in self.tracks}
         return {"status": "ok", "scored_stocks": scored, "rows": n, "passed": passed}
+
+    def _apply_stability(self, session: Session, td: date, rows: list[dict]) -> None:
+        """L3：用近期歷史總分算穩定度，折進 confidence（confidence = 完整度×共識度×穩定度）。
+
+        史料不足時穩定度=1.0，confidence 不變。重跑當日冪等（只看 date<td 的歷史）。
+        """
+        recent_dates = session.execute(
+            select(distinct(models.Score.date))
+            .where(models.Score.date < td)
+            .order_by(models.Score.date.desc())
+            .limit(_STABILITY_LOOKBACK)
+        ).scalars().all()
+        prior: dict[tuple[str, str], list[float | None]] = {}
+        if recent_dates:
+            for sid, track, total in session.execute(
+                select(models.Score.stock_id, models.Score.track, models.Score.total_score)
+                .where(models.Score.date.in_(recent_dates))
+            ):
+                prior.setdefault((sid, track), []).append(total)
+        for r in rows:
+            st = _stability_factor(prior.get((r["stock_id"], r["track"]), []), r["total_score"])
+            r["stability"] = round(st, 3)
+            r["confidence"] = round((r.get("confidence") or 0.0) * st, 1)

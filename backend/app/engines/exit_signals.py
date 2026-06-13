@@ -20,8 +20,8 @@ from .context import StockContext
 from ..storage import models
 
 DEFAULTS = {
-    "wave": {"stop_cap": 0.08, "trail_trigger": 0.10, "trail_pullback": 0.10},
-    "long": {"stop_cap": 0.15, "trail_trigger": 0.20, "trail_pullback": 0.20},
+    "wave": {"stop_cap": 0.08, "trail_trigger": 0.10, "trail_pullback": 0.10, "break_ma_exit": True},
+    "long": {"stop_cap": 0.15, "trail_trigger": 0.20, "trail_pullback": 0.20, "break_ma_exit": True},
 }
 
 # 可由設定頁覆寫（即時生效）。ExitEngine 每次評估前以 set_config 注入（百分比→比例）。
@@ -31,12 +31,17 @@ _ACTIVE: dict = _copy.deepcopy(DEFAULTS)
 
 
 def set_config(percent_cfg: dict) -> None:
-    """設定頁的出場參數（百分比，如 stop_cap=8）→ 比例（0.08）寫入 _ACTIVE。"""
+    """設定頁的出場參數（百分比，如 stop_cap=8）→ 比例（0.08）寫入 _ACTIVE。
+
+    break_ma_exit 為布林（跌破均線是否視為建議出場），非百分比，原樣寫入。
+    """
     for track in ("wave", "long"):
         tc = (percent_cfg or {}).get(track, {})
         for k in ("stop_cap", "trail_trigger", "trail_pullback"):
             if k in tc and tc[k] is not None:
                 _ACTIVE.setdefault(track, {})[k] = tc[k] / 100.0
+        if tc.get("break_ma_exit") is not None:
+            _ACTIVE.setdefault(track, {})["break_ma_exit"] = bool(tc["break_ma_exit"])
 
 
 class Sev(IntEnum):
@@ -104,7 +109,10 @@ class StopLossSignal(ExitSignal):
         ma = ind.get(ma_key) if ind is not None else None
         if ma is not None and pos.close < ma:
             label = "月線" if holding.track == "wave" else "季線"
-            hits.append(Hit("break_ma", Sev.CRITICAL, f"跌破{label} {ma:.2f}"))
+            # 跌破均線是否視為建議出場可由設定切換；關閉時降為早期警示（放寬出場、回測較佳）
+            break_exit = _ACTIVE.get(holding.track, _ACTIVE["wave"]).get("break_ma_exit", True)
+            sev = Sev.CRITICAL if break_exit else Sev.EARLY
+            hits.append(Hit("break_ma", sev, f"跌破{label} {ma:.2f}"))
         return hits
 
 

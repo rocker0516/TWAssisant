@@ -94,6 +94,8 @@ class Indicator(Base):
     ma10: Mapped[float | None] = mapped_column(Float)
     ma20: Mapped[float | None] = mapped_column(Float)
     ma60: Mapped[float | None] = mapped_column(Float)
+    ma120: Mapped[float | None] = mapped_column(Float)  # 半年線
+    ma240: Mapped[float | None] = mapped_column(Float)  # 年線
     vol_ma5: Mapped[float | None] = mapped_column(Float)
     vol_ma20: Mapped[float | None] = mapped_column(Float)
     kd_k: Mapped[float | None] = mapped_column(Float)
@@ -176,6 +178,24 @@ class Valuation(Base):
     dividend_yield: Mapped[float | None] = mapped_column(Float)
 
 
+class EtfProfile(Base):
+    """ETF 身分資料（TWSE t187ap47_L 基金基本資料彙總表）。PK = stock_id。
+
+    個股不報的欄位（月營收/本益比）對 ETF 無意義；改以此表的身分資料補上：
+    基金類型、追蹤指數、是否含國外成分、發行單位數（× 收盤價 ≈ 規模）。
+    """
+
+    __tablename__ = "etf_profile"
+
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    fund_type: Mapped[str | None] = mapped_column(String(60))   # 基金類型（股票/債券/主動式…）
+    track_index: Mapped[str | None] = mapped_column(String(80))  # 追蹤指數（主動式/不適用→None）
+    has_foreign: Mapped[bool | None] = mapped_column(Boolean)   # 是否含國外成分股
+    units: Mapped[float | None] = mapped_column(Float)          # 發行單位數
+    etf_listed_date: Mapped[date_ | None] = mapped_column(Date)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 # ─────────────────────────── D 類股 ───────────────────────────
 
 
@@ -217,8 +237,11 @@ class Score(Base):
     passed_filter: Mapped[bool] = mapped_column(Boolean, default=False)  # 過硬篩
     passed: Mapped[bool] = mapped_column(Boolean, default=False)  # 過硬篩 + 門檻
     total_score: Mapped[float | None] = mapped_column(Float)
-    sub_scores: Mapped[dict | None] = mapped_column(JSON)  # 5 大類細項
+    sub_scores: Mapped[dict | None] = mapped_column(JSON)  # 5 大類細項（缺料維度不入列）
     sector_adjust: Mapped[float | None] = mapped_column(Float)  # 類股修正分
+    coverage: Mapped[float | None] = mapped_column(Float)  # 有資料維度占比 0~1（缺料偵測）
+    confidence: Mapped[float | None] = mapped_column(Float)  # 分數可信度 0~100（完整度×共識度×穩定度）
+    stability: Mapped[float | None] = mapped_column(Float)  # 近期總分穩定度 0.6~1（L3，史料不足=1）
 
     buy_low: Mapped[float | None] = mapped_column(Float)
     buy_high: Mapped[float | None] = mapped_column(Float)

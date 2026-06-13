@@ -30,8 +30,8 @@ class ScoreRule(BaseRule):
     default_weight: float = 10.0
 
     @abstractmethod
-    def score(self, ctx: StockContext) -> float:
-        """回 0~100。"""
+    def score(self, ctx: StockContext) -> float | None:
+        """回 0~100；資料不足回 None（不灌 0，從加權分母剔除，並反映在可信度）。"""
 
     def reason(self, ctx: StockContext, value: float) -> str | None:
         """分數夠高時回理由 chip 文字，否則 None。"""
@@ -56,3 +56,22 @@ class WeightedScorer:
             num += val * w
             den += w
         return round(num / den, 2) if den else 0.0
+
+
+def score_confidence(sub_scores: dict[str, float], total_categories: int) -> tuple[float, float]:
+    """分數可信度 = 資料完整度 × 共識度，回 (coverage 0~1, confidence 0~100)。
+
+    coverage = 有資料的維度 / 應有維度（缺料的 scorer 回 None 已被剔除）。
+    consensus = 1 − 子分數母體標準差/40（夾 0~1）：各面向越一致越可信，
+    單一維度灌爆則離散度大、可信度低。衡量「這個分數可不可信」，非看多程度
+    ——全面偏弱但有料且一致，仍是高可信（可信地說它弱）。
+    """
+    present = len(sub_scores)
+    if total_categories <= 0 or present == 0:
+        return 0.0, 0.0
+    coverage = present / total_categories
+    vals = list(sub_scores.values())
+    mean = sum(vals) / present
+    std = (sum((v - mean) ** 2 for v in vals) / present) ** 0.5
+    consensus = clamp(1.0 - std / 40.0, 0.0, 1.0)
+    return round(coverage, 3), round(100.0 * coverage * consensus, 1)

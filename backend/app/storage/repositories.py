@@ -115,6 +115,10 @@ class ValuationRepository(BaseRepository[models.Valuation]):
     model = models.Valuation
 
 
+class EtfProfileRepository(BaseRepository[models.EtfProfile]):
+    model = models.EtfProfile
+
+
 class PipelineRunRepository(BaseRepository[models.PipelineRun]):
     model = models.PipelineRun
 

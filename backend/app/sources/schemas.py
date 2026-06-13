@@ -25,3 +25,5 @@ FINANCIAL_COLS = [
 VALUATION_COLS = ["stock_id", "date", "pe", "pb", "dividend_yield"]
 
 EVENT_COLS = ["stock_id", "date", "category", "title", "summary", "is_risk", "source", "url"]
+
+ETF_PROFILE_COLS = ["stock_id", "fund_type", "track_index", "has_foreign", "units", "etf_listed_date"]

@@ -64,6 +64,9 @@ class FetchStep(PipelineStep):
         known_ids = self._known_ids(session)
         ctx.shared["stock_ids"] = sorted(known_ids)
 
+        # 1b) ETF 身分資料（追蹤指數/類型/含國外/發行單位數，TWSE 全快照）
+        results["etf_profile"] = self._fetch_etf_profiles(session, known_ids)
+
         # 2) 增量抓
         for key, capability, repo_cls, method, lookback in self._INCREMENTAL:
             results[key] = self._fetch_dataset(
@@ -115,6 +118,21 @@ class FetchStep(PipelineStep):
 
     def _known_ids(self, session) -> set[str]:
         return set(session.execute(select(models.Stock.id)).scalars().all())
+
+    # ── ETF 身分資料（TWSE 全快照，僅落已知股號）──
+
+    def _fetch_etf_profiles(self, session, known_ids: set[str]) -> dict:
+        try:
+            src = registry.get_source("twse")
+            df = src.fetch_etf_profiles()
+        except SourceError as exc:
+            return {"status": "error", "reason": exc.reason}
+        if df.empty:
+            return {"status": "empty"}
+        df = df[df["stock_id"].astype(str).isin(known_ids)]
+        n = repo.EtfProfileRepository().upsert_many(session, _records(df))
+        session.flush()
+        return {"status": "ok", "rows": n}
 
     # ── 通用資料集抓取 ──
 

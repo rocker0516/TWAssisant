@@ -6,6 +6,8 @@ export type RecommendationItem = components["schemas"]["RecommendationItem"];
 export type StockDetail = components["schemas"]["StockDetail"];
 export type OhlcvResponse = components["schemas"]["OhlcvResponse"];
 export type Candle = components["schemas"]["Candle"];
+export type LevelsResponse = components["schemas"]["LevelsResponse"];
+export type LevelDTO = components["schemas"]["LevelDTO"];
 export type ScoreDTO = components["schemas"]["ScoreDTO"];
 export type HoldingsResponse = components["schemas"]["HoldingsResponse"];
 export type HoldingItem = components["schemas"]["HoldingItem"];
@@ -17,6 +19,10 @@ export type SectorItem = components["schemas"]["SectorItem"];
 export type SectorDetail = components["schemas"]["SectorDetail"];
 export type SectorConstituent = components["schemas"]["SectorConstituent"];
 export type OverviewResponse = components["schemas"]["OverviewResponse"];
+export type IntelResponse = components["schemas"]["IntelResponse"];
+export type IntelEvent = components["schemas"]["IntelEvent"];
+export type ThemeDigest = components["schemas"]["ThemeDigest"];
+export type StockSearchItem = components["schemas"]["StockSearchItem"];
 export type WatchlistsResponse = components["schemas"]["WatchlistsResponse"];
 export type WatchlistItemCreate = components["schemas"]["WatchlistItemCreate"];
 
@@ -41,6 +47,147 @@ export function useRecommendations(track: Track) {
   });
 }
 
+export function useStockSearch(q: string) {
+  const term = q.trim();
+  return useQuery({
+    queryKey: ["stock-search", term],
+    queryFn: () => getJson<StockSearchItem[]>(`/stocks/search?q=${encodeURIComponent(term)}`),
+    enabled: term.length >= 1,
+    staleTime: 60_000,
+  });
+}
+
+// ── 分數校準（L4 回測）──
+
+export type CalibrationBucket = {
+  lo: number;
+  hi: number;
+  n: number;
+  hit_rate: number | null;
+  median_ret: number | null;
+};
+export type CalibrationConfTier = CalibrationBucket & { tier: string };
+export type Calibration = {
+  generated_at?: string;
+  track: string;
+  window: { from?: string | null; to?: string | null; score_dates: number };
+  horizons: number[];
+  buckets: Record<string, CalibrationBucket[]>;
+  baseline: Record<string, number | null>;
+  by_confidence?: Record<string, CalibrationConfTier[]>;
+  actionable_score?: number;
+  samples: number;
+  note: string;
+};
+
+export function useCalibration() {
+  return useQuery({
+    queryKey: ["calibration"],
+    queryFn: () => getJson<Calibration>("/calibration"),
+  });
+}
+
+export function useRecomputeCalibration() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => sendJson<{ status: string }>("POST", "/calibration/recompute"),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["calibration"] }),
+  });
+}
+
+// ── 逐筆期望值回測 ──
+
+export type ExpectancyStats = {
+  n: number;
+  win_rate: number | null;
+  avg_win: number | null;
+  avg_loss: number | null;
+  expectancy: number | null;
+  payoff: number | null;
+  avg_hold: number | null;
+  forced_pct: number | null;
+};
+export type ExpectancyScoreRow = ExpectancyStats & { lo: number; hi: number };
+export type ExpectancyConfRow = ExpectancyStats & { tier: string; lo: number; hi: number };
+export type Expectancy = {
+  generated_at?: string;
+  track: string;
+  window: { from?: string | null; to?: string | null; entry_dates: number };
+  cost_pct?: number;
+  max_hold?: number;
+  actionable_score?: number;
+  overall: ExpectancyStats;
+  overall_stop_only?: ExpectancyStats;
+  control?: ExpectancyStats;
+  by_score: ExpectancyScoreRow[];
+  by_confidence: ExpectancyConfRow[];
+  note: string;
+};
+
+export function useExpectancy() {
+  return useQuery({
+    queryKey: ["expectancy"],
+    queryFn: () => getJson<Expectancy>("/expectancy"),
+  });
+}
+
+export function useRecomputeExpectancy() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => sendJson<{ status: string }>("POST", "/expectancy/recompute"),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["expectancy"] }),
+  });
+}
+
+// ── 出場參數掃描 + walk-forward ──
+
+export type SweepParams = { stop_cap: number; trail_trigger: number; trail_pullback: number; break_ma: boolean };
+export type SweepRow = { params: SweepParams; n: number; expectancy: number | null; win_rate: number | null; payoff: number | null; avg_mae?: number | null };
+export type SweepFold = {
+  test_from: string;
+  test_to: string;
+  picked: SweepParams;
+  train_expectancy: number | null;
+  oos_expectancy: number | null;
+  default_oos_expectancy: number | null;
+  n_test: number;
+};
+export type ParamSweep = {
+  generated_at?: string;
+  track: string;
+  window?: { from?: string; to?: string };
+  grid_size?: number;
+  default?: { params: SweepParams; n: number; expectancy: number | null; win_rate: number | null; payoff: number | null };
+  best_full?: SweepRow | null;
+  grid_top: SweepRow[];
+  boundary?: { at_max: string[]; is_runaway: boolean; message: string };
+  walkforward: {
+    folds?: SweepFold[];
+    oos_optimized?: number | null;
+    oos_default?: number | null;
+    oos_optimized_mae?: number | null;
+    oos_default_mae?: number | null;
+    edge?: number | null;
+    verdict?: string;
+  };
+  note: string;
+};
+
+export function useParamSweep() {
+  return useQuery({
+    queryKey: ["param-sweep"],
+    queryFn: () => getJson<ParamSweep>("/param-sweep"),
+  });
+}
+
+export function useRecomputeParamSweep() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => sendJson<{ status: string }>("POST", "/param-sweep/recompute"),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["param-sweep"] }),
+  });
+}
+
 export function useStockDetail(stockId: string | undefined) {
   return useQuery({
     queryKey: ["stock", stockId],
@@ -53,6 +200,14 @@ export function useOhlcv(stockId: string | undefined, days = 120) {
   return useQuery({
     queryKey: ["ohlcv", stockId, days],
     queryFn: () => getJson<OhlcvResponse>(`/stocks/${stockId}/ohlcv?days=${days}`),
+    enabled: !!stockId,
+  });
+}
+
+export function useLevels(stockId: string | undefined) {
+  return useQuery({
+    queryKey: ["levels", stockId],
+    queryFn: () => getJson<LevelsResponse>(`/stocks/${stockId}/levels`),
     enabled: !!stockId,
   });
 }
@@ -133,6 +288,18 @@ export function useOverview() {
   return useQuery({ queryKey: ["overview"], queryFn: () => getJson<OverviewResponse>("/overview") });
 }
 
+export type IntelFilter = { days?: number; category?: string; riskOnly?: boolean };
+
+export function useIntel(filter: IntelFilter = {}) {
+  const { days = 14, category, riskOnly = false } = filter;
+  const params = new URLSearchParams({ days: String(days), risk_only: String(riskOnly) });
+  if (category) params.set("category", category);
+  return useQuery({
+    queryKey: ["intel", days, category ?? "", riskOnly],
+    queryFn: () => getJson<IntelResponse>(`/intel?${params.toString()}`),
+  });
+}
+
 // ── 設定 ──
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -168,6 +335,44 @@ export function useRecompute() {
       qc.invalidateQueries({ queryKey: ["sectors"] });
       qc.invalidateQueries({ queryKey: ["overview"] });
     },
+  });
+}
+
+// ── 系統狀態 / 資料載入（設定頁）──
+
+export interface PipelineStepResult {
+  name: string;
+  status: string;
+  seconds?: number;
+  error?: string;
+}
+export interface SystemStatus {
+  db: string;
+  counts: Record<string, number>;
+  pipeline_running: boolean;
+  last_pipeline_run: {
+    trading_date: string | null;
+    status: string;
+    finished_at: string | null;
+    steps: PipelineStepResult[] | null;
+  } | null;
+}
+
+export function useSystemStatus() {
+  return useQuery({
+    queryKey: ["system-status"],
+    queryFn: () => getJson<SystemStatus>("/system/status"),
+    // 跑 pipeline 時每 3 秒輪詢進度，閒置時不輪詢。
+    refetchInterval: (q) => (q.state.data?.pipeline_running ? 3000 : false),
+  });
+}
+
+export function useTriggerPipeline() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      sendJson<{ accepted: boolean; reason?: string; trading_date: string }>("POST", "/pipeline/run"),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["system-status"] }),
   });
 }
 

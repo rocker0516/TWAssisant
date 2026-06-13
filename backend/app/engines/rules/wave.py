@@ -44,7 +44,29 @@ class NearMa60(FilterRule):
         return b is not None and abs(b) < 15
 
 
-WAVE_FILTERS: list[FilterRule] = [AboveRisingMa20(), VolumeIncrease(), NearMa60()]
+class PulledBack(FilterRule):
+    """已回檔：現價落在近20日區間下緣（非追高）。回檔風格用，刻意不要求量增。"""
+
+    name = "pulled_back"
+    _MAX_PIR = 0.65  # 區間位階上限：>0.65 視為仍在高位、非回檔
+
+    def passes(self, ctx: StockContext) -> bool:
+        if ctx.close is None or ctx.n_bars < 20:
+            return False
+        hi = float(ctx.prices["high"].iloc[-20:].max())
+        lo = float(ctx.prices["low"].iloc[-20:].min())
+        rng = hi - lo
+        if rng <= 0:
+            return False
+        pir = (ctx.close - lo) / rng
+        return pir <= self._MAX_PIR
+
+
+# 突破追強（預設）：站上上揚月線 + 量增 + 距季線<15%
+WAVE_FILTERS_BREAKOUT: list[FilterRule] = [AboveRisingMa20(), VolumeIncrease(), NearMa60()]
+# 回檔低接：站上上揚月線(守支撐) + 已回檔到區間下緣 + 距季線<15%；不要求量增（縮量回測常見）
+WAVE_FILTERS_PULLBACK: list[FilterRule] = [AboveRisingMa20(), PulledBack(), NearMa60()]
+WAVE_FILTERS: list[FilterRule] = WAVE_FILTERS_BREAKOUT  # 向後相容
 
 # ─────────────── 評分 ───────────────
 
@@ -53,10 +75,10 @@ class TrendScore(ScoreRule):
     category = "trend"
     default_weight = 25.0
 
-    def score(self, ctx: StockContext) -> float:
+    def score(self, ctx: StockContext) -> float | None:
         ind, prev = ctx.ind, ctx.ind_ago(5)
         if ind is None:
-            return 0.0
+            return None
         ma5, ma10, ma20, ma60 = (ind.get(k) for k in ("ma5", "ma10", "ma20", "ma60"))
         s = 0.0
         if ma5 and ma10 and ma5 > ma10:
@@ -83,10 +105,10 @@ class MomentumScore(ScoreRule):
     category = "momentum"
     default_weight = 25.0
 
-    def score(self, ctx: StockContext) -> float:
+    def score(self, ctx: StockContext) -> float | None:
         ind, prev = ctx.ind, ctx.ind_ago(1)
         if ind is None:
-            return 0.0
+            return None
         s = 0.0
         macd, hist = ind.get("macd"), ind.get("macd_hist")
         k, d = ind.get("kd_k"), ind.get("kd_d")
@@ -120,12 +142,12 @@ class VolumeScore(ScoreRule):
     category = "volume"
     default_weight = 20.0
 
-    def score(self, ctx: StockContext) -> float:
+    def score(self, ctx: StockContext) -> float | None:
         ind = ctx.ind
         vma = ind.get("vol_ma20") if ind is not None else None
         vol = float(ctx.prices["volume"].iloc[-1]) if ctx.n_bars else None
         if not vma or vol is None:
-            return 0.0
+            return None
         ratio = vol / vma
         return clamp((ratio - 0.5) / 1.5 * 100)
 
@@ -137,11 +159,11 @@ class ChipScore(ScoreRule):
     category = "chip"
     default_weight = 20.0
 
-    def score(self, ctx: StockContext) -> float:
+    def score(self, ctx: StockContext) -> float | None:
         ind = ctx.ind
         vma_lots = (ind.get("vol_ma20") or 0) / 1000 if ind is not None else 0
         if vma_lots <= 0:
-            return 50.0
+            return 50.0  # 量能基準缺：法人佔比不可算，給中性（非缺料剔除，維持籌碼維度存在）
         net5 = ctx.inst_sum("foreign_net", 5) + ctx.inst_sum("trust_net", 5)
         ratio = net5 / (vma_lots * 5)  # 近5日法人淨買佔5日量比例
         return clamp(50 + ratio * 500)
@@ -160,9 +182,9 @@ class PatternScore(ScoreRule):
     category = "pattern"
     default_weight = 10.0
 
-    def score(self, ctx: StockContext) -> float:
+    def score(self, ctx: StockContext) -> float | None:
         if ctx.n_bars < 2:
-            return 0.0
+            return None
         o = float(ctx.prices["open"].iloc[-1])
         c = ctx.close
         highs = ctx.prices["high"]
@@ -181,10 +203,51 @@ class PatternScore(ScoreRule):
         return "突破前高" if value >= 70 else None
 
 
+class PositionScore(ScoreRule):
+    """位階/回檔分：上升趨勢中，獎勵『相對低位、貼近支撐、未過熱』的回檔買點。
+
+    與 PatternScore（突破/追強）刻意對立——配分由使用者調整：想做回檔低接就把『位階』
+    調高、『型態(突破)』調低。趨勢成立由硬篩(站上上揚月線)保證，此處只問『買在相對低
+    還是已噴出』：區間位階低、乖離小(貼月線)、KD 未過熱者得分高。
+    """
+
+    category = "position"
+    default_weight = 15.0
+
+    def score(self, ctx: StockContext) -> float | None:
+        ind = ctx.ind
+        if ind is None or ctx.close is None or ctx.n_bars < 20:
+            return None
+        c = ctx.close
+        highs = ctx.prices["high"].iloc[-20:]
+        lows = ctx.prices["low"].iloc[-20:]
+        hi, lo = float(highs.max()), float(lows.min())
+        rng = hi - lo
+        pir = (c - lo) / rng if rng > 0 else 0.5  # 區間位階：0=區間低 1=區間高
+        s = clamp((1.0 - pir) * 60, 0, 60)  # 越低位分越高（最多 60）
+        b = ind.get("bias_20")
+        if b is not None:
+            if b <= 4:
+                s += 25  # 貼月線、剛拉回
+            elif b <= 8:
+                s += 12
+        k = ind.get("kd_k")
+        if k is not None:
+            if k < 50:
+                s += 15  # 未過熱、低檔翻揚空間大
+            elif k < 70:
+                s += 8
+        return clamp(s)
+
+    def reason(self, ctx, value):
+        return "回檔相對低位" if value >= 60 else None
+
+
 WAVE_SCORERS: list[ScoreRule] = [
     TrendScore(),
     MomentumScore(),
     VolumeScore(),
     ChipScore(),
     PatternScore(),
+    PositionScore(),
 ]

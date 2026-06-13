@@ -21,6 +21,146 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/stocks/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stock Search
+         * @description 股號/股名查詢（給查詢框跳轉用）。代號前綴或名稱包含皆比對，依相關度排序取前 10。
+         */
+        get: operations["stock_search_stocks_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/calibration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Calibration
+         * @description 分數校準回測結果（波段軌；L4）。讀快取，無則回空殼。重算用 POST /calibration/recompute。
+         */
+        get: operations["calibration_calibration_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/calibration/recompute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Calibration Recompute
+         * @description 重跑校準（較重，~分鐘級）。as-of 用最新行情日。
+         */
+        post: operations["calibration_recompute_calibration_recompute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/expectancy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Expectancy
+         * @description 逐筆交易期望值回測結果（波段軌）。讀快取，重算用 POST /expectancy/recompute。
+         */
+        get: operations["expectancy_expectancy_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/expectancy/recompute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Expectancy Recompute
+         * @description 重跑逐筆期望值回測（較重，~分鐘級）。
+         */
+        post: operations["expectancy_recompute_expectancy_recompute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/param-sweep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Param Sweep
+         * @description 出場參數掃描 + walk-forward 結果（波段軌）。讀快取。
+         */
+        get: operations["param_sweep_param_sweep_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/param-sweep/recompute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Param Sweep Recompute
+         * @description 重跑參數掃描（最重，~數分鐘）。
+         */
+        post: operations["param_sweep_recompute_param_sweep_recompute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/stocks/{stock_id}": {
         parameters: {
             query?: never;
@@ -47,6 +187,26 @@ export interface paths {
         };
         /** Stock Ohlcv */
         get: operations["stock_ohlcv_stocks__stock_id__ohlcv_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stocks/{stock_id}/levels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stock Levels
+         * @description 客觀支撐/壓力位（均線群+波段前低+量價套牢區，純算不靠 LLM）。
+         */
+        get: operations["stock_levels_stocks__stock_id__levels_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -151,6 +311,23 @@ export interface paths {
         };
         /** Overview */
         get: operations["overview_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/intel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Intel */
+        get: operations["intel_intel_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -429,7 +606,7 @@ export interface paths {
         put?: never;
         /**
          * Trigger Pipeline
-         * @description 手動重跑（設定頁 / 補跑）。背景執行，立即回 accepted。
+         * @description 設定頁[立即載入]：背景執行，立即回 accepted。已在跑則回 already_running。
          */
         post: operations["trigger_pipeline_pipeline_run_post"];
         delete?: never;
@@ -524,6 +701,26 @@ export interface components {
             margin_balance: number | null;
             /** Short Balance */
             short_balance: number | null;
+        };
+        /**
+         * EtfInfo
+         * @description ETF 身分資料（個股無月營收/本益比時改顯示這塊）。
+         */
+        EtfInfo: {
+            /** Kind */
+            kind?: string | null;
+            /** Fund Type */
+            fund_type?: string | null;
+            /** Track Index */
+            track_index?: string | null;
+            /** Has Foreign */
+            has_foreign?: boolean | null;
+            /** Scale Label */
+            scale_label?: string | null;
+            /** Scale Billion */
+            scale_billion?: number | null;
+            /** Listed Date */
+            listed_date?: string | null;
         };
         /** EventBrief */
         EventBrief: {
@@ -696,6 +893,71 @@ export interface components {
             /** Total Realized Pnl */
             total_realized_pnl: number;
         };
+        /** IntelEvent */
+        IntelEvent: {
+            /** Stock Id */
+            stock_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Category */
+            category: string | null;
+            /** Title */
+            title: string;
+            /** Is Risk */
+            is_risk: boolean;
+            /** Source */
+            source: string | null;
+            /** Url */
+            url: string | null;
+        };
+        /** IntelResponse */
+        IntelResponse: {
+            /** Date */
+            date: string | null;
+            /** Market Digest */
+            market_digest?: string | null;
+            /** Focus Digest */
+            focus_digest?: string | null;
+            /** Themes */
+            themes: components["schemas"]["ThemeDigest"][];
+            /** Events */
+            events: components["schemas"]["IntelEvent"][];
+            /** Total */
+            total: number;
+            /** Risk Count */
+            risk_count: number;
+            /** Has Digest */
+            has_digest: boolean;
+        };
+        /** LevelDTO */
+        LevelDTO: {
+            /** Price */
+            price: number;
+            /** Kind */
+            kind: string;
+            /** Strength */
+            strength: number;
+            /** Methods */
+            methods: string[];
+            /** Distance Pct */
+            distance_pct: number;
+        };
+        /** LevelsResponse */
+        LevelsResponse: {
+            /** Stock Id */
+            stock_id: string;
+            /** Close */
+            close: number | null;
+            /** Supports */
+            supports: components["schemas"]["LevelDTO"][];
+            /** Resistances */
+            resistances: components["schemas"]["LevelDTO"][];
+        };
         /** MarketSummary */
         MarketSummary: {
             /** Date */
@@ -714,6 +976,20 @@ export interface components {
             trust_net: number | null;
             /** Dealer Net */
             dealer_net: number | null;
+            /** Pct Above Ma20 */
+            pct_above_ma20?: number | null;
+            /** Pct Above Ma60 */
+            pct_above_ma60?: number | null;
+            /** Foreign Buy Count */
+            foreign_buy_count?: number | null;
+            /** Foreign Sell Count */
+            foreign_sell_count?: number | null;
+            /** Trust Buy Count */
+            trust_buy_count?: number | null;
+            /** Trust Sell Count */
+            trust_sell_count?: number | null;
+            /** Trust Top10 Concentration */
+            trust_top10_concentration?: number | null;
         };
         /** OhlcvResponse */
         OhlcvResponse: {
@@ -767,6 +1043,12 @@ export interface components {
             sub_scores: {
                 [key: string]: number;
             } | null;
+            /** Coverage */
+            coverage: number | null;
+            /** Confidence */
+            confidence: number | null;
+            /** Stability */
+            stability: number | null;
             /** Close */
             close: number | null;
             /** Change Pct */
@@ -807,6 +1089,12 @@ export interface components {
             sub_scores: {
                 [key: string]: number;
             } | null;
+            /** Coverage */
+            coverage: number | null;
+            /** Confidence */
+            confidence: number | null;
+            /** Stability */
+            stability: number | null;
             /** Buy Low */
             buy_low: number | null;
             /** Buy High */
@@ -914,14 +1202,52 @@ export interface components {
             change: number | null;
             /** Change Pct */
             change_pct: number | null;
+            /**
+             * Is Etf
+             * @default false
+             */
+            is_etf: boolean;
             /** Scores */
             scores: {
                 [key: string]: components["schemas"]["ScoreDTO"] | null;
             };
             chip: components["schemas"]["ChipSummary"] | null;
             fundamental: components["schemas"]["FundamentalSummary"] | null;
+            etf?: components["schemas"]["EtfInfo"] | null;
             /** Events */
             events: components["schemas"]["EventDTO"][];
+            /** News Digest */
+            news_digest?: string | null;
+        };
+        /**
+         * StockSearchItem
+         * @description 查詢框結果項（股號/股名跳轉用）。
+         */
+        StockSearchItem: {
+            /** Stock Id */
+            stock_id: string;
+            /** Name */
+            name: string;
+            /** Market */
+            market?: string | null;
+            /**
+             * Is Etf
+             * @default false
+             */
+            is_etf: boolean;
+        };
+        /** ThemeDigest */
+        ThemeDigest: {
+            /** Sector Id */
+            sector_id: number;
+            /** Sector Name */
+            sector_name: string;
+            /** Digest */
+            digest: string;
+            /** Event Count */
+            event_count: number;
+            /** Risk Count */
+            risk_count: number;
         };
         /** ToHolding */
         ToHolding: {
@@ -1107,6 +1433,170 @@ export interface operations {
             };
         };
     };
+    stock_search_stocks_search_get: {
+        parameters: {
+            query: {
+                /** @description 股號或股名關鍵字 */
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockSearchItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    calibration_calibration_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    calibration_recompute_calibration_recompute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    expectancy_expectancy_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    expectancy_recompute_expectancy_recompute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    param_sweep_param_sweep_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    param_sweep_recompute_param_sweep_recompute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     stock_detail_stocks__stock_id__get: {
         parameters: {
             query?: never;
@@ -1158,6 +1648,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OhlcvResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stock_levels_stocks__stock_id__levels_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stock_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LevelsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -1405,6 +1926,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OverviewResponse"];
+                };
+            };
+        };
+    };
+    intel_intel_get: {
+        parameters: {
+            query?: {
+                days?: number;
+                category?: string | null;
+                risk_only?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntelResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

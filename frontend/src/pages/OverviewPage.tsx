@@ -7,11 +7,12 @@ import { useOverview, useSettings, useUpdateSettings, type OverviewResponse } fr
 import { Markdown } from "../components/Markdown";
 import { changeColor, fmtNum, fmtPct, scoreColor, trendColor, TRACK_LABELS } from "../lib/format";
 
-function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
+function Stat({ label, value, color, hint }: { label: string; value: string; color?: string; hint?: string }) {
   return (
     <div className="text-center">
       <div className="text-xs text-muted">{label}</div>
       <div className={`text-lg font-semibold tabular-nums ${color ?? ""}`}>{value}</div>
+      {hint && <div className="text-[10px] leading-tight text-muted">{hint}</div>}
     </div>
   );
 }
@@ -156,6 +157,20 @@ export default function OverviewPage() {
         <Stat label="投信(張)" value={fmtNum(m.trust_net, 0)} color={changeColor(m.trust_net)} />
         <Stat label="自營(張)" value={fmtNum(m.dealer_net, 0)} color={changeColor(m.dealer_net)} />
       </div>
+
+      {m.pct_above_ma20 != null && (
+        <div className="mb-5 rounded-xl border border-edge bg-panel p-4">
+          <div className="mb-2 text-sm font-semibold">市場廣度 / 分化</div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Stat label="站上月線" value={`${m.pct_above_ma20}%`}
+              color={m.pct_above_ma20 >= 60 ? "text-up" : m.pct_above_ma20 < 40 ? "text-down" : undefined} />
+            <Stat label="站上季線" value={m.pct_above_ma60 == null ? "—" : `${m.pct_above_ma60}%`} />
+            <Stat label="外資 買/賣 家數" value={`${m.foreign_buy_count ?? "—"} / ${m.foreign_sell_count ?? "—"}`} />
+            <Stat label="投信 買/賣 家數" value={`${m.trust_buy_count ?? "—"} / ${m.trust_sell_count ?? "—"}`}
+              hint={m.trust_top10_concentration != null ? `買超前10檔占 ${m.trust_top10_concentration}%${m.trust_top10_concentration > 50 ? "（集中少數）" : ""}` : undefined} />
+          </div>
+        </div>
+      )}
 
       {data.market_note && !edit && (
         <div className="mb-5 rounded-xl border border-edge bg-panel p-4">

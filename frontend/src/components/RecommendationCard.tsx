@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import type { RecommendationItem } from "../api/client";
-import { changeColor, fmtNum, fmtPct, TRACK_LABELS } from "../lib/format";
+import { changeColor, fmtNum, fmtPct, positionMeta, TRACK_LABELS } from "../lib/format";
+import { ConfidenceBadge } from "./ConfidenceBadge";
 import { ReasonChips } from "./ReasonChips";
 import { ScoreDisplay } from "./ScoreDisplay";
 
@@ -23,7 +24,21 @@ export function RecommendationCard({ item }: { item: RecommendationItem }) {
         </div>
       </div>
 
-      <ScoreDisplay total={item.total_score} subScores={item.sub_scores} />
+      <div className="flex items-center justify-between">
+        <ScoreDisplay total={item.total_score} subScores={item.sub_scores} />
+        <div className="flex items-center gap-2">
+          {(() => {
+            const pm = positionMeta(item.sub_scores?.position);
+            return pm ? (
+              <span className="whitespace-nowrap text-xs">
+                <span className="text-muted">位階 </span>
+                <span className={`font-medium ${pm.color}`}>{pm.label}</span>
+              </span>
+            ) : null;
+          })()}
+          <ConfidenceBadge confidence={item.confidence} coverage={item.coverage} stability={item.stability} />
+        </div>
+      </div>
 
       <div className="grid grid-cols-2 gap-2 text-sm">
         <div>
