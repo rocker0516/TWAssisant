@@ -23,12 +23,22 @@ def update_settings(
 ) -> dict:
     if key not in DEFAULTS:
         return {"error": f"未知設定區 {key}"}
-    return _svc.update(session, key, partial)
+    result = _svc.update(session, key, partial)
+    if key == "general":  # 排程時間/開關改了 → 用剛算好的設定重排（避開未 commit 的舊值）
+        from ..scheduler.service import get_scheduler
+
+        get_scheduler().reschedule(result)
+    return result
 
 
 @router.post("/{key}/reset")
 def reset_settings(key: str, session: Session = Depends(get_session_write)) -> dict:
-    return _svc.reset(session, key)
+    result = _svc.reset(session, key)
+    if key == "general":
+        from ..scheduler.service import get_scheduler
+
+        get_scheduler().reschedule(result)
+    return result
 
 
 @router.post("/recompute")

@@ -17,16 +17,20 @@ from ..storage import models
 # 預設值（與各引擎內建預設一致）。恢復預設 = 刪該 key 或覆寫成此。
 DEFAULTS: dict = {
     "scoring": {
-        "wave": {"threshold": 70, "weights": {"trend": 25, "momentum": 25, "volume": 20, "chip": 20, "pattern": 10}},
+        "wave": {"style": "breakout", "threshold": 70, "weights": {"trend": 25, "momentum": 25, "volume": 20, "chip": 20, "pattern": 10, "position": 15}},
         "long": {"threshold": 70, "weights": {"profit": 25, "growth": 25, "valuation": 20, "quality": 20, "trend_aux": 10}},
     },
     "sector": {"weights": {"momentum": 35, "fund": 30, "tech": 35}},
     "exit": {
-        "wave": {"stop_cap": 8, "trail_trigger": 10, "trail_pullback": 10},
-        "long": {"stop_cap": 15, "trail_trigger": 20, "trail_pullback": 20},
+        "wave": {"stop_cap": 8, "trail_trigger": 10, "trail_pullback": 10, "break_ma_exit": True},
+        "long": {"stop_cap": 15, "trail_trigger": 20, "trail_pullback": 20, "break_ma_exit": True},
     },
     "layout": {"widgets": ["holdings", "recommendations", "sectors", "events"]},
-    "general": {"theme": "dark", "home": "overview"},
+    "general": {
+        "theme": "dark",
+        "home": "overview",
+        "schedule": {"enabled": True, "time": "21:30"},  # 後端內建每日載入排程
+    },
 }
 
 

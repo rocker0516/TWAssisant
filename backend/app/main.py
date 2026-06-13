@@ -17,6 +17,7 @@ from sqlalchemy import func, select
 from .api.routes import router as api_router
 from .api.routes_assistant import router as assistant_router
 from .api.routes_holdings import router as holdings_router
+from .api.routes_intel import router as intel_router
 from .api.routes_overview import router as overview_router
 from .api.routes_sectors import router as sectors_router
 from .api.routes_settings import router as settings_router
@@ -40,6 +41,7 @@ app.include_router(api_router)
 app.include_router(holdings_router)
 app.include_router(sectors_router)
 app.include_router(overview_router)
+app.include_router(intel_router)
 app.include_router(watchlists_router)
 app.include_router(settings_router)
 app.include_router(assistant_router)
@@ -48,6 +50,17 @@ app.include_router(assistant_router)
 @app.on_event("startup")
 def _startup() -> None:
     init_db()
+    # 後端常開時的內建排程：啟動 catch-up + 每日 21:30 自動載入。
+    from .scheduler.service import get_scheduler
+
+    get_scheduler().start()
+
+
+@app.on_event("shutdown")
+def _shutdown() -> None:
+    from .scheduler.service import get_scheduler
+
+    get_scheduler().shutdown()
 
 
 @app.get("/health")
@@ -84,7 +97,14 @@ def system_status() -> dict:
             if last_run
             else None
         )
-    return {"db": settings.db_filename, "counts": counts, "last_pipeline_run": last}
+    from .scheduler.service import is_running
+
+    return {
+        "db": settings.db_filename,
+        "counts": counts,
+        "last_pipeline_run": last,
+        "pipeline_running": is_running(),
+    }
 
 
 @app.get("/sources")
@@ -111,17 +131,14 @@ def test_source(name: str, body: TokenBody) -> dict:
     return result
 
 
-def _run_pipeline(target: date) -> None:
-    from .scheduler.run import build_pipeline
-
-    build_pipeline().run(target)
-
-
 @app.post("/pipeline/run")
 def trigger_pipeline(background: BackgroundTasks) -> dict:
-    """手動重跑（設定頁 / 補跑）。背景執行，立即回 accepted。"""
+    """設定頁[立即載入]：背景執行，立即回 accepted。已在跑則回 already_running。"""
+    from .scheduler.service import is_running, run_pipeline_guarded
     from .scheduler.trading_calendar import resolve_trading_date
 
     target = resolve_trading_date(date.today())
-    background.add_task(_run_pipeline, target)
+    if is_running():
+        return {"accepted": False, "reason": "already_running", "trading_date": target.isoformat()}
+    background.add_task(run_pipeline_guarded, target, trigger="manual")
     return {"accepted": True, "trading_date": target.isoformat()}
