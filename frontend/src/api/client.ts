@@ -103,6 +103,46 @@ export function useRecomputeCalibration() {
   });
 }
 
+// ── 單因子 IC（資料驅動權重）──
+
+export type FactorIC = {
+  generated_at?: string;
+  track: string;
+  horizon?: number;
+  window?: { from?: string | null; to?: string | null };
+  score_dates: number;
+  factors: Record<string, { ic_mean: number | null; ic_ir: number | null; n_dates: number }>;
+  current_weights: Record<string, number>;
+  suggested_weights: Record<string, number | null>;
+  note?: string;
+};
+
+export function useFactorIc() {
+  return useQuery({
+    queryKey: ["factor-ic"],
+    queryFn: () => getJson<FactorIC>("/factor-ic"),
+  });
+}
+
+export function useRecomputeFactorIc() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => sendJson<{ status: string }>("POST", "/factor-ic/recompute"),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["factor-ic"] }),
+  });
+}
+
+export function useApplyFactorIc() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => sendJson<{ status: string; applied: Record<string, number> }>("POST", "/factor-ic/apply"),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["factor-ic"] });
+      qc.invalidateQueries({ queryKey: ["settings"] });
+    },
+  });
+}
+
 // ── 逐筆期望值回測 ──
 
 export type ExpectancyStats = {

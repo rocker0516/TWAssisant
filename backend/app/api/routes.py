@@ -251,6 +251,47 @@ def calibration_recompute(session: Session = Depends(get_session_write)) -> dict
     return CalibrationEngine().run(session, as_of)
 
 
+@router.get("/factor-ic")
+def factor_ic(session: Session = Depends(get_session)) -> dict:
+    """單因子 IC + 資料驅動建議權重（波段軌）。讀快取，重算用 POST /factor-ic/recompute。"""
+    row = session.get(models.Setting, "factor_ic")
+    if row and isinstance(row.value, dict):
+        return row.value
+    return {"track": "wave", "factors": {}, "current_weights": {}, "suggested_weights": {},
+            "score_dates": 0, "window": {}, "note": "尚未計算，請按重新計算。"}
+
+
+@router.post("/factor-ic/recompute")
+def factor_ic_recompute(session: Session = Depends(get_session_write)) -> dict:
+    """重算單因子 IC（較重，~分鐘級）。as-of 用最新行情日。"""
+    from ..engines.factor_ic import FactorICEngine
+
+    as_of = session.execute(select(func.max(models.DailyPrice.date))).scalar() or date.today()
+    return FactorICEngine().run(session, as_of)
+
+
+@router.post("/factor-ic/apply")
+def factor_ic_apply(session: Session = Depends(get_session_write)) -> dict:
+    """把 IC 建議權重寫進評分設定（scoring.wave.weights）。需另重跑評分才生效。"""
+    ic = session.get(models.Setting, "factor_ic")
+    if not ic or not isinstance(ic.value, dict):
+        raise HTTPException(status_code=400, detail="尚未計算因子 IC")
+    suggested = {k: v for k, v in (ic.value.get("suggested_weights") or {}).items() if v is not None}
+    if not suggested:
+        raise HTTPException(status_code=400, detail="無可套用的建議權重")
+    row = session.get(models.Setting, "scoring")
+    cfg = dict(row.value) if row and isinstance(row.value, dict) else {}
+    wave = dict(cfg.get("wave") or {})
+    wave["weights"] = {**(wave.get("weights") or {}), **suggested}
+    cfg["wave"] = wave
+    if row is None:
+        session.add(models.Setting(key="scoring", value=cfg))
+    else:
+        row.value = cfg
+    session.flush()
+    return {"status": "ok", "applied": suggested, "note": "已寫入評分設定，需重跑評分才生效。"}
+
+
 @router.get("/expectancy")
 def expectancy(session: Session = Depends(get_session)) -> dict:
     """逐筆交易期望值回測結果（波段軌）。讀快取，重算用 POST /expectancy/recompute。"""

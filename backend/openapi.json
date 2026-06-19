@@ -152,6 +152,69 @@
         }
       }
     },
+    "/factor-ic": {
+      "get": {
+        "summary": "Factor Ic",
+        "description": "單因子 IC + 資料驅動建議權重（波段軌）。讀快取，重算用 POST /factor-ic/recompute。",
+        "operationId": "factor_ic_factor_ic_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Factor Ic Factor Ic Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/factor-ic/recompute": {
+      "post": {
+        "summary": "Factor Ic Recompute",
+        "description": "重算單因子 IC（較重，~分鐘級）。as-of 用最新行情日。",
+        "operationId": "factor_ic_recompute_factor_ic_recompute_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Factor Ic Recompute Factor Ic Recompute Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/factor-ic/apply": {
+      "post": {
+        "summary": "Factor Ic Apply",
+        "description": "把 IC 建議權重寫進評分設定（scoring.wave.weights）。需另重跑評分才生效。",
+        "operationId": "factor_ic_apply_factor_ic_apply_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Factor Ic Apply Factor Ic Apply Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/expectancy": {
       "get": {
         "summary": "Expectancy",

@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  useApplyFactorIc,
   useCalibration,
   useExpectancy,
+  useFactorIc,
   useParamSweep,
   useRecompute,
   useRecomputeCalibration,
   useRecomputeExpectancy,
+  useRecomputeFactorIc,
   useRecomputeParamSweep,
   useResetSettings,
   useSettings,
@@ -26,6 +29,7 @@ const SECTIONS = [
   { key: "exit", label: "出場提醒" },
   { key: "sources", label: "資料來源" },
   { key: "calibration", label: "分數校準" },
+  { key: "factor_ic", label: "因子權重(IC)" },
   { key: "expectancy", label: "逐筆期望值" },
   { key: "param_sweep", label: "參數掃描" },
   { key: "general", label: "一般" },
@@ -172,6 +176,9 @@ export default function SettingsPage() {
         {/* 分數校準（L4 回測）*/}
         {section === "calibration" && <CalibrationPanel />}
 
+        {/* 因子權重（單因子 IC）*/}
+        {section === "factor_ic" && <FactorICPanel />}
+
         {/* 逐筆期望值回測 */}
         {section === "expectancy" && <ExpectancyPanel />}
 
@@ -181,7 +188,7 @@ export default function SettingsPage() {
         {/* 一般（主題）*/}
         {section === "general" && <GeneralPanel />}
 
-        {section !== "data" && section !== "sources" && section !== "general" && section !== "calibration" && section !== "expectancy" && section !== "param_sweep" && (
+        {section !== "data" && section !== "sources" && section !== "general" && section !== "calibration" && section !== "factor_ic" && section !== "expectancy" && section !== "param_sweep" && (
           <div className="mt-5 flex items-center gap-3">
             <button onClick={save} disabled={update.isPending || recompute.isPending}
               className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium disabled:opacity-50">
@@ -482,6 +489,88 @@ function CalibrationPanel() {
       )}
 
       {has && <p className="text-xs text-muted/80">{cal!.note}</p>}
+    </div>
+  );
+}
+
+function FactorICPanel() {
+  const { data: ic, isLoading } = useFactorIc();
+  const recompute = useRecomputeFactorIc();
+  const apply = useApplyFactorIc();
+  if (isLoading) return <div className="text-muted">載入中…</div>;
+  const factors = ic?.factors ?? {};
+  const cats = Object.keys(ic?.current_weights ?? {});
+  const has = cats.length > 0 && (ic?.score_dates ?? 0) > 0;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-xl border border-edge bg-panel p-4">
+        <div className="mb-1 font-semibold">單因子 IC → 資料驅動權重（波段軌）</div>
+        <p className="text-sm text-muted">
+          每個因子分數與未來 {ic?.horizon ?? 20} 日報酬的<b className="text-gray-200"> 橫截面 rank-IC </b>
+          （跨日平均），由資料決定哪個因子有預測力、該給多少權重——取代手設配分。IR＝IC 均值/標準差（穩定度）。
+        </p>
+        {has && (
+          <p className="mt-2 text-xs text-muted">
+            視窗 {ic!.window?.from} ~ {ic!.window?.to}・{ic!.score_dates} 個交易日　|　計算於 {ic!.generated_at}
+          </p>
+        )}
+        <div className="mt-3 flex items-center gap-3">
+          <button onClick={() => recompute.mutate()} disabled={recompute.isPending}
+            className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium disabled:opacity-50">
+            {recompute.isPending ? "回測中…（約 1-2 分鐘）" : "重新計算"}
+          </button>
+          {has && (
+            <button onClick={() => apply.mutate()} disabled={apply.isPending}
+              className="rounded-md border border-edge px-4 py-2 text-sm font-medium disabled:opacity-50">
+              {apply.isPending ? "套用中…" : "套用建議權重"}
+            </button>
+          )}
+          {recompute.isError && <span className="text-sm text-down">失敗，請重試</span>}
+          {apply.isSuccess && <span className="text-sm text-up">已套用，需重跑評分才生效</span>}
+        </div>
+      </div>
+
+      {!has && <p className="text-sm text-muted">尚無因子 IC 資料，按「重新計算」產生（約 1-2 分鐘）。</p>}
+
+      {has && (
+        <div className="rounded-xl border border-edge bg-panel p-4">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-muted">
+                <th className="py-1.5">因子</th>
+                <th className="py-1.5 text-right">IC 均值</th>
+                <th className="py-1.5 text-right">IR</th>
+                <th className="py-1.5 text-right">天數</th>
+                <th className="py-1.5 text-right">現行權重</th>
+                <th className="py-1.5 text-right">建議權重</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cats.map((c) => {
+                const f = factors[c] ?? { ic_mean: null, ic_ir: null, n_dates: 0 };
+                const cur = ic!.current_weights[c];
+                const sug = ic!.suggested_weights[c];
+                return (
+                  <tr key={c} className="border-t border-edge/50">
+                    <td className="py-1.5">{CATEGORY_LABELS[c] ?? c}</td>
+                    <td className={`py-1.5 text-right tabular-nums ${changeColor(f.ic_mean)}`}>
+                      {f.ic_mean == null ? "—" : f.ic_mean.toFixed(4)}
+                    </td>
+                    <td className="py-1.5 text-right tabular-nums text-muted">
+                      {f.ic_ir == null ? "—" : f.ic_ir.toFixed(2)}
+                    </td>
+                    <td className="py-1.5 text-right tabular-nums text-muted">{f.n_dates}</td>
+                    <td className="py-1.5 text-right tabular-nums text-muted">{cur?.toFixed(1) ?? "—"}</td>
+                    <td className="py-1.5 text-right tabular-nums font-medium">{sug == null ? "—" : sug.toFixed(1)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {ic!.note && <p className="mt-3 text-xs text-muted">{ic!.note}</p>}
+        </div>
+      )}
     </div>
   );
 }
