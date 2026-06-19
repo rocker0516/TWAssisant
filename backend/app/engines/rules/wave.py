@@ -229,9 +229,11 @@ class ChipScore(ScoreRule):
         if vma_lots <= 0:
             base = 50.0  # 量能基準缺：法人佔比不可算，給中性（非缺料剔除，維持籌碼維度存在）
         else:
-            net5 = ctx.inst_sum("foreign_net", 5) + ctx.inst_sum("trust_net", 5)
-            ratio = net5 / (vma_lots * 5)  # 近5日法人淨買佔5日量比例
-            base = clamp(50 + ratio * 500)
+            # 短期(5日)+持續(20日累計)法人淨買佔量比例 6:4 混合——兼顧近日動向與「累計
+            # 偷偷進/出貨」趨勢（即籌碼趨勢圖那條累計線）。
+            ratio5 = (ctx.inst_sum("foreign_net", 5) + ctx.inst_sum("trust_net", 5)) / (vma_lots * 5)
+            ratio20 = (ctx.inst_sum("foreign_net", 20) + ctx.inst_sum("trust_net", 20)) / (vma_lots * 20)
+            base = clamp(50 + (0.6 * ratio5 + 0.4 * ratio20) * 500)
         return clamp(base + self._holder_nudge(ctx))
 
     def reason(self, ctx, value):
@@ -253,6 +255,9 @@ class ChipScore(ScoreRule):
             parts.append(f"外資5日{'買' if f5 > 0 else '賣'}超 {abs(int(round(f5))):,} 張")
         if abs(t5) >= 1:
             parts.append(f"投信{'買' if t5 > 0 else '賣'}超 {abs(int(round(t5))):,} 張")
+        f20 = ctx.inst_sum("foreign_net", 20) + ctx.inst_sum("trust_net", 20)
+        if abs(f20) >= 1:
+            parts.append(f"法人20日累計{'買' if f20 > 0 else '賣'}超 {abs(int(round(f20))):,} 張")
         big = ctx.holding_latest("big_pct")
         if big is not None:
             seg = f"大戶持股 {big:.0f}%"
@@ -261,6 +266,48 @@ class ChipScore(ScoreRule):
                 seg += f"（近月{'增' if trend > 0 else '減'} {abs(trend):.1f} 個百分點）"
             parts.append(seg)
         return "、".join(parts) if parts else "法人無明顯進出"
+
+
+class MarginScore(ScoreRule):
+    """融資融券籌碼面：融資餘額近月變化 + 券資比。
+
+    籌碼面常識讀法——上升趨勢中『融資增=散戶槓桿追高、籌碼鬆動（偏空）；融資減/沉澱=
+    籌碼乾淨惜售（偏多）』；券資比高=空單累積、有軋空潛力（小幅偏多）。門檻仍是 heuristic
+    常數（Phase 2 單因子 IC 會用歷史報酬相關性決定此因子權重，沒預測力自然被降權）。
+    """
+
+    category = "margin"
+    default_weight = 10.0
+    _CHG_K = 1.5      # 融資 20 日變化率 → 分數斜率（每 +1% 融資扣 1.5 分）
+    _CHG_CAP = 30.0   # 融資變化貢獻上下限
+    _SR_K = 0.8       # 券資比 → 加分斜率
+    _SR_CAP = 12.0    # 券資比加分上限
+
+    def score(self, ctx: StockContext) -> float | None:
+        chg = ctx.margin_change_pct(20)
+        if chg is None:
+            return None  # 無融資資料（如多數 ETF）：缺料剔除、不灌中性
+        s = 50.0 - clamp(chg * self._CHG_K, -self._CHG_CAP, self._CHG_CAP)
+        sr = ctx.short_margin_ratio()
+        if sr is not None:
+            s += clamp(sr * self._SR_K, 0.0, self._SR_CAP)
+        return clamp(s)
+
+    def reason(self, ctx, value):
+        chg = ctx.margin_change_pct(20)
+        if chg is not None and chg <= -8:
+            return "融資退場籌碼沉澱"
+        return None
+
+    def evidence(self, ctx, value):
+        chg = ctx.margin_change_pct(20)
+        if chg is None:
+            return None
+        parts = [f"融資餘額20日{'增' if chg > 0 else '減'} {abs(chg):.0f}%"]
+        sr = ctx.short_margin_ratio()
+        if sr is not None and sr >= 1:
+            parts.append(f"券資比 {sr:.0f}%")
+        return "、".join(parts)
 
 
 class PatternScore(ScoreRule):
@@ -363,6 +410,7 @@ WAVE_SCORERS: list[ScoreRule] = [
     MomentumScore(),
     VolumeScore(),
     ChipScore(),
+    MarginScore(),
     PatternScore(),
     PositionScore(),
 ]

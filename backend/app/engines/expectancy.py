@@ -195,7 +195,7 @@ class ExpectancyEngine(BaseEngine):
         stock_ids = sorted(stock_map)
 
         sds: list[StockData] = []
-        for sid, pdf, ind_g, inst_g in _iter_stock_groups(session, stock_ids, date_lo):
+        for sid, pdf, ind_g, inst_g, margin_g in _iter_stock_groups(session, stock_ids, date_lo):
             stock = stock_map.get(sid)
             if stock is None or ind_g is None:
                 continue
@@ -220,6 +220,7 @@ class ExpectancyEngine(BaseEngine):
                     stock=stock, date=T, prices=pdf.iloc[: p + 1],
                     inds=ind_g[ind_g["date"] <= T],
                     inst=inst_g[inst_g["date"] <= T] if not inst_g.empty else inst_g,
+                    margin=margin_g[margin_g["date"] <= T] if margin_g is not None else None,
                 )
                 res = self.track.evaluate(ctx, wave_cfg)
                 score = res["total_score"]

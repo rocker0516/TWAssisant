@@ -20,6 +20,7 @@ class StockContext:
     prices: pd.DataFrame  # 升冪，欄 open/high/low/close/volume，index=date
     inds: pd.DataFrame  # 升冪，indicator 欄，index=date
     inst: pd.DataFrame  # 升冪，法人欄，index=date（可能空）
+    margin: pd.DataFrame | None = None  # 升冪，融資融券欄，index=date（可能空/None）
     holding: pd.DataFrame | None = None  # 升冪，集保股權分散週資料（可能空/None）
     # 長線軌資料（P1 fundamentals 之後填；先給空/None）
     valuation: pd.Series | None = None
@@ -62,6 +63,33 @@ class StockContext:
         if self.inst is None or self.inst.empty or col not in self.inst:
             return 0.0
         return float(self.inst[col].iloc[-days:].fillna(0).sum())
+
+    # ── 融資融券 ──
+
+    def margin_change_pct(self, days: int = 20) -> float | None:
+        """融資餘額近 days 日變化率（%）。史料不足或基準 0 回 None。"""
+        if self.margin is None or self.margin.empty or "margin_balance" not in self.margin:
+            return None
+        s = self.margin["margin_balance"].dropna()
+        if len(s) < 2:
+            return None
+        ref = s.iloc[-(days + 1)] if len(s) > days else s.iloc[0]
+        now = s.iloc[-1]
+        if not ref:
+            return None
+        return float((now - ref) / ref * 100.0)
+
+    def short_margin_ratio(self) -> float | None:
+        """券資比（融券餘額 / 融資餘額，%）。無融資回 None。"""
+        if self.margin is None or self.margin.empty:
+            return None
+        if "margin_balance" not in self.margin or "short_balance" not in self.margin:
+            return None
+        mb = self.margin["margin_balance"].dropna()
+        sb = self.margin["short_balance"].dropna()
+        if len(mb) == 0 or len(sb) == 0 or not mb.iloc[-1]:
+            return None
+        return float(sb.iloc[-1] / mb.iloc[-1] * 100.0)
 
     # ── 集保股權分散（週資料）──
 

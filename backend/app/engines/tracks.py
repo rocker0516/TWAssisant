@@ -146,7 +146,7 @@ class WaveTrack(Track):
 
     # 回檔低接專屬配分：位階(買在相對低)主導、突破型態與量能放大降權、動能略降避免追過熱；
     # 趨勢/籌碼維持（上升趨勢與法人支撐仍重要）。breakout 用預設配分。
-    _PULLBACK_WEIGHTS = {"trend": 25.0, "momentum": 20.0, "volume": 10.0, "chip": 20.0, "pattern": 5.0, "position": 35.0}
+    _PULLBACK_WEIGHTS = {"trend": 25.0, "momentum": 20.0, "volume": 10.0, "chip": 20.0, "margin": 10.0, "pattern": 5.0, "position": 35.0}
 
     def styles(self) -> list[tuple[str, list]]:
         """進場風格：breakout 突破追強(量增) / pullback 回檔低接(已回檔、不要求量增)。

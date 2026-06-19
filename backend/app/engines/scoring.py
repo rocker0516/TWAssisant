@@ -89,11 +89,13 @@ class ScoringEngine(BaseEngine):
             "kd_k", "kd_d", "macd", "macd_signal", "macd_hist", "atr14", "bias_20", "bias_60",
         ]
         inst_cols = ["stock_id", "date", "foreign_net", "trust_net", "dealer_net", "total_net"]
+        margin_cols = ["stock_id", "date", "margin_balance", "margin_change", "short_balance", "short_change"]
         hold_cols = ["stock_id", "date", "big_pct", "over1000_pct", "small_pct", "holders", "avg_lots"]
 
         prices = _load_groups(session, models.DailyPrice, price_cols, td)
         inds = _load_groups(session, models.Indicator, ind_cols, td)
         inst = _load_groups(session, models.Institutional, inst_cols, td)
+        margin = _load_groups(session, models.Margin, margin_cols, td)
         holding = _load_groups(session, models.ShareholdingDistribution, hold_cols, td)
         stock_map = {s.id: s for s in session.execute(select(models.Stock)).scalars().all()}
 
@@ -144,6 +146,7 @@ class ScoringEngine(BaseEngine):
                 prices=price_g,
                 inds=ind_g,
                 inst=inst.get(sid, pd.DataFrame(columns=inst_cols)),
+                margin=margin.get(sid),
                 holding=holding.get(sid),
                 valuation=valuation.get(sid),
                 revenue=revenue.get(sid),

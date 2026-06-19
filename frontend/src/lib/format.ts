@@ -5,6 +5,7 @@ export const CATEGORY_LABELS: Record<string, string> = {
   momentum: "動能",
   volume: "量能",
   chip: "籌碼",
+  margin: "融資券",
   pattern: "型態",
   position: "位階",
   // 長線軌

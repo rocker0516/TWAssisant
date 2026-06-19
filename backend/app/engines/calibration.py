@@ -38,6 +38,7 @@ _IND_COLS = [
     "kd_k", "kd_d", "macd", "macd_signal", "macd_hist", "atr14", "bias_20", "bias_60",
 ]
 _INST_COLS = ["stock_id", "date", "foreign_net", "trust_net", "dealer_net", "total_net"]
+_MARGIN_COLS = ["stock_id", "date", "margin_balance", "margin_change", "short_balance", "short_change"]
 
 # 回測窗（架構③ L4）：回補到 2020 後全表約 330 萬筆/六年。一次 select(model).all() 會把
 # 三張表的 ORM（≈千萬列）同時載進記憶體 → OOM；逐日 evaluate 全歷史也會跑到天荒地老
@@ -100,21 +101,24 @@ def _group_ids(
 
 def _iter_stock_groups(
     session: Session, stock_ids: list[str], date_lo: date, batch: int = _STOCK_BATCH
-) -> Iterator[tuple[str, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None]]:
-    """依股票分批串流載入 price/indicator/法人，逐檔 yield (sid, prices, inds, inst)。
+) -> Iterator[
+    tuple[str, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, pd.DataFrame | None]
+]:
+    """依股票分批串流載入 price/indicator/法人/融資券，逐檔 yield (sid, prices, inds, inst, margin)。
 
     每批只把 batch 檔的窗內資料載進記憶體；calibration / expectancy 共用，避免一次把
-    六年×全市場三張表全載而 OOM。無價量資料的股票直接略過（inds/inst 可能為 None）。
+    六年×全市場多表全載而 OOM。無價量資料的股票直接略過（inds/inst/margin 可能為 None）。
     """
     for i in range(0, len(stock_ids), batch):
         ids = stock_ids[i : i + batch]
         prices = _group_ids(session, models.DailyPrice, _PRICE_COLS, ids, date_lo)
         inds = _group_ids(session, models.Indicator, _IND_COLS, ids, date_lo)
         inst = _group_ids(session, models.Institutional, _INST_COLS, ids, date_lo)
+        margin = _group_ids(session, models.Margin, _MARGIN_COLS, ids, date_lo)
         for sid in ids:
             pdf = prices.get(sid)
             if pdf is not None:
-                yield sid, pdf, inds.get(sid), inst.get(sid)
+                yield sid, pdf, inds.get(sid), inst.get(sid), margin.get(sid)
 
 
 class CalibrationEngine(BaseEngine):
@@ -145,7 +149,7 @@ class CalibrationEngine(BaseEngine):
         # samples[h] = list[(score, confidence, forward_return)]，僅收過硬篩（真實可交易宇宙）
         samples: dict[int, list[tuple[float, float, float]]] = {h: [] for h in _HORIZONS}
         used_dates: set[date] = set()
-        for sid, pdf, ind_g, inst_g in _iter_stock_groups(session, stock_ids, date_lo):
+        for sid, pdf, ind_g, inst_g, margin_g in _iter_stock_groups(session, stock_ids, date_lo):
             stock = stock_map.get(sid)
             if stock is None or ind_g is None:
                 continue
@@ -166,6 +170,7 @@ class CalibrationEngine(BaseEngine):
                     prices=pdf.iloc[: p + 1],
                     inds=ind_g[ind_g["date"] <= T],
                     inst=inst_g[inst_g["date"] <= T] if not inst_g.empty else inst_g,
+                    margin=margin_g[margin_g["date"] <= T] if margin_g is not None else None,
                 )
                 res = self.track.evaluate(ctx, {})
                 score = res["total_score"]
