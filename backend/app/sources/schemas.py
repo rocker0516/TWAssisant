@@ -24,6 +24,14 @@ FINANCIAL_COLS = [
 
 VALUATION_COLS = ["stock_id", "date", "pe", "pb", "dividend_yield"]
 
+# 集保戶股權分散（TDCC 開放資料消化後）：占比為「占集保庫存」%。
+#   big_pct      = 大戶（≥400 張，分級 12~15）占比
+#   over1000_pct = 千張大戶（≥1000 張，分級 15）占比
+#   small_pct    = 散戶（<10 張，分級 1~3）占比
+#   holders      = 總股東人數（分級 17 合計）
+#   avg_lots     = 平均每人持股（張）= 合計股數 / 人數 / 1000
+HOLDING_COLS = ["stock_id", "date", "big_pct", "over1000_pct", "small_pct", "holders", "avg_lots"]
+
 EVENT_COLS = ["stock_id", "date", "category", "title", "summary", "is_risk", "source", "url"]
 
 ETF_PROFILE_COLS = ["stock_id", "fund_type", "track_index", "has_foreign", "units", "etf_listed_date"]

@@ -13,11 +13,13 @@ from .fugle import FugleSource
 from .interfaces import (
     ChipProvider,
     FundamentalProvider,
+    HoldingProvider,
     NewsProvider,
     PriceProvider,
     UniverseProvider,
 )
 from .combined import CombinedMarketSource, CombinedNewsSource
+from .tdcc import TdccSource
 from .tpex import TpexSource
 from .twse import TwseSource
 
@@ -27,6 +29,7 @@ _SOURCE_CLASSES: dict[str, type[BaseSource]] = {
     "fugle": FugleSource,
     "twse": TwseSource,
     "tpex": TpexSource,
+    "tdcc": TdccSource,
     "twmarket": CombinedMarketSource,
     "twnews": CombinedNewsSource,
 }
@@ -36,6 +39,7 @@ _CAPABILITY_INTERFACES = {
     "universe": UniverseProvider,
     "price": PriceProvider,
     "chip": ChipProvider,
+    "holding": HoldingProvider,
     "fundamental": FundamentalProvider,
     "news": NewsProvider,
 }

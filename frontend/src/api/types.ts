@@ -215,6 +215,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/stocks/{stock_id}/holding-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Holding History
+         * @description 集保大戶/散戶占比週序列（曲線用）。史料不足時背景回補近一年（看哪檔補哪檔）。
+         */
+        get: operations["holding_history_stocks__stock_id__holding_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/holdings": {
         parameters: {
             query?: never;
@@ -701,6 +721,18 @@ export interface components {
             margin_balance: number | null;
             /** Short Balance */
             short_balance: number | null;
+            /** Holding Date */
+            holding_date?: string | null;
+            /** Big Pct */
+            big_pct?: number | null;
+            /** Over1000 Pct */
+            over1000_pct?: number | null;
+            /** Small Pct */
+            small_pct?: number | null;
+            /** Holders */
+            holders?: number | null;
+            /** Big Trend */
+            big_trend?: number | null;
         };
         /**
          * EtfInfo
@@ -804,6 +836,15 @@ export interface components {
             /** Note */
             note?: string | null;
         };
+        /** HoldingHistoryResponse */
+        HoldingHistoryResponse: {
+            /** Stock Id */
+            stock_id: string;
+            /** Points */
+            points: components["schemas"]["HoldingPoint"][];
+            /** Backfilling */
+            backfilling: boolean;
+        };
         /** HoldingItem */
         HoldingItem: {
             /** Id */
@@ -871,6 +912,25 @@ export interface components {
             trail_pullback_override?: number | null;
             /** Note */
             note?: string | null;
+        };
+        /**
+         * HoldingPoint
+         * @description 集保週資料單點（曲線用）。
+         */
+        HoldingPoint: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Big Pct */
+            big_pct?: number | null;
+            /** Over1000 Pct */
+            over1000_pct?: number | null;
+            /** Small Pct */
+            small_pct?: number | null;
+            /** Holders */
+            holders?: number | null;
         };
         /** HoldingsResponse */
         HoldingsResponse: {
@@ -1027,6 +1087,18 @@ export interface components {
             /** Total Score */
             total_score: number | null;
         };
+        /**
+         * RecommendationDetail
+         * @description 展開區單一面向：分數 + 帶數字的客觀證據（波段軌目前有 evidence；長線軌暫無）。
+         */
+        RecommendationDetail: {
+            /** Category */
+            category: string;
+            /** Score */
+            score: number;
+            /** Evidence */
+            evidence?: string | null;
+        };
         /** RecommendationItem */
         RecommendationItem: {
             /** Stock Id */
@@ -1063,6 +1135,8 @@ export interface components {
             loss_pct: number | null;
             /** Reasons */
             reasons: string[] | null;
+            /** Details */
+            details?: components["schemas"]["RecommendationDetail"][] | null;
             /** Spark */
             spark?: number[] | null;
         };
@@ -1070,6 +1144,8 @@ export interface components {
         RecommendationList: {
             /** Track */
             track: string;
+            /** Style */
+            style?: string | null;
             /** Date */
             date: string | null;
             /** Threshold */
@@ -1107,6 +1183,8 @@ export interface components {
             loss_pct: number | null;
             /** Reasons */
             reasons: string[] | null;
+            /** Details */
+            details?: components["schemas"]["RecommendationDetail"][] | null;
         };
         /** SectorBrief */
         SectorBrief: {
@@ -1408,6 +1486,7 @@ export interface operations {
         parameters: {
             query?: {
                 track?: string;
+                style?: string | null;
             };
             header?: never;
             path?: never;
@@ -1681,6 +1760,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LevelsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    holding_history_stocks__stock_id__holding_history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stock_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoldingHistoryResponse"];
                 };
             };
             /** @description Validation Error */

@@ -21,6 +21,8 @@ from .schemas import (
     EtfInfo,
     EventDTO,
     FundamentalSummary,
+    HoldingHistoryResponse,
+    HoldingPoint,
     LevelDTO,
     LevelsResponse,
     OhlcvResponse,
@@ -46,6 +48,16 @@ def _threshold(session: Session, track: str) -> float:
     return float(cfg.get(track, {}).get("threshold", 70.0))
 
 
+_WAVE_STYLES = ("breakout", "pullback")
+
+
+def _default_wave_style(session: Session) -> str:
+    row = session.get(models.Setting, "scoring")
+    cfg = row.value if row and isinstance(row.value, dict) else {}
+    s = cfg.get("wave", {}).get("style", "breakout")
+    return s if s in _WAVE_STYLES else "breakout"
+
+
 _SPARK_DAYS = 20  # 推薦卡片近期走勢取樣的交易日數
 
 
@@ -69,14 +81,44 @@ def _recent_prices(
     return close, change_pct, (spark if len(spark) >= 2 else None)
 
 
-def _to_item(session: Session, sc: models.Score, name: str, sector_name: str | None, d: date) -> RecommendationItem:
+def _price_change(
+    session: Session, stock_id: str, d: date
+) -> tuple[float | None, float | None, float | None]:
+    """回 (close, change, change_pct)：當日收盤、對前一交易日的漲跌額與漲跌幅。"""
+    rows = session.execute(
+        select(models.DailyPrice.close)
+        .where(models.DailyPrice.stock_id == stock_id, models.DailyPrice.date <= d)
+        .order_by(models.DailyPrice.date.desc())
+        .limit(2)
+    ).scalars().all()
+    if not rows:
+        return None, None, None
+    close = rows[0]
+    change = change_pct = None
+    if len(rows) >= 2 and rows[1] not in (None, 0) and close is not None:
+        change = round(close - rows[1], 2)
+        change_pct = round((close - rows[1]) / rows[1] * 100, 2)
+    return close, change, change_pct
+
+
+def _eff_total(sc: models.Score, style: str | None) -> float | None:
+    """所選風格的有效總分（回檔低接用位階主導的配分）；無 style_totals 則回主總分。"""
+    if style and sc.style_totals and style in sc.style_totals:
+        return sc.style_totals[style]
+    return sc.total_score
+
+
+def _to_item(
+    session: Session, sc: models.Score, name: str, sector_name: str | None, d: date,
+    total: float | None = None,
+) -> RecommendationItem:
     close, change_pct, spark = _recent_prices(session, sc.stock_id, d)
     return RecommendationItem(
         stock_id=sc.stock_id,
         name=name,
         sector_name=sector_name,
         track=sc.track,
-        total_score=sc.total_score,
+        total_score=sc.total_score if total is None else total,
         sub_scores=sc.sub_scores,
         coverage=sc.coverage,
         confidence=sc.confidence,
@@ -88,6 +130,7 @@ def _to_item(session: Session, sc: models.Score, name: str, sector_name: str | N
         stop_loss=sc.stop_loss,
         loss_pct=sc.loss_pct,
         reasons=sc.reasons,
+        details=sc.details,
         spark=spark,
     )
 
@@ -95,12 +138,15 @@ def _to_item(session: Session, sc: models.Score, name: str, sector_name: str | N
 @router.get("/recommendations", response_model=RecommendationList)
 def recommendations(
     track: str = Query("wave", pattern="^(wave|long)$"),
+    style: str | None = Query(None, pattern="^(breakout|pullback)$"),
     session: Session = Depends(get_session),
 ) -> RecommendationList:
     d = _latest_score_date(session)
     threshold = _threshold(session, track)
+    # 波段軌依風格篩（預設讀 settings）；長線軌無風格
+    sel_style = (style or _default_wave_style(session)) if track == "wave" else None
     if d is None:
-        return RecommendationList(track=track, date=None, threshold=threshold, items=[], near=[])
+        return RecommendationList(track=track, style=sel_style, date=None, threshold=threshold, items=[], near=[])
 
     base = (
         select(models.Score, models.Stock.name, models.Sector.name)
@@ -108,16 +154,28 @@ def recommendations(
         .join(models.Sector, models.Stock.sector_id == models.Sector.id, isouter=True)
         .where(models.Score.track == track, models.Score.date == d)
     )
-    items, near = [], []
-    for sc, name, sector_name in session.execute(
-        base.order_by(models.Score.total_score.desc())
-    ).all():
-        if sc.passed:
-            items.append(_to_item(session, sc, name, sector_name, d))
-        elif sc.passed_filter and sc.total_score is not None and sc.total_score >= threshold - _NEAR_BAND:
-            near.append(_to_item(session, sc, name, sector_name, d))
 
-    return RecommendationList(track=track, date=d, threshold=threshold, items=items, near=near)
+    def _filter_ok(sc: models.Score) -> bool:
+        """該股是否通過所選風格的硬篩（長線軌用通用 passed_filter）。"""
+        if sel_style is None:
+            return bool(sc.passed_filter)
+        return sel_style in (sc.passed_styles or [])
+
+    items, near = [], []
+    for sc, name, sector_name in session.execute(base).all():
+        if not _filter_ok(sc):
+            continue
+        eff = _eff_total(sc, sel_style)  # 依風格用對應配分的總分
+        if eff is None:
+            continue
+        if eff >= threshold:
+            items.append(_to_item(session, sc, name, sector_name, d, total=eff))
+        elif eff >= threshold - _NEAR_BAND:
+            near.append(_to_item(session, sc, name, sector_name, d, total=eff))
+
+    items.sort(key=lambda it: it.total_score or 0, reverse=True)
+    near.sort(key=lambda it: it.total_score or 0, reverse=True)
+    return RecommendationList(track=track, style=sel_style, date=d, threshold=threshold, items=items, near=near)
 
 
 def _score_dto(sc: models.Score | None) -> ScoreDTO | None:
@@ -136,6 +194,7 @@ def _score_dto(sc: models.Score | None) -> ScoreDTO | None:
         stop_loss=sc.stop_loss,
         loss_pct=sc.loss_pct,
         reasons=sc.reasons,
+        details=sc.details,
     )
 
 
@@ -252,6 +311,18 @@ def stock_detail(stock_id: str, session: Session = Depends(get_session)) -> Stoc
         select(models.Margin).where(models.Margin.stock_id == stock_id)
         .order_by(models.Margin.date.desc()).limit(1)
     ).scalars().first()
+    # 集保股權分散：取近 5 週（升冪），算大戶占比近月趨勢（史料不足→None）
+    hold_rows = list(reversed(session.execute(
+        select(models.ShareholdingDistribution)
+        .where(models.ShareholdingDistribution.stock_id == stock_id)
+        .order_by(models.ShareholdingDistribution.date.desc()).limit(5)
+    ).scalars().all()))
+    hold = hold_rows[-1] if hold_rows else None
+    big_trend = None
+    if hold is not None and len(hold_rows) >= 2:
+        bigs = [r.big_pct for r in hold_rows if r.big_pct is not None]
+        if len(bigs) >= 2:
+            big_trend = round(bigs[-1] - bigs[0], 2)
     chip = ChipSummary(
         date=inst.date if inst else (mg.date if mg else None),
         foreign_net=inst.foreign_net if inst else None,
@@ -260,6 +331,12 @@ def stock_detail(stock_id: str, session: Session = Depends(get_session)) -> Stoc
         total_net=inst.total_net if inst else None,
         margin_balance=mg.margin_balance if mg else None,
         short_balance=mg.short_balance if mg else None,
+        holding_date=hold.date if hold else None,
+        big_pct=hold.big_pct if hold else None,
+        over1000_pct=hold.over1000_pct if hold else None,
+        small_pct=hold.small_pct if hold else None,
+        holders=hold.holders if hold else None,
+        big_trend=big_trend,
     )
 
     val = session.execute(
@@ -392,4 +469,39 @@ def stock_levels(
         close=float(close) if close is not None else None,
         supports=[d for d in dto if d.kind == "support"],
         resistances=[d for d in dto if d.kind == "resistance"],
+    )
+
+
+# 週數低於此 → 觸發背景回補（TDCC 智慧網逐週爬近一年）。回補後常駐快取、不再重抓。
+_HOLDING_MIN_WEEKS = 6
+
+
+@router.get("/stocks/{stock_id}/holding-history", response_model=HoldingHistoryResponse)
+def holding_history(
+    stock_id: str,
+    session: Session = Depends(get_session),
+) -> HoldingHistoryResponse:
+    """集保大戶/散戶占比週序列（曲線用）。史料不足時背景回補近一年（看哪檔補哪檔）。"""
+    rows = session.execute(
+        select(models.ShareholdingDistribution)
+        .where(models.ShareholdingDistribution.stock_id == stock_id)
+        .order_by(models.ShareholdingDistribution.date)
+    ).scalars().all()
+
+    backfilling = False
+    if len(rows) < _HOLDING_MIN_WEEKS and session.get(models.Stock, stock_id) is not None:
+        from ..services.shareholding_backfill import trigger_backfill
+
+        backfilling = trigger_backfill(stock_id)
+
+    return HoldingHistoryResponse(
+        stock_id=stock_id,
+        points=[
+            HoldingPoint(
+                date=r.date, big_pct=r.big_pct, over1000_pct=r.over1000_pct,
+                small_pct=r.small_pct, holders=r.holders,
+            )
+            for r in rows
+        ],
+        backfilling=backfilling,
     )

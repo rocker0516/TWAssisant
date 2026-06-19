@@ -10,6 +10,14 @@ from datetime import date
 from pydantic import BaseModel
 
 
+class RecommendationDetail(BaseModel):
+    """展開區單一面向：分數 + 帶數字的客觀證據（波段軌目前有 evidence；長線軌暫無）。"""
+
+    category: str  # trend / momentum / volume / chip / pattern / position ...
+    score: float
+    evidence: str | None = None
+
+
 class ScoreDTO(BaseModel):
     track: str
     passed: bool
@@ -23,6 +31,7 @@ class ScoreDTO(BaseModel):
     stop_loss: float | None
     loss_pct: float | None
     reasons: list[str] | None
+    details: list[RecommendationDetail] | None = None
 
 
 class RecommendationItem(BaseModel):
@@ -42,11 +51,13 @@ class RecommendationItem(BaseModel):
     stop_loss: float | None
     loss_pct: float | None
     reasons: list[str] | None
+    details: list[RecommendationDetail] | None = None  # 展開區：各面向分數+證據
     spark: list[float] | None = None  # 近期收盤序列（約近 20 個交易日，由舊到新）
 
 
 class RecommendationList(BaseModel):
     track: str
+    style: str | None = None  # 波段軌進場風格 breakout/pullback（長線軌為 None）
     date: date | None
     threshold: float
     items: list[RecommendationItem]  # 達門檻
@@ -61,6 +72,29 @@ class ChipSummary(BaseModel):
     total_net: int | None
     margin_balance: int | None
     short_balance: int | None
+    # 集保股權分散（TDCC，週快照）。big_trend = 大戶占比近月變化（無歷史時 None）
+    holding_date: date | None = None
+    big_pct: float | None = None        # 大戶（≥400 張）占比
+    over1000_pct: float | None = None   # 千張大戶（≥1000 張）占比
+    small_pct: float | None = None      # 散戶（<10 張）占比
+    holders: int | None = None          # 總股東人數
+    big_trend: float | None = None      # 大戶占比近月變化（個百分點，+=集中）
+
+
+class HoldingPoint(BaseModel):
+    """集保週資料單點（曲線用）。"""
+
+    date: date
+    big_pct: float | None = None        # 大戶（≥400 張）占比
+    over1000_pct: float | None = None   # 千張大戶（≥1000 張）占比
+    small_pct: float | None = None      # 散戶（<10 張）占比
+    holders: int | None = None          # 總股東人數
+
+
+class HoldingHistoryResponse(BaseModel):
+    stock_id: str
+    points: list[HoldingPoint]  # 升冪（舊→新）
+    backfilling: bool           # 是否正在背景回補歷史（前端可顯示「回補中」並稍後重整）
 
 
 class FundamentalSummary(BaseModel):

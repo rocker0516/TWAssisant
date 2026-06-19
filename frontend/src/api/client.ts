@@ -3,11 +3,14 @@ import type { components } from "./types";
 
 export type RecommendationList = components["schemas"]["RecommendationList"];
 export type RecommendationItem = components["schemas"]["RecommendationItem"];
+export type RecommendationDetail = components["schemas"]["RecommendationDetail"];
 export type StockDetail = components["schemas"]["StockDetail"];
 export type OhlcvResponse = components["schemas"]["OhlcvResponse"];
 export type Candle = components["schemas"]["Candle"];
 export type LevelsResponse = components["schemas"]["LevelsResponse"];
 export type LevelDTO = components["schemas"]["LevelDTO"];
+export type HoldingHistoryResponse = components["schemas"]["HoldingHistoryResponse"];
+export type HoldingPoint = components["schemas"]["HoldingPoint"];
 export type ScoreDTO = components["schemas"]["ScoreDTO"];
 export type HoldingsResponse = components["schemas"]["HoldingsResponse"];
 export type HoldingItem = components["schemas"]["HoldingItem"];
@@ -40,10 +43,13 @@ async function getJson<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export function useRecommendations(track: Track) {
+export type WaveStyle = "breakout" | "pullback";
+
+export function useRecommendations(track: Track, style?: WaveStyle) {
+  const styleQ = track === "wave" && style ? `&style=${style}` : "";
   return useQuery({
-    queryKey: ["recommendations", track],
-    queryFn: () => getJson<RecommendationList>(`/recommendations?track=${track}`),
+    queryKey: ["recommendations", track, track === "wave" ? (style ?? null) : null],
+    queryFn: () => getJson<RecommendationList>(`/recommendations?track=${track}${styleQ}`),
   });
 }
 
@@ -209,6 +215,16 @@ export function useLevels(stockId: string | undefined) {
     queryKey: ["levels", stockId],
     queryFn: () => getJson<LevelsResponse>(`/stocks/${stockId}/levels`),
     enabled: !!stockId,
+  });
+}
+
+export function useHoldingHistory(stockId: string | undefined) {
+  return useQuery({
+    queryKey: ["holding-history", stockId],
+    queryFn: () => getJson<HoldingHistoryResponse>(`/stocks/${stockId}/holding-history`),
+    enabled: !!stockId,
+    // 史料不足時後端背景回補近一年；回補期間每 6 秒重抓，補完曲線自動長出來。
+    refetchInterval: (q) => (q.state.data?.backfilling ? 6000 : false),
   });
 }
 

@@ -37,6 +37,14 @@ class ScoreRule(BaseRule):
         """分數夠高時回理由 chip 文字，否則 None。"""
         return None
 
+    def evidence(self, ctx: StockContext, value: float) -> str | None:
+        """展開區用：不論分數高低，回一句『帶數字』的客觀證據描述，否則 None。
+
+        與 reason 不同——reason 只在達標時給「賣點」標籤；evidence 是把引擎已算出
+        但平常丟掉的數字（買超張數、量能倍數、突破價、乖離）攤開，給展開詳情當證據。
+        """
+        return None
+
 
 def clamp(x: float, lo: float = 0.0, hi: float = 100.0) -> float:
     return max(lo, min(hi, x))

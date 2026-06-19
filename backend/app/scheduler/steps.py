@@ -47,10 +47,12 @@ class FetchStep(PipelineStep):
         ("margin", "chip", "MarginRepository", "fetch_margin", 90),
         ("valuation", "fundamental", "ValuationRepository", "fetch_valuation", 90),
     ]
-    # 快照來源（openapi 回最新月/季，日期參數忽略，靠 upsert 去重）
+    # 快照來源（openapi 回最新月/季/週，日期參數忽略，靠 upsert 去重）
+    # holding：TDCC 集保股權分散僅回最新一週，靠每週 upsert 累積歷史。
     _WINDOW = [
         ("revenue", "fundamental", "RevenueMonthlyRepository", "fetch_revenue_monthly", 1),
         ("financials", "fundamental", "FinancialQuarterRepository", "fetch_financials", 1),
+        ("holding", "holding", "ShareholdingRepository", "fetch_holding_distribution", 1),
     ]
 
     def run(self, ctx: PipelineContext) -> dict:

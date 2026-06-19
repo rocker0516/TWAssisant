@@ -103,6 +103,10 @@ class MarginRepository(BaseRepository[models.Margin]):
     model = models.Margin
 
 
+class ShareholdingRepository(BaseRepository[models.ShareholdingDistribution]):
+    model = models.ShareholdingDistribution
+
+
 class RevenueMonthlyRepository(BaseRepository[models.RevenueMonthly]):
     model = models.RevenueMonthly
 

@@ -20,6 +20,23 @@
               "default": "wave",
               "title": "Track"
             }
+          },
+          {
+            "name": "style",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(breakout|pullback)$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Style"
+            }
           }
         ],
         "responses": {
@@ -332,6 +349,46 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LevelsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stocks/{stock_id}/holding-history": {
+      "get": {
+        "summary": "Holding History",
+        "description": "集保大戶/散戶占比週序列（曲線用）。史料不足時背景回補近一年（看哪檔補哪檔）。",
+        "operationId": "holding_history_stocks__stock_id__holding_history_get",
+        "parameters": [
+          {
+            "name": "stock_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Stock Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HoldingHistoryResponse"
                 }
               }
             }
@@ -1675,6 +1732,73 @@
               }
             ],
             "title": "Short Balance"
+          },
+          "holding_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holding Date"
+          },
+          "big_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Big Pct"
+          },
+          "over1000_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Over1000 Pct"
+          },
+          "small_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Small Pct"
+          },
+          "holders": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holders"
+          },
+          "big_trend": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Big Trend"
           }
         },
         "type": "object",
@@ -2055,6 +2179,32 @@
         ],
         "title": "HoldingCreate"
       },
+      "HoldingHistoryResponse": {
+        "properties": {
+          "stock_id": {
+            "type": "string",
+            "title": "Stock Id"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/HoldingPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          },
+          "backfilling": {
+            "type": "boolean",
+            "title": "Backfilling"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stock_id",
+          "points",
+          "backfilling"
+        ],
+        "title": "HoldingHistoryResponse"
+      },
       "HoldingItem": {
         "properties": {
           "id": {
@@ -2367,6 +2517,65 @@
         },
         "type": "object",
         "title": "HoldingPatch"
+      },
+      "HoldingPoint": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "big_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Big Pct"
+          },
+          "over1000_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Over1000 Pct"
+          },
+          "small_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Small Pct"
+          },
+          "holders": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holders"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date"
+        ],
+        "title": "HoldingPoint",
+        "description": "集保週資料單點（曲線用）。"
       },
       "HoldingsResponse": {
         "properties": {
@@ -2936,6 +3145,36 @@
         ],
         "title": "RecoBrief"
       },
+      "RecommendationDetail": {
+        "properties": {
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "score"
+        ],
+        "title": "RecommendationDetail",
+        "description": "展開區單一面向：分數 + 帶數字的客觀證據（波段軌目前有 evidence；長線軌暫無）。"
+      },
       "RecommendationItem": {
         "properties": {
           "stock_id": {
@@ -3099,6 +3338,20 @@
             ],
             "title": "Reasons"
           },
+          "details": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RecommendationDetail"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          },
           "spark": {
             "anyOf": [
               {
@@ -3140,6 +3393,17 @@
           "track": {
             "type": "string",
             "title": "Track"
+          },
+          "style": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Style"
           },
           "date": {
             "anyOf": [
@@ -3307,6 +3571,20 @@
               }
             ],
             "title": "Reasons"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RecommendationDetail"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
           }
         },
         "type": "object",

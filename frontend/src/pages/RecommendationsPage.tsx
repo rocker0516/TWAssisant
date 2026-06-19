@@ -1,7 +1,13 @@
 import { useMemo, useState } from "react";
-import { useRecommendations, useSettings, type RecommendationItem, type Track } from "../api/client";
+import { useRecommendations, useSettings, type RecommendationItem, type Track, type WaveStyle } from "../api/client";
 import { RecommendationCard } from "../components/RecommendationCard";
 import { TRACK_LABELS } from "../lib/format";
+
+const STYLE_LABELS: Record<WaveStyle, string> = { breakout: "突破追強", pullback: "回檔低接" };
+const STYLE_HINTS: Record<WaveStyle, string> = {
+  breakout: "站上上揚月線 + 帶量突破，追勢頭強的標的",
+  pullback: "上升趨勢中已回檔到相對低位、未過熱，低接買點",
+};
 
 type SortKey = "score" | "change";
 
@@ -17,9 +23,11 @@ export default function RecommendationsPage() {
   const [track, setTrack] = useState<Track>("wave");
   const [sort, setSort] = useState<SortKey>("score");
   const [showNear, setShowNear] = useState(false);
-  const { data, isLoading, isError, error } = useRecommendations(track);
   const { data: settings } = useSettings();
-  const waveStyle = settings?.scoring?.wave?.style ?? "breakout";
+  const [styleOverride, setStyleOverride] = useState<WaveStyle | null>(null);
+  const defaultStyle: WaveStyle = settings?.scoring?.wave?.style === "pullback" ? "pullback" : "breakout";
+  const waveStyle: WaveStyle = styleOverride ?? defaultStyle;
+  const { data, isLoading, isError, error } = useRecommendations(track, waveStyle);
 
   const items = useMemo(() => sortItems(data?.items ?? [], sort), [data, sort]);
   const near = useMemo(() => sortItems(data?.near ?? [], sort), [data, sort]);
@@ -31,11 +39,6 @@ export default function RecommendationsPage() {
           <h1 className="text-xl font-bold">進場推薦</h1>
           <p className="text-sm text-muted">
             盤後資料：{data?.date ?? "—"}　門檻 ≥ {data?.threshold ?? 70} 分
-            {track === "wave" && (
-              <span className="ml-2 rounded bg-sky-900/50 px-1.5 py-0.5 text-xs text-sky-300">
-                風格：{waveStyle === "pullback" ? "回檔低接" : "突破追強"}
-              </span>
-            )}
           </p>
         </div>
       </div>
@@ -55,6 +58,26 @@ export default function RecommendationsPage() {
           </button>
         ))}
       </div>
+
+      {/* 進場風格切換（僅波段軌）*/}
+      {track === "wave" && (
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <div className="inline-flex rounded-lg border border-edge bg-panel p-0.5">
+            {(["breakout", "pullback"] as WaveStyle[]).map((st) => (
+              <button
+                key={st}
+                onClick={() => setStyleOverride(st)}
+                className={`rounded-md px-3 py-1 text-sm font-medium transition ${
+                  waveStyle === st ? "bg-sky-600 text-white" : "text-muted hover:text-gray-200"
+                }`}
+              >
+                {STYLE_LABELS[st]}
+              </button>
+            ))}
+          </div>
+          <span className="text-xs text-muted">{STYLE_HINTS[waveStyle]}</span>
+        </div>
+      )}
 
       {/* 工具列 */}
       <div className="mb-4 flex items-center gap-2 text-sm">

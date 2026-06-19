@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
+  useHoldingHistory,
   useLevels,
   useOhlcv,
   useStockDetail,
@@ -9,6 +10,7 @@ import {
   type StockDetail,
 } from "../api/client";
 import { ConfidenceBadge } from "../components/ConfidenceBadge";
+import { HoldingTrendChart } from "../components/HoldingTrendChart";
 import { KLineChart } from "../components/KLineChart";
 import { Markdown } from "../components/Markdown";
 import { ReasonChips } from "../components/ReasonChips";
@@ -244,6 +246,7 @@ export default function StockDetailPage() {
   const [klineDays, setKlineDays] = useState(120);
   const { data: ohlcv } = useOhlcv(id, klineDays);
   const { data: levels } = useLevels(id);
+  const { data: holdingHistory } = useHoldingHistory(id);
 
   if (isLoading) return <div className="p-6 text-muted">載入中…</div>;
   if (isError) return <div className="p-6 text-down">載入失敗：{(error as Error).message}</div>;
@@ -292,6 +295,21 @@ export default function StockDetailPage() {
           {levels && (levels.supports.length > 0 || levels.resistances.length > 0) && (
             <LevelsCard levels={levels} />
           )}
+          {!d.is_etf && holdingHistory && (holdingHistory.points.length >= 2 || holdingHistory.backfilling) && (
+            <Card title="集保股權分散趨勢（大戶 vs 散戶，週）">
+              {holdingHistory.points.length >= 2 ? (
+                <>
+                  <HoldingTrendChart points={holdingHistory.points} />
+                  <p className="mt-1 text-xs text-muted">
+                    大戶／千張持股占比上升＝籌碼集中（偏多）；散戶占比上升＝籌碼鬆動。重點看走向，非單週絕對值。
+                    {holdingHistory.backfilling && "　歷史回補中…"}
+                  </p>
+                </>
+              ) : (
+                <p className="py-6 text-center text-sm text-muted">正在背景回補近一年集保歷史，請稍候…（約 1 分鐘，會自動更新）</p>
+              )}
+            </Card>
+          )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <TrackPanel track="wave" score={d.scores["wave"] ?? null} />
             <TrackPanel track="long" score={d.scores["long"] ?? null} />
@@ -308,6 +326,25 @@ export default function StockDetailPage() {
             <div className="my-2 border-t border-edge" />
             <Row label="融資餘額（張）" value={fmtNum(d.chip?.margin_balance, 0)} />
             <Row label="融券餘額（張）" value={fmtNum(d.chip?.short_balance, 0)} />
+            {d.chip?.big_pct != null && (
+              <>
+                <div className="my-2 border-t border-edge" />
+                <div className="mb-1 text-xs text-muted">
+                  集保股權分散（週{d.chip.holding_date ? ` · ${d.chip.holding_date}` : ""}）
+                </div>
+                <Row label="大戶持股（≥400張）" value={`${fmtNum(d.chip.big_pct, 1)}%`} />
+                <Row label="千張大戶（≥1000張）" value={d.chip.over1000_pct != null ? `${fmtNum(d.chip.over1000_pct, 1)}%` : "—"} />
+                <Row label="散戶持股（<10張）" value={d.chip.small_pct != null ? `${fmtNum(d.chip.small_pct, 1)}%` : "—"} />
+                {d.chip.big_trend != null && (
+                  <Row
+                    label="大戶近月變化"
+                    value={`${d.chip.big_trend > 0 ? "+" : ""}${fmtNum(d.chip.big_trend, 1)} pp`}
+                    color={changeColor(d.chip.big_trend)}
+                  />
+                )}
+                <Row label="股東人數" value={fmtNum(d.chip.holders, 0)} />
+              </>
+            )}
           </Card>
           {d.is_etf ? (
             <EtfCard etf={d.etf} />

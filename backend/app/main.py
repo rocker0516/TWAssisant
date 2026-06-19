@@ -76,6 +76,7 @@ def system_status() -> dict:
         "daily_prices": models.DailyPrice,
         "institutional": models.Institutional,
         "margin": models.Margin,
+        "shareholding": models.ShareholdingDistribution,
         "revenue_monthly": models.RevenueMonthly,
         "valuation": models.Valuation,
     }

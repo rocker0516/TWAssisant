@@ -41,6 +41,28 @@ class ChipProvider(ABC):
         """融資融券。欄位見 schemas.MARGIN_COLS。"""
 
 
+class HoldingProvider(ABC):
+    @abstractmethod
+    def fetch_holding_distribution(
+        self, start: date, end: date, stock_ids: list[str] | None = None
+    ) -> pd.DataFrame:
+        """集保戶股權分散（大戶/散戶占比）。欄位見 schemas.HOLDING_COLS。
+
+        來源（TDCC 開放資料）僅回最新一週快照，start/end 多被忽略；靠每週 upsert
+        累積歷史。回傳已消化的固定欄位（占比/人數），非 17 級原始分布。
+        """
+
+    def fetch_holding_history(self, stock_id: str, max_weeks: int = 52) -> pd.DataFrame:
+        """單一個股近 max_weeks 週集保歷史（選用能力，預設無）。供曲線回補歷史。
+
+        欄位見 schemas.HOLDING_COLS。整市場快照無歷史，故另開逐檔歷史路徑（如 TDCC
+        智慧網單檔查詢）；不支援的來源回空表。
+        """
+        from . import schemas
+
+        return pd.DataFrame(columns=schemas.HOLDING_COLS)
+
+
 class FundamentalProvider(ABC):
     @abstractmethod
     def fetch_revenue_monthly(

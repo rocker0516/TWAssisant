@@ -137,6 +137,24 @@ class Margin(Base):
     short_change: Mapped[int | None] = mapped_column(Integer)
 
 
+class ShareholdingDistribution(Base):
+    """集保戶股權分散（TDCC 開放資料消化後）。PK = (stock_id, date)。
+
+    占比皆為「占集保庫存」%。來源僅回最新週快照，靠每週 upsert 累積歷史；
+    趨勢（大戶占比變化）由評分端取近數週序列計算。
+    """
+
+    __tablename__ = "shareholding"
+
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    date: Mapped[date_] = mapped_column(Date, primary_key=True)
+    big_pct: Mapped[float | None] = mapped_column(Float)        # 大戶（≥400 張）占比
+    over1000_pct: Mapped[float | None] = mapped_column(Float)   # 千張大戶（≥1000 張）占比
+    small_pct: Mapped[float | None] = mapped_column(Float)      # 散戶（<10 張）占比
+    holders: Mapped[int | None] = mapped_column(Integer)        # 總股東人數
+    avg_lots: Mapped[float | None] = mapped_column(Float)       # 平均每人持股（張）
+
+
 class RevenueMonthly(Base):
     """月營收。PK = (stock_id, year, month)。"""
 
@@ -234,9 +252,11 @@ class Score(Base):
     date: Mapped[date_] = mapped_column(Date, primary_key=True)
     track: Mapped[str] = mapped_column(String(10), primary_key=True)  # wave / long
 
-    passed_filter: Mapped[bool] = mapped_column(Boolean, default=False)  # 過硬篩
+    passed_filter: Mapped[bool] = mapped_column(Boolean, default=False)  # 過任一風格硬篩
     passed: Mapped[bool] = mapped_column(Boolean, default=False)  # 過硬篩 + 門檻
-    total_score: Mapped[float | None] = mapped_column(Float)
+    passed_styles: Mapped[list | None] = mapped_column(JSON)  # 通過哪些進場風格硬篩 ["breakout","pullback"]
+    total_score: Mapped[float | None] = mapped_column(Float)  # 主風格(波段=breakout)總分
+    style_totals: Mapped[dict | None] = mapped_column(JSON)  # 各風格加權總分 {"breakout":..,"pullback":..}
     sub_scores: Mapped[dict | None] = mapped_column(JSON)  # 5 大類細項（缺料維度不入列）
     sector_adjust: Mapped[float | None] = mapped_column(Float)  # 類股修正分
     coverage: Mapped[float | None] = mapped_column(Float)  # 有資料維度占比 0~1（缺料偵測）
@@ -249,6 +269,7 @@ class Score(Base):
     loss_pct: Mapped[float | None] = mapped_column(Float)
 
     reasons: Mapped[list | None] = mapped_column(JSON)  # 理由 chips
+    details: Mapped[list | None] = mapped_column(JSON)  # 展開區：各面向 {category, score, evidence}
 
 
 class Event(Base):

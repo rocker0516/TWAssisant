@@ -51,6 +51,7 @@ class Settings(BaseSettings):
             "universe": "finmind",
             "price": "twmarket",  # 上市(TWSE)+上櫃(TPEX) 合併
             "chip": "twmarket",
+            "holding": "tdcc",  # 集保戶股權分散表（TDCC 官方開放資料，免費全市場週快照）
             "fundamental": "twmarket",  # 估值/營收/財報 上市+上櫃
             "news": "twnews",  # TWSE 重訊/處置 + FinMind 個股新聞（合併）
         }
@@ -64,6 +65,7 @@ class Settings(BaseSettings):
             "fugle": {"rate": 3.0, "capacity": 10, "timeout": 15.0},
             "twse": {"rate": 1.0, "capacity": 3, "timeout": 20.0},
             "tpex": {"rate": 1.0, "capacity": 3, "timeout": 25.0},
+            "tdcc": {"rate": 0.5, "capacity": 2, "timeout": 40.0},  # 單一大 CSV，慢一點寬一點
         }
     )
 

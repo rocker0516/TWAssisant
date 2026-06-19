@@ -20,6 +20,7 @@ class StockContext:
     prices: pd.DataFrame  # 升冪，欄 open/high/low/close/volume，index=date
     inds: pd.DataFrame  # 升冪，indicator 欄，index=date
     inst: pd.DataFrame  # 升冪，法人欄，index=date（可能空）
+    holding: pd.DataFrame | None = None  # 升冪，集保股權分散週資料（可能空/None）
     # 長線軌資料（P1 fundamentals 之後填；先給空/None）
     valuation: pd.Series | None = None
     revenue: pd.DataFrame | None = None
@@ -61,3 +62,25 @@ class StockContext:
         if self.inst is None or self.inst.empty or col not in self.inst:
             return 0.0
         return float(self.inst[col].iloc[-days:].fillna(0).sum())
+
+    # ── 集保股權分散（週資料）──
+
+    def holding_latest(self, col: str) -> float | None:
+        """最新一週某集保欄位（big_pct / over1000_pct / small_pct / holders / avg_lots）。"""
+        if self.holding is None or self.holding.empty or col not in self.holding:
+            return None
+        v = self.holding[col].dropna()
+        return float(v.iloc[-1]) if len(v) else None
+
+    def holding_trend(self, col: str, weeks: int = 4) -> float | None:
+        """近 weeks 週某集保欄位的變化量（最新 − 約 weeks 週前）。
+
+        集保為週資料，史料不足（僅 1 筆）回 None。趨勢需累積數週快照才有值。
+        """
+        if self.holding is None or self.holding.empty or col not in self.holding:
+            return None
+        v = self.holding[col].dropna()
+        if len(v) < 2:
+            return None
+        ref = v.iloc[-(weeks + 1)] if len(v) > weeks else v.iloc[0]
+        return float(v.iloc[-1] - ref)

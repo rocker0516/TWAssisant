@@ -1,12 +1,16 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { RecommendationItem } from "../api/client";
 import { changeColor, fmtNum, fmtPct, positionMeta, TRACK_LABELS } from "../lib/format";
 import { ConfidenceBadge } from "./ConfidenceBadge";
+import { EvidencePanel } from "./EvidencePanel";
 import { ReasonChips } from "./ReasonChips";
 import { ScoreDisplay } from "./ScoreDisplay";
 import { Sparkline } from "./Sparkline";
 
 export function RecommendationCard({ item }: { item: RecommendationItem }) {
+  const [open, setOpen] = useState(false);
+  const hasDetails = (item.details?.length ?? 0) > 0;
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-edge bg-panel p-4 transition hover:border-sky-700">
       <div className="flex items-start justify-between">
@@ -60,6 +64,20 @@ export function RecommendationCard({ item }: { item: RecommendationItem }) {
       </div>
 
       <ReasonChips reasons={item.reasons} />
+
+      {hasDetails && (
+        <>
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="self-start text-xs text-sky-400 hover:underline"
+            aria-expanded={open}
+          >
+            {open ? "收合 ▲" : "展開詳情 ▼"}
+          </button>
+          {open && <EvidencePanel item={item} />}
+        </>
+      )}
 
       <div className="flex items-center justify-between border-t border-edge pt-2 text-xs text-muted">
         <span>{item.sector_name ?? "—"}</span>

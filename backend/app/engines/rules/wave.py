@@ -45,21 +45,38 @@ class NearMa60(FilterRule):
 
 
 class PulledBack(FilterRule):
-    """已回檔：現價落在近20日區間下緣（非追高）。回檔風格用，刻意不要求量增。"""
+    """已回檔：收盤落在近20日『收盤』區間下緣，且未過熱、未過度延伸（非追高）。
+
+    刻意用『收盤』而非盤中高低算區間——盤中一根影線/急拉會把區間撐大，讓剛噴上去
+    貼著高點的股票偽裝成中位（實測 興富發 盤中 pir 0.64 但收盤 pir 0.86）。再加
+    KD 未過熱、距季線乖離未過大兩道守門，擋掉「剛拉一波、過熱、過度延伸」的假回檔。
+    回檔風格用，刻意不要求量增（縮量回測常見）。
+    """
 
     name = "pulled_back"
-    _MAX_PIR = 0.65  # 區間位階上限：>0.65 視為仍在高位、非回檔
+    _MAX_PIR = 0.5      # 收盤區間位階上限：>0.5 視為仍在中上緣、非回檔低接
+    _MAX_KD = 75.0      # KD 過熱上限：回檔買點不該追在過熱區
+    _MAX_BIAS60 = 12.0  # 距季線乖離上限（%）：過度延伸非回檔
 
     def passes(self, ctx: StockContext) -> bool:
         if ctx.close is None or ctx.n_bars < 20:
             return False
-        hi = float(ctx.prices["high"].iloc[-20:].max())
-        lo = float(ctx.prices["low"].iloc[-20:].min())
+        closes = ctx.prices["close"].iloc[-20:]
+        hi, lo = float(closes.max()), float(closes.min())
         rng = hi - lo
         if rng <= 0:
             return False
-        pir = (ctx.close - lo) / rng
-        return pir <= self._MAX_PIR
+        if (ctx.close - lo) / rng > self._MAX_PIR:
+            return False
+        ind = ctx.ind
+        if ind is not None:
+            k = ind.get("kd_k")
+            if k is not None and k >= self._MAX_KD:
+                return False
+            b = ind.get("bias_60")
+            if b is not None and abs(b) >= self._MAX_BIAS60:
+                return False
+        return True
 
 
 # 突破追強（預設）：站上上揚月線 + 量增 + 距季線<15%
@@ -100,6 +117,18 @@ class TrendScore(ScoreRule):
                 return "均線多頭排列"
         return "站上月線且上揚" if value >= 60 else None
 
+    def evidence(self, ctx, value):
+        ind = ctx.ind
+        if ind is None or ind.get("ma20") is None:
+            return None
+        ma20 = ind["ma20"]
+        ma5, ma10, ma60 = ind.get("ma5"), ind.get("ma10"), ind.get("ma60")
+        aligned = all(x is not None for x in (ma5, ma10, ma60)) and ma5 > ma10 > ma20 > ma60
+        head = "均線多頭排列" if aligned else ("站上月線" if ctx.close and ctx.close > ma20 else "月線下方")
+        prev = ctx.ind_ago(5)
+        rising = prev is not None and prev.get("ma20") is not None and ma20 > prev["ma20"]
+        return f"{head}，月線 {ma20:.2f}{'（上揚）' if rising else ''}"
+
 
 class MomentumScore(ScoreRule):
     category = "momentum"
@@ -137,6 +166,19 @@ class MomentumScore(ScoreRule):
             bits.append("KD 黃金交叉")
         return "、".join(bits) if bits else None
 
+    def evidence(self, ctx, value):
+        ind = ctx.ind
+        if ind is None:
+            return None
+        bits = []
+        macd, hist = ind.get("macd"), ind.get("macd_hist")
+        k, d = ind.get("kd_k"), ind.get("kd_d")
+        if macd is not None:
+            bits.append("MACD翻多" if (macd > 0 and (hist or 0) > 0) else "MACD未翻多")
+        if k is not None and d is not None:
+            bits.append(f"KD{'黃金交叉' if k > d else '死叉'}（K{k:.0f}）")
+        return "、".join(bits) if bits else None
+
 
 class VolumeScore(ScoreRule):
     category = "volume"
@@ -154,28 +196,71 @@ class VolumeScore(ScoreRule):
     def reason(self, ctx, value):
         return "量能放大" if value >= 65 else None
 
+    def evidence(self, ctx, value):
+        ind = ctx.ind
+        vma = ind.get("vol_ma20") if ind is not None else None
+        vol = float(ctx.prices["volume"].iloc[-1]) if ctx.n_bars else None
+        if not vma or vol is None:
+            return None
+        ratio = vol / vma
+        return f"{'量能放大' if ratio >= 1 else '量縮'} {ratio:.1f} 倍均量"
+
 
 class ChipScore(ScoreRule):
     category = "chip"
     default_weight = 20.0
 
+    @staticmethod
+    def _holder_nudge(ctx: StockContext) -> float:
+        """大戶（≥400 張）占比『近月趨勢』輕推（±12）：籌碼往大戶集中視為偏多。
+
+        刻意只用趨勢、不用絕對占比——高占比常是結構性（外資保管行/單一大股東），不代表
+        多空。集保為週資料、來源只給最新快照，故史料不足（無趨勢）時回 0、不動既有分數，
+        待每週累積出歷史後此訊號才生效（避免一上線就擾動已校準的波段軌）。
+        """
+        trend = ctx.holding_trend("big_pct", 4)
+        if trend is None:
+            return 0.0
+        return clamp(trend * 4, -12, 12)
+
     def score(self, ctx: StockContext) -> float | None:
         ind = ctx.ind
         vma_lots = (ind.get("vol_ma20") or 0) / 1000 if ind is not None else 0
         if vma_lots <= 0:
-            return 50.0  # 量能基準缺：法人佔比不可算，給中性（非缺料剔除，維持籌碼維度存在）
-        net5 = ctx.inst_sum("foreign_net", 5) + ctx.inst_sum("trust_net", 5)
-        ratio = net5 / (vma_lots * 5)  # 近5日法人淨買佔5日量比例
-        return clamp(50 + ratio * 500)
+            base = 50.0  # 量能基準缺：法人佔比不可算，給中性（非缺料剔除，維持籌碼維度存在）
+        else:
+            net5 = ctx.inst_sum("foreign_net", 5) + ctx.inst_sum("trust_net", 5)
+            ratio = net5 / (vma_lots * 5)  # 近5日法人淨買佔5日量比例
+            base = clamp(50 + ratio * 500)
+        return clamp(base + self._holder_nudge(ctx))
 
     def reason(self, ctx, value):
         f5 = ctx.inst_sum("foreign_net", 5)
         t5 = ctx.inst_sum("trust_net", 5)
         if f5 > 0 and t5 > 0:
             return "外資投信同步買超"
+        if (ctx.holding_trend("big_pct", 4) or 0) >= 0.5:
+            return "大戶持股增加"
         if value >= 65:
             return "法人買超"
         return None
+
+    def evidence(self, ctx, value):
+        f5 = ctx.inst_sum("foreign_net", 5)
+        t5 = ctx.inst_sum("trust_net", 5)
+        parts = []
+        if abs(f5) >= 1:
+            parts.append(f"外資5日{'買' if f5 > 0 else '賣'}超 {abs(int(round(f5))):,} 張")
+        if abs(t5) >= 1:
+            parts.append(f"投信{'買' if t5 > 0 else '賣'}超 {abs(int(round(t5))):,} 張")
+        big = ctx.holding_latest("big_pct")
+        if big is not None:
+            seg = f"大戶持股 {big:.0f}%"
+            trend = ctx.holding_trend("big_pct", 4)
+            if trend is not None and abs(trend) >= 0.3:
+                seg += f"（近月{'增' if trend > 0 else '減'} {abs(trend):.1f} 個百分點）"
+            parts.append(seg)
+        return "、".join(parts) if parts else "法人無明顯進出"
 
 
 class PatternScore(ScoreRule):
@@ -201,6 +286,18 @@ class PatternScore(ScoreRule):
 
     def reason(self, ctx, value):
         return "突破前高" if value >= 70 else None
+
+    def evidence(self, ctx, value):
+        if ctx.n_bars < 2 or ctx.close is None:
+            return None
+        c = ctx.close
+        prev_high20 = float(ctx.prices["high"].iloc[:-1].iloc[-20:].max())
+        if prev_high20 <= 0:
+            return None
+        if c > prev_high20:
+            return f"突破前高 {prev_high20:.2f}"
+        gap = (prev_high20 - c) / c * 100
+        return f"距前高 {prev_high20:.2f}（{gap:.0f}%）"
 
 
 class PositionScore(ScoreRule):
@@ -241,6 +338,24 @@ class PositionScore(ScoreRule):
 
     def reason(self, ctx, value):
         return "回檔相對低位" if value >= 60 else None
+
+    def evidence(self, ctx, value):
+        ind = ctx.ind
+        if ind is None or ctx.close is None or ctx.n_bars < 20:
+            return None
+        c = ctx.close
+        hi = float(ctx.prices["high"].iloc[-20:].max())
+        lo = float(ctx.prices["low"].iloc[-20:].min())
+        rng = hi - lo
+        pir = (c - lo) / rng if rng > 0 else 0.5
+        parts = ["區間低位" if pir <= 0.4 else ("區間中位" if pir <= 0.65 else "區間高位")]
+        b = ind.get("bias_20")
+        if b is not None:
+            parts.append(f"乖離月線 {b:.0f}%")
+        k = ind.get("kd_k")
+        if k is not None:
+            parts.append("KD未過熱" if k < 70 else "KD偏高")
+        return "、".join(parts)
 
 
 WAVE_SCORERS: list[ScoreRule] = [
