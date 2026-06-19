@@ -406,6 +406,58 @@
         }
       }
     },
+    "/stocks/{stock_id}/chip-history": {
+      "get": {
+        "summary": "Chip History",
+        "description": "籌碼每日序列（三大法人買賣超 + 融資融券餘額），供每日買賣量 + 累計曲線。",
+        "operationId": "chip_history_stocks__stock_id__chip_history_get",
+        "parameters": [
+          {
+            "name": "stock_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Stock Id"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 3000,
+              "minimum": 20,
+              "default": 120,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChipHistoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/holdings": {
       "get": {
         "tags": [
@@ -1652,6 +1704,108 @@
           "history"
         ],
         "title": "ChatRequest"
+      },
+      "ChipHistoryResponse": {
+        "properties": {
+          "stock_id": {
+            "type": "string",
+            "title": "Stock Id"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/ChipPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stock_id",
+          "points"
+        ],
+        "title": "ChipHistoryResponse"
+      },
+      "ChipPoint": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "foreign_net": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Foreign Net"
+          },
+          "trust_net": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Net"
+          },
+          "dealer_net": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dealer Net"
+          },
+          "total_net": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Net"
+          },
+          "margin_balance": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Margin Balance"
+          },
+          "short_balance": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Short Balance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date"
+        ],
+        "title": "ChipPoint",
+        "description": "籌碼每日一點（法人買賣超 + 融資融券餘額）。"
       },
       "ChipSummary": {
         "properties": {

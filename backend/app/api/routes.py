@@ -18,6 +18,8 @@ from ..llm.store import cache_key, get_cached
 from .schemas import (
     Candle,
     ChipSummary,
+    ChipHistoryResponse,
+    ChipPoint,
     EtfInfo,
     EventDTO,
     FundamentalSummary,
@@ -505,3 +507,48 @@ def holding_history(
         ],
         backfilling=backfilling,
     )
+
+
+@router.get("/stocks/{stock_id}/chip-history", response_model=ChipHistoryResponse)
+def chip_history(
+    stock_id: str,
+    days: int = Query(120, ge=20, le=3000),
+    session: Session = Depends(get_session),
+) -> ChipHistoryResponse:
+    """籌碼每日序列（三大法人買賣超 + 融資融券餘額），供每日買賣量 + 累計曲線。"""
+    start = session.execute(
+        select(models.DailyPrice.date)
+        .where(models.DailyPrice.stock_id == stock_id)
+        .order_by(models.DailyPrice.date.desc())
+        .offset(days - 1)
+        .limit(1)
+    ).scalar()
+
+    def _window(model):
+        stmt = select(model).where(model.stock_id == stock_id)
+        if start is not None:
+            stmt = stmt.where(model.date >= start)
+        return session.execute(stmt.order_by(model.date)).scalars().all()
+
+    merged: dict = {}
+    for r in _window(models.Institutional):
+        merged.setdefault(r.date, {})["inst"] = r
+    for r in _window(models.Margin):
+        merged.setdefault(r.date, {})["mg"] = r
+
+    points = []
+    for d in sorted(merged):
+        inst = merged[d].get("inst")
+        mg = merged[d].get("mg")
+        points.append(
+            ChipPoint(
+                date=d,
+                foreign_net=inst.foreign_net if inst else None,
+                trust_net=inst.trust_net if inst else None,
+                dealer_net=inst.dealer_net if inst else None,
+                total_net=inst.total_net if inst else None,
+                margin_balance=mg.margin_balance if mg else None,
+                short_balance=mg.short_balance if mg else None,
+            )
+        )
+    return ChipHistoryResponse(stock_id=stock_id, points=points)

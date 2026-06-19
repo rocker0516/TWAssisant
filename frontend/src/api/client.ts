@@ -11,6 +11,8 @@ export type LevelsResponse = components["schemas"]["LevelsResponse"];
 export type LevelDTO = components["schemas"]["LevelDTO"];
 export type HoldingHistoryResponse = components["schemas"]["HoldingHistoryResponse"];
 export type HoldingPoint = components["schemas"]["HoldingPoint"];
+export type ChipHistoryResponse = components["schemas"]["ChipHistoryResponse"];
+export type ChipPoint = components["schemas"]["ChipPoint"];
 export type ScoreDTO = components["schemas"]["ScoreDTO"];
 export type HoldingsResponse = components["schemas"]["HoldingsResponse"];
 export type HoldingItem = components["schemas"]["HoldingItem"];
@@ -214,6 +216,14 @@ export function useLevels(stockId: string | undefined) {
   return useQuery({
     queryKey: ["levels", stockId],
     queryFn: () => getJson<LevelsResponse>(`/stocks/${stockId}/levels`),
+    enabled: !!stockId,
+  });
+}
+
+export function useChipHistory(stockId: string | undefined, days = 120) {
+  return useQuery({
+    queryKey: ["chip-history", stockId, days],
+    queryFn: () => getJson<ChipHistoryResponse>(`/stocks/${stockId}/chip-history?days=${days}`),
     enabled: !!stockId,
   });
 }

@@ -235,6 +235,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/stocks/{stock_id}/chip-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Chip History
+         * @description 籌碼每日序列（三大法人買賣超 + 融資融券餘額），供每日買賣量 + 累計曲線。
+         */
+        get: operations["chip_history_stocks__stock_id__chip_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/holdings": {
         parameters: {
             query?: never;
@@ -704,6 +724,36 @@ export interface components {
             };
             /** History */
             history: components["schemas"]["ChatMsg"][];
+        };
+        /** ChipHistoryResponse */
+        ChipHistoryResponse: {
+            /** Stock Id */
+            stock_id: string;
+            /** Points */
+            points: components["schemas"]["ChipPoint"][];
+        };
+        /**
+         * ChipPoint
+         * @description 籌碼每日一點（法人買賣超 + 融資融券餘額）。
+         */
+        ChipPoint: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Foreign Net */
+            foreign_net?: number | null;
+            /** Trust Net */
+            trust_net?: number | null;
+            /** Dealer Net */
+            dealer_net?: number | null;
+            /** Total Net */
+            total_net?: number | null;
+            /** Margin Balance */
+            margin_balance?: number | null;
+            /** Short Balance */
+            short_balance?: number | null;
         };
         /** ChipSummary */
         ChipSummary: {
@@ -1791,6 +1841,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HoldingHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    chip_history_stocks__stock_id__chip_history_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path: {
+                stock_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChipHistoryResponse"];
                 };
             };
             /** @description Validation Error */

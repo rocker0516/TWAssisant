@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
+  useChipHistory,
   useHoldingHistory,
   useLevels,
   useOhlcv,
@@ -9,6 +10,7 @@ import {
   type ScoreDTO,
   type StockDetail,
 } from "../api/client";
+import { ChipTrendChart } from "../components/ChipTrendChart";
 import { ConfidenceBadge } from "../components/ConfidenceBadge";
 import { HoldingTrendChart } from "../components/HoldingTrendChart";
 import { KLineChart } from "../components/KLineChart";
@@ -246,6 +248,8 @@ export default function StockDetailPage() {
   const [klineDays, setKlineDays] = useState(120);
   const { data: ohlcv } = useOhlcv(id, klineDays);
   const { data: levels } = useLevels(id);
+  const [chipDays, setChipDays] = useState(120);
+  const { data: chipHistory } = useChipHistory(id, chipDays);
   const { data: holdingHistory } = useHoldingHistory(id);
 
   if (isLoading) return <div className="p-6 text-muted">載入中…</div>;
@@ -294,6 +298,17 @@ export default function StockDetailPage() {
           </Card>
           {levels && (levels.supports.length > 0 || levels.resistances.length > 0) && (
             <LevelsCard levels={levels} />
+          )}
+          {chipHistory && chipHistory.points.length >= 2 && (
+            <Card
+              title="籌碼趨勢（法人每日買賣超 + 累計、融資融券）"
+              action={<RangeSelector value={chipDays} onChange={setChipDays} />}
+            >
+              <ChipTrendChart points={chipHistory.points} />
+              <p className="mt-1 text-xs text-muted">
+                紅柱買超／綠柱賣超；累計線向上＝法人持續進貨、向下＝持續調節。融資增＝散戶槓桿加碼、融券增＝空方轉強。
+              </p>
+            </Card>
           )}
           {!d.is_etf && holdingHistory && (holdingHistory.points.length >= 2 || holdingHistory.backfilling) && (
             <Card title="集保股權分散趨勢（大戶 vs 散戶，週）">

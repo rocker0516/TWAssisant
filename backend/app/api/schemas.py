@@ -81,6 +81,23 @@ class ChipSummary(BaseModel):
     big_trend: float | None = None      # 大戶占比近月變化（個百分點，+=集中）
 
 
+class ChipPoint(BaseModel):
+    """籌碼每日一點（法人買賣超 + 融資融券餘額）。"""
+
+    date: date
+    foreign_net: int | None = None
+    trust_net: int | None = None
+    dealer_net: int | None = None
+    total_net: int | None = None
+    margin_balance: int | None = None
+    short_balance: int | None = None
+
+
+class ChipHistoryResponse(BaseModel):
+    stock_id: str
+    points: list[ChipPoint]  # 升冪（舊→新）
+
+
 class HoldingPoint(BaseModel):
     """集保週資料單點（曲線用）。"""
 
