@@ -8,6 +8,7 @@ export const CATEGORY_LABELS: Record<string, string> = {
   margin: "融資券",
   pattern: "型態",
   position: "位階",
+  volatility: "波動度",
   // 長線軌
   profit: "獲利",
   growth: "營收成長",

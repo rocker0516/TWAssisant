@@ -45,7 +45,7 @@ async function getJson<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export type WaveStyle = "breakout" | "pullback";
+export type WaveStyle = "breakout" | "pullback" | "poppable";
 
 export function useRecommendations(track: Track, style?: WaveStyle) {
   const styleQ = track === "wave" && style ? `&style=${style}` : "";
@@ -184,6 +184,57 @@ export function useRecomputeExpectancy() {
   return useMutation({
     mutationFn: () => sendJson<{ status: string }>("POST", "/expectancy/recompute"),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["expectancy"] }),
+  });
+}
+
+// 會噴清單成效回測
+export type PoppableEffByDate = {
+  date: string;
+  n: number;
+  list_hit_rate: number | null;
+  base_hit_rate: number | null;
+  lift: number | null;
+  avg_mfe: number | null;
+  avg_dd: number | null;
+};
+export type PoppableEffDetail = {
+  stock_id: string;
+  name: string;
+  pop: number;
+  vol: number;
+  mfe: number;
+  dd: number;
+  cret: number | null;
+  hit: boolean;
+};
+export type PoppableEfficacy = {
+  track: string;
+  style: string;
+  generated_at?: string;
+  horizon?: number;
+  pop_target?: number;
+  threshold?: number;
+  window: { from?: string | null; to?: string | null; entry_dates: number };
+  by_date: PoppableEffByDate[];
+  overall_hit_rate?: number | null;
+  total_list: number;
+  detail_date?: string | null;
+  detail: PoppableEffDetail[];
+  note?: string;
+};
+
+export function usePoppableEfficacy() {
+  return useQuery({
+    queryKey: ["poppable-efficacy"],
+    queryFn: () => getJson<PoppableEfficacy>("/poppable-efficacy"),
+  });
+}
+
+export function useRecomputePoppableEfficacy() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => sendJson<{ status: string }>("POST", "/poppable-efficacy/recompute"),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["poppable-efficacy"] }),
   });
 }
 

@@ -50,7 +50,7 @@ def _threshold(session: Session, track: str) -> float:
     return float(cfg.get(track, {}).get("threshold", 70.0))
 
 
-_WAVE_STYLES = ("breakout", "pullback")
+_WAVE_STYLES = ("breakout", "pullback", "poppable")
 
 
 def _default_wave_style(session: Session) -> str:
@@ -140,7 +140,7 @@ def _to_item(
 @router.get("/recommendations", response_model=RecommendationList)
 def recommendations(
     track: str = Query("wave", pattern="^(wave|long)$"),
-    style: str | None = Query(None, pattern="^(breakout|pullback)$"),
+    style: str | None = Query(None, pattern="^(breakout|pullback|poppable)$"),
     session: Session = Depends(get_session),
 ) -> RecommendationList:
     d = _latest_score_date(session)
@@ -309,6 +309,25 @@ def expectancy_recompute(session: Session = Depends(get_session_write)) -> dict:
 
     as_of = session.execute(select(func.max(models.DailyPrice.date))).scalar() or date.today()
     return ExpectancyEngine().run(session, as_of)
+
+
+@router.get("/poppable-efficacy")
+def poppable_efficacy(session: Session = Depends(get_session)) -> dict:
+    """會噴清單成效回測（波段軌 poppable 風格）。讀快取，重算用 POST /poppable-efficacy/recompute。"""
+    row = session.get(models.Setting, "poppable_efficacy")
+    if row and isinstance(row.value, dict):
+        return row.value
+    return {"track": "wave", "style": "poppable", "by_date": [], "detail": [], "total_list": 0,
+            "window": {"entry_dates": 0}, "note": "尚未計算，請按重新計算。"}
+
+
+@router.post("/poppable-efficacy/recompute")
+def poppable_efficacy_recompute(session: Session = Depends(get_session_write)) -> dict:
+    """重跑會噴清單成效回測（較重，~分鐘級）。as-of 用最新行情日。"""
+    from ..engines.poppability import PoppabilityEfficacyEngine
+
+    as_of = session.execute(select(func.max(models.DailyPrice.date))).scalar() or date.today()
+    return PoppabilityEfficacyEngine().run(session, as_of)
 
 
 @router.get("/param-sweep")

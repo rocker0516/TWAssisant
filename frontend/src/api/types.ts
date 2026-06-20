@@ -81,6 +81,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/factor-ic": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Factor Ic
+         * @description 單因子 IC + 資料驅動建議權重（波段軌）。讀快取，重算用 POST /factor-ic/recompute。
+         */
+        get: operations["factor_ic_factor_ic_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/factor-ic/recompute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Factor Ic Recompute
+         * @description 重算單因子 IC（較重，~分鐘級）。as-of 用最新行情日。
+         */
+        post: operations["factor_ic_recompute_factor_ic_recompute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/factor-ic/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Factor Ic Apply
+         * @description 把 IC 建議權重寫進評分設定（scoring.wave.weights）。需另重跑評分才生效。
+         */
+        post: operations["factor_ic_apply_factor_ic_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/expectancy": {
         parameters: {
             query?: never;
@@ -115,6 +175,46 @@ export interface paths {
          * @description 重跑逐筆期望值回測（較重，~分鐘級）。
          */
         post: operations["expectancy_recompute_expectancy_recompute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/poppable-efficacy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Poppable Efficacy
+         * @description 會噴清單成效回測（波段軌 poppable 風格）。讀快取，重算用 POST /poppable-efficacy/recompute。
+         */
+        get: operations["poppable_efficacy_poppable_efficacy_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/poppable-efficacy/recompute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Poppable Efficacy Recompute
+         * @description 重跑會噴清單成效回測（較重，~分鐘級）。as-of 用最新行情日。
+         */
+        post: operations["poppable_efficacy_recompute_poppable_efficacy_recompute_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1640,6 +1740,72 @@ export interface operations {
             };
         };
     };
+    factor_ic_factor_ic_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    factor_ic_recompute_factor_ic_recompute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    factor_ic_apply_factor_ic_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     expectancy_expectancy_get: {
         parameters: {
             query?: never;
@@ -1663,6 +1829,50 @@ export interface operations {
         };
     };
     expectancy_recompute_expectancy_recompute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    poppable_efficacy_poppable_efficacy_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    poppable_efficacy_recompute_poppable_efficacy_recompute_post: {
         parameters: {
             query?: never;
             header?: never;

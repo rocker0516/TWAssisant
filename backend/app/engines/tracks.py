@@ -14,7 +14,13 @@ from .context import StockContext
 from .rules.base import FilterRule, ScoreRule, WeightedScorer, score_confidence
 from .rules.common import COMMON_FILTERS
 from .rules.long import LONG_FILTERS, LONG_SCORERS
-from .rules.wave import WAVE_FILTERS, WAVE_FILTERS_BREAKOUT, WAVE_FILTERS_PULLBACK, WAVE_SCORERS
+from .rules.wave import (
+    WAVE_FILTERS,
+    WAVE_FILTERS_BREAKOUT,
+    WAVE_FILTERS_POPPABLE,
+    WAVE_FILTERS_PULLBACK,
+    WAVE_SCORERS,
+)
 from .stoploss import StopLossCalculator
 
 _DEFAULT_THRESHOLD = 70.0
@@ -147,17 +153,24 @@ class WaveTrack(Track):
     # 回檔低接專屬配分：位階(買在相對低)主導、突破型態與量能放大降權、動能略降避免追過熱；
     # 趨勢/籌碼維持（上升趨勢與法人支撐仍重要）。breakout 用預設配分。
     _PULLBACK_WEIGHTS = {"trend": 25.0, "momentum": 20.0, "volume": 10.0, "chip": 20.0, "margin": 10.0, "pattern": 5.0, "position": 35.0}
+    # 會噴(poppable)專屬配分：定版實證 = 波動度 主導 + 均線多排(唯一有真上偏的方向因子)，
+    # 其餘全 0（追高動能/爆量/籌碼/位階對「會噴」無預測力、只墊高回撤）。比例≈ 2×波動 : 1×趨勢。
+    _POPPABLE_WEIGHTS = {"volatility": 50.0, "trend": 25.0, "momentum": 0.0, "volume": 0.0, "chip": 0.0, "margin": 0.0, "pattern": 0.0, "position": 0.0}
 
     def styles(self) -> list[tuple[str, list]]:
-        """進場風格：breakout 突破追強(量增) / pullback 回檔低接(已回檔、不要求量增)。
+        """進場風格：breakout 突破追強(量增) / pullback 回檔低接 / poppable 會噴(波動+趨勢)。
 
-        兩風格共用同一套各因子原始分數，差別在硬篩 + 加權配分（回檔低接位階主導）。
-        批次逐風格算總分(style_totals)，前端可即時切換。
+        各風格共用同一套各因子原始分數，差別在硬篩 + 加權配分。批次逐風格算總分(style_totals)，
+        前端可即時切換。breakout 仍是 primary（row 的 total_score、向後相容）。
         """
-        return [("breakout", WAVE_FILTERS_BREAKOUT), ("pullback", WAVE_FILTERS_PULLBACK)]
+        return [
+            ("breakout", WAVE_FILTERS_BREAKOUT),
+            ("pullback", WAVE_FILTERS_PULLBACK),
+            ("poppable", WAVE_FILTERS_POPPABLE),
+        ]
 
     def style_weights(self) -> dict[str, dict[str, float]]:
-        return {"pullback": self._PULLBACK_WEIGHTS}
+        return {"pullback": self._PULLBACK_WEIGHTS, "poppable": self._POPPABLE_WEIGHTS}
 
 
 class LongTrack(Track):

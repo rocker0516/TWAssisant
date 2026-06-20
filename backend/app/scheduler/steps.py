@@ -14,6 +14,7 @@ from sqlalchemy import select
 from ..engines.exit_engine import ExitEngine
 from ..engines.indicators import IndicatorEngine
 from ..engines.news_engine import NewsEngine
+from ..engines.poppability import PoppabilityEfficacyEngine
 from ..engines.scoring import ScoringEngine
 from ..engines.sector_engine import SectorEngine
 from ..llm.batch import run_batch
@@ -238,3 +239,16 @@ class NotifyStep(PipelineStep):
             return {"status": "ok", "sent": False, "note": "無可報內容"}
         sent = send_discord(msg)
         return {"status": "ok", "sent": sent, "note": None if sent else "未設定 webhook"}
+
+
+class PoppableEfficacyStep(PipelineStep):
+    """會噴清單成效回測 → Setting['poppable_efficacy']（非必要、較重 ~分鐘級）。
+
+    放在最後：純歷史回測、不影響當日推薦/通知，掛了不擾動主流程（白天讀舊快取）。
+    """
+
+    name = "poppable_efficacy"
+    required = False
+
+    def run(self, ctx: PipelineContext) -> dict:
+        return PoppabilityEfficacyEngine().run(ctx.session, ctx.trading_date)

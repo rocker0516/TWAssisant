@@ -17,7 +17,7 @@ from ..storage import models
 # 預設值（與各引擎內建預設一致）。恢復預設 = 刪該 key 或覆寫成此。
 DEFAULTS: dict = {
     "scoring": {
-        "wave": {"style": "breakout", "threshold": 70, "weights": {"trend": 25, "momentum": 25, "volume": 20, "chip": 20, "pattern": 10, "position": 15}},
+        "wave": {"style": "poppable", "threshold": 70, "weights": {"trend": 25, "momentum": 25, "volume": 20, "chip": 20, "pattern": 10, "position": 15}},
         "long": {"threshold": 70, "weights": {"profit": 25, "growth": 25, "valuation": 20, "quality": 20, "trend_aux": 10}},
     },
     "sector": {"weights": {"momentum": 35, "fund": 30, "tech": 35}},

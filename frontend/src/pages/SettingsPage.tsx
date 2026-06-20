@@ -5,11 +5,13 @@ import {
   useExpectancy,
   useFactorIc,
   useParamSweep,
+  usePoppableEfficacy,
   useRecompute,
   useRecomputeCalibration,
   useRecomputeExpectancy,
   useRecomputeFactorIc,
   useRecomputeParamSweep,
+  useRecomputePoppableEfficacy,
   useResetSettings,
   useSettings,
   useSystemStatus,
@@ -28,6 +30,7 @@ const SECTIONS = [
   { key: "sector", label: "類股方向" },
   { key: "exit", label: "出場提醒" },
   { key: "sources", label: "資料來源" },
+  { key: "poppable_efficacy", label: "會噴成效" },
   { key: "calibration", label: "分數校準" },
   { key: "factor_ic", label: "因子權重(IC)" },
   { key: "expectancy", label: "逐筆期望值" },
@@ -114,10 +117,10 @@ export default function SettingsPage() {
                   <div className="mb-4">
                     <div className="mb-1.5 text-xs text-muted">進場風格</div>
                     <div className="flex gap-2">
-                      {([["breakout", "突破追強", "站上量增、買在突破/近高"], ["pullback", "回檔低接", "已回檔到區間下緣、不要求量增"]] as const).map(([val, label, hint]) => (
+                      {([["poppable", "會噴", "波動+趨勢、回測實證的會噴機率"], ["breakout", "突破追強", "站上量增、買在突破/近高"], ["pullback", "回檔低接", "已回檔到區間下緣、不要求量增"]] as const).map(([val, label, hint]) => (
                         <button key={val} type="button"
                           onClick={() => setDraft({ ...draft, wave: { ...draft.wave, style: val } })}
-                          className={`flex-1 rounded-lg border px-3 py-2 text-left text-sm ${(draft.wave.style ?? "breakout") === val ? "border-sky-600 bg-sky-900/40 text-sky-200" : "border-edge bg-panel2 text-gray-300 hover:bg-edge"}`}>
+                          className={`flex-1 rounded-lg border px-3 py-2 text-left text-sm ${(draft.wave.style ?? "poppable") === val ? "border-sky-600 bg-sky-900/40 text-sky-200" : "border-edge bg-panel2 text-gray-300 hover:bg-edge"}`}>
                           <div className="font-medium">{label}</div>
                           <div className="text-[11px] text-muted">{hint}</div>
                         </button>
@@ -173,6 +176,9 @@ export default function SettingsPage() {
         {/* 資料來源 */}
         {section === "sources" && <SourcesPanel />}
 
+        {/* 會噴清單成效回測 */}
+        {section === "poppable_efficacy" && <PoppableEfficacyPanel />}
+
         {/* 分數校準（L4 回測）*/}
         {section === "calibration" && <CalibrationPanel />}
 
@@ -188,7 +194,7 @@ export default function SettingsPage() {
         {/* 一般（主題）*/}
         {section === "general" && <GeneralPanel />}
 
-        {section !== "data" && section !== "sources" && section !== "general" && section !== "calibration" && section !== "factor_ic" && section !== "expectancy" && section !== "param_sweep" && (
+        {section !== "data" && section !== "sources" && section !== "general" && section !== "calibration" && section !== "factor_ic" && section !== "expectancy" && section !== "param_sweep" && section !== "poppable_efficacy" && (
           <div className="mt-5 flex items-center gap-3">
             <button onClick={save} disabled={update.isPending || recompute.isPending}
               className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium disabled:opacity-50">
@@ -371,6 +377,118 @@ function SourcesPanel() {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function PoppableEfficacyPanel() {
+  const { data: eff, isLoading } = usePoppableEfficacy();
+  const recompute = useRecomputePoppableEfficacy();
+  const pct = (v: number | null | undefined) => (v === null || v === undefined ? "—" : `${Math.round(v * 100)}%`);
+  const sign = (v: number | null | undefined) => (v === null || v === undefined ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(1)}%`);
+
+  if (isLoading) return <div className="text-muted">載入中…</div>;
+  const has = eff && eff.by_date.length > 0;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-xl border border-edge bg-panel p-4">
+        <div className="mb-1 font-semibold">會噴清單成效（波段軌 · 會噴風格）</div>
+        <p className="text-sm text-muted">
+          會噴清單到底準不準？取最近幾個「已有完整未來」的歷史進場日，用<b className="text-gray-200">真引擎</b>
+          重跑當時的會噴清單，看那些股票後來 {eff?.horizon ?? 20} 個交易日<b className="text-gray-200">有沒有摸到 +10%</b>，
+          對比全市場基準。
+        </p>
+        <div className="mt-2 rounded-lg border border-amber-700/50 bg-amber-950/30 px-3 py-2 text-xs leading-relaxed text-amber-200/90">
+          清單的職責是<b>「給你一個停利點」</b>，不是「會自動賺」。所以同時看<b>最深回撤 / 20 日收盤</b>
+          ——噴完不賣可能吐回去，能不能入袋全看出場紀律。
+        </div>
+        {has && (
+          <p className="mt-2 text-xs text-muted">
+            {eff!.window.from} ~ {eff!.window.to}・{eff!.window.entry_dates} 個進場日・清單共 {eff!.total_list} 檔
+            　|　整體摸+10% <b className="text-gray-200">{pct(eff!.overall_hit_rate)}</b>　|　計算於 {eff!.generated_at}
+          </p>
+        )}
+        <button
+          onClick={() => recompute.mutate()}
+          disabled={recompute.isPending}
+          className="mt-3 rounded-md bg-sky-600 px-4 py-2 text-sm font-medium disabled:opacity-50"
+        >
+          {recompute.isPending ? "回測中…（約 1 分鐘）" : "重新計算"}
+        </button>
+        {recompute.isError && <span className="ml-3 text-sm text-down">失敗，請重試</span>}
+      </div>
+
+      {!has && <p className="text-sm text-muted">尚無成效資料，按「重新計算」產生。</p>}
+
+      {has && (
+        <div className="rounded-xl border border-edge bg-panel p-4">
+          <div className="mb-2 font-semibold">各進場日：清單 vs 全市場</div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-muted">
+                <th className="py-1 text-left font-normal">進場日</th>
+                <th className="py-1 text-right font-normal">清單檔數</th>
+                <th className="py-1 text-right font-normal">清單摸+10%</th>
+                <th className="py-1 text-right font-normal">基準</th>
+                <th className="py-1 text-right font-normal">lift</th>
+                <th className="py-1 text-right font-normal">平均最高</th>
+                <th className="py-1 text-right font-normal">平均回撤</th>
+              </tr>
+            </thead>
+            <tbody>
+              {eff!.by_date.map((r) => (
+                <tr key={r.date} className="border-t border-edge/60">
+                  <td className="py-1.5 tabular-nums">{r.date}</td>
+                  <td className="py-1.5 text-right tabular-nums text-muted">{r.n}</td>
+                  <td className="py-1.5 text-right tabular-nums font-medium text-sky-300">{pct(r.list_hit_rate)}</td>
+                  <td className="py-1.5 text-right tabular-nums text-muted">{pct(r.base_hit_rate)}</td>
+                  <td className="py-1.5 text-right tabular-nums">{r.lift === null ? "—" : `${r.lift.toFixed(2)}x`}</td>
+                  <td className="py-1.5 text-right tabular-nums text-up">{sign(r.avg_mfe)}</td>
+                  <td className="py-1.5 text-right tabular-nums text-down">{sign(r.avg_dd)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {has && eff!.detail.length > 0 && (
+        <div className="rounded-xl border border-edge bg-panel p-4">
+          <div className="mb-2 flex items-baseline justify-between">
+            <span className="font-semibold">{eff!.detail_date} 會噴清單明細</span>
+            <span className="text-xs text-muted">後來 {eff!.horizon ?? 20} 交易日實際</span>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-muted">
+                <th className="py-1 text-left font-normal">股票</th>
+                <th className="py-1 text-right font-normal">會噴分</th>
+                <th className="py-1 text-right font-normal">波動</th>
+                <th className="py-1 text-right font-normal">最高漲</th>
+                <th className="py-1 text-right font-normal">最深回撤</th>
+                <th className="py-1 text-right font-normal">20日收盤</th>
+                <th className="py-1 text-right font-normal">摸+10%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {eff!.detail.map((r) => (
+                <tr key={r.stock_id} className="border-t border-edge/60">
+                  <td className="py-1.5"><span className="tabular-nums text-muted">{r.stock_id}</span> {r.name}</td>
+                  <td className="py-1.5 text-right tabular-nums">{r.pop}</td>
+                  <td className="py-1.5 text-right tabular-nums text-muted">{r.vol}</td>
+                  <td className="py-1.5 text-right tabular-nums text-up">{sign(r.mfe)}</td>
+                  <td className="py-1.5 text-right tabular-nums text-down">{sign(r.dd)}</td>
+                  <td className={`py-1.5 text-right tabular-nums ${changeColor(r.cret)}`}>{sign(r.cret)}</td>
+                  <td className="py-1.5 text-right">{r.hit ? "✔" : "·"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {has && eff!.note && <p className="text-xs leading-relaxed text-muted">{eff!.note}</p>}
     </div>
   );
 }

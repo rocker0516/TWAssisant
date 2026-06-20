@@ -405,6 +405,45 @@ class PositionScore(ScoreRule):
         return "、".join(parts)
 
 
+class VolatilityScore(ScoreRule):
+    """波動度（會噴潛力）：atr_pct = atr14/close 越高，持有期間摸到停利點的機率越高。
+
+    定版實證（docs/poppability-finding.md）：用「未來20日收盤報酬」選股沒有穩定 alpha，
+    但改問「持有期間有沒有漲到 +10% 可賣點(MFE)」，波動度是最強且樣本外最穩的預測子
+    （最高十分位摸+10%機率 57.8% vs 全市場 35.6%，1.62 倍）。注意這是**雙面刃**：會噴的
+    也會崩，波動本身對「噴」與「崩」近乎對稱，方向性的上偏交給趨勢(均線多排)那一維。
+    預設權重 0：只有 poppable(會噴) 風格才把它加重；不擾動 breakout/pullback。
+    """
+
+    category = "volatility"
+    default_weight = 0.0
+    _LO = 0.012   # atr_pct 約 p10 → 0 分
+    _SPAN = 0.058  # 到 ~p90(0.07) → 100 分
+
+    def score(self, ctx: StockContext) -> float | None:
+        ind = ctx.ind
+        atr = ind.get("atr14") if ind is not None else None
+        if atr is None or ctx.close is None or ctx.close <= 0:
+            return None
+        return clamp((atr / ctx.close - self._LO) / self._SPAN * 100)
+
+    def reason(self, ctx, value):
+        return "高波動易噴" if value >= 65 else None
+
+    def evidence(self, ctx, value):
+        ind = ctx.ind
+        atr = ind.get("atr14") if ind is not None else None
+        if atr is None or ctx.close is None or ctx.close <= 0:
+            return None
+        ap = atr / ctx.close * 100
+        tier = "高波動（易噴亦易崩）" if ap >= 5 else ("中波動" if ap >= 3 else "低波動（不易噴）")
+        return f"{tier}，日均波幅約 {ap:.1f}%"
+
+
+# 會噴風格：站上上揚月線（趨勢成立）+ 距季線<15%（非過度延伸）；波動/趨勢評分主導，不要求量增
+WAVE_FILTERS_POPPABLE: list[FilterRule] = [AboveRisingMa20(), NearMa60()]
+
+
 WAVE_SCORERS: list[ScoreRule] = [
     TrendScore(),
     MomentumScore(),
@@ -413,4 +452,5 @@ WAVE_SCORERS: list[ScoreRule] = [
     MarginScore(),
     PatternScore(),
     PositionScore(),
+    VolatilityScore(),
 ]
