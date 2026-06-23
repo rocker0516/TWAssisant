@@ -9,6 +9,7 @@ export const CATEGORY_LABELS: Record<string, string> = {
   pattern: "型態",
   position: "位階",
   volatility: "波動度",
+  consolidation: "盤整",
   // 長線軌
   profit: "獲利",
   growth: "營收成長",
@@ -53,11 +54,40 @@ export function sectorTileColor(trend: string | null | undefined, strength: numb
 }
 
 // 位階：由波段「位階分」推回相對位置。分數高＝買在相對低（回檔買點）。
+// 註：此為後端 20 日綜合分（含貼月線/KD），會把中位股灌成相對低；卡片/篩選改用下方
+// rangePositionMeta（依走勢視窗的純區間位階）。此函式留作 spark 不足時的備援。
 export function positionMeta(posScore: number | null | undefined): { label: string; color: string } | null {
   if (posScore === null || posScore === undefined) return null;
   if (posScore >= 60) return { label: "相對低", color: "text-sky-400" };
   if (posScore >= 35) return { label: "中性", color: "text-muted" };
   return { label: "偏高", color: "text-amber-400" };
+}
+
+// 位階（依走勢視窗）：用近 N 日收盤的區間位階 pir（0=區間低、1=區間高）直接判高低，
+// 隨「走勢」切換(1/3/6月)連動——你看多長的曲線，位階就是現價在那段區間的相對高低。
+// 比 positionMeta 直白（純位置、不摻貼月線/KD），也修掉中位股被灌成「相對低」的問題。
+export function rangePositionMeta(
+  spark: number[] | null | undefined,
+  days?: number,
+): { label: string; color: string } | null {
+  if (!spark || spark.length < 2) return null;
+  const w = days ? spark.slice(-days) : spark;
+  if (w.length < 2) return null;
+  const lo = Math.min(...w);
+  const hi = Math.max(...w);
+  if (hi <= lo) return { label: "中性", color: "text-muted" };
+  const pir = (w[w.length - 1] - lo) / (hi - lo);
+  if (pir <= 0.4) return { label: "相對低", color: "text-sky-400" };
+  if (pir <= 0.65) return { label: "中性", color: "text-muted" };
+  return { label: "偏高", color: "text-amber-400" };
+}
+
+// 盤整：由波段「盤整分」判是否在「低檔」打底蓄勢（區間低位＋波動收斂）。分數高＝噴出前的彈簧。
+// 低位已內建在分數裡（區間中/高位被低位係數壓低），故達標(≥50)即代表低檔盤整；未達回 null
+// （卡片不顯示徽章、避免雜訊）。會噴股多在趨勢中振幅大，真正低檔盤整收斂的本就少。
+export function consolidationMeta(consScore: number | null | undefined): { label: string; color: string } | null {
+  if (consScore === null || consScore === undefined) return null;
+  return consScore >= 50 ? { label: "盤整打底", color: "text-emerald-400" } : null;
 }
 
 export function scoreColor(v: number | null | undefined): string {

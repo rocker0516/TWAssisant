@@ -7,7 +7,7 @@ pipeline。完整 ⑥ API 層（6 頁讀寫端點、SSE 助手）於 P1+ 逐步�
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import datetime
 
 from fastapi import BackgroundTasks, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -134,12 +134,15 @@ def test_source(name: str, body: TokenBody) -> dict:
 
 @app.post("/pipeline/run")
 def trigger_pipeline(background: BackgroundTasks) -> dict:
-    """設定頁[立即載入]：背景執行，立即回 accepted。已在跑則回 already_running。"""
-    from .scheduler.service import is_running, run_pipeline_guarded
-    from .scheduler.trading_calendar import resolve_trading_date
+    """設定頁[立即載入]：背景補齊「所有缺的交易日（含分數）」到最新。
 
-    target = resolve_trading_date(date.today())
+    立即回 accepted；已在跑則回 already_running。target＝目前理應已完成的最近交易日
+    （盤前/未到排程時間 → 上一交易日，不抓還沒齊的當天）。
+    """
+    from .scheduler.service import _current_sched_time, _expected_ready_date, backfill_to_latest, is_running
+
+    target = _expected_ready_date(datetime.now(), _current_sched_time())
     if is_running():
         return {"accepted": False, "reason": "already_running", "trading_date": target.isoformat()}
-    background.add_task(run_pipeline_guarded, target, trigger="manual")
+    background.add_task(backfill_to_latest, trigger="manual")
     return {"accepted": True, "trading_date": target.isoformat()}

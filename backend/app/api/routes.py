@@ -50,17 +50,20 @@ def _threshold(session: Session, track: str) -> float:
     return float(cfg.get(track, {}).get("threshold", 70.0))
 
 
-_WAVE_STYLES = ("breakout", "pullback", "poppable")
+_DEFAULT_TOP_PCT = 20.0  # 會噴推薦預設前 N%（門檻分數 = 100 − N）
 
 
-def _default_wave_style(session: Session) -> str:
+def _wave_top_pct(session: Session) -> float:
+    """會噴推薦的前 N%（設定頁可調；推薦頁橫桿可即時覆寫）。"""
     row = session.get(models.Setting, "scoring")
     cfg = row.value if row and isinstance(row.value, dict) else {}
-    s = cfg.get("wave", {}).get("style", "breakout")
-    return s if s in _WAVE_STYLES else "breakout"
+    try:
+        return float((cfg.get("wave") or {}).get("top_pct", _DEFAULT_TOP_PCT))
+    except (TypeError, ValueError):
+        return _DEFAULT_TOP_PCT
 
 
-_SPARK_DAYS = 20  # 推薦卡片近期走勢取樣的交易日數
+_SPARK_DAYS = 120  # 推薦卡片走勢取樣交易日數（約 6 個月；前端可切 1/3/6 月就地切片）
 
 
 def _recent_prices(
@@ -103,16 +106,8 @@ def _price_change(
     return close, change, change_pct
 
 
-def _eff_total(sc: models.Score, style: str | None) -> float | None:
-    """所選風格的有效總分（回檔低接用位階主導的配分）；無 style_totals 則回主總分。"""
-    if style and sc.style_totals and style in sc.style_totals:
-        return sc.style_totals[style]
-    return sc.total_score
-
-
 def _to_item(
     session: Session, sc: models.Score, name: str, sector_name: str | None, d: date,
-    total: float | None = None,
 ) -> RecommendationItem:
     close, change_pct, spark = _recent_prices(session, sc.stock_id, d)
     return RecommendationItem(
@@ -120,7 +115,7 @@ def _to_item(
         name=name,
         sector_name=sector_name,
         track=sc.track,
-        total_score=sc.total_score if total is None else total,
+        total_score=sc.total_score,
         sub_scores=sc.sub_scores,
         coverage=sc.coverage,
         confidence=sc.confidence,
@@ -140,15 +135,21 @@ def _to_item(
 @router.get("/recommendations", response_model=RecommendationList)
 def recommendations(
     track: str = Query("wave", pattern="^(wave|long)$"),
-    style: str | None = Query(None, pattern="^(breakout|pullback|poppable)$"),
     session: Session = Depends(get_session),
 ) -> RecommendationList:
+    """波段軌＝會噴：回傳全部過硬篩股(依會噴分數高→低)，前端橫桿就地切『前 N%』。
+    長線軌：沿用門檻切 items / near。"""
     d = _latest_score_date(session)
-    threshold = _threshold(session, track)
-    # 波段軌依風格篩（預設讀 settings）；長線軌無風格
-    sel_style = (style or _default_wave_style(session)) if track == "wave" else None
+    if track == "wave":
+        top_pct = _wave_top_pct(session)
+        cutoff = round(100.0 - top_pct, 2)
+    else:
+        top_pct = None
+        cutoff = _threshold(session, track)
     if d is None:
-        return RecommendationList(track=track, style=sel_style, date=None, threshold=threshold, items=[], near=[])
+        return RecommendationList(
+            track=track, date=None, threshold=cutoff, top_pct=top_pct, items=[], near=[]
+        )
 
     base = (
         select(models.Score, models.Stock.name, models.Sector.name)
@@ -157,27 +158,22 @@ def recommendations(
         .where(models.Score.track == track, models.Score.date == d)
     )
 
-    def _filter_ok(sc: models.Score) -> bool:
-        """該股是否通過所選風格的硬篩（長線軌用通用 passed_filter）。"""
-        if sel_style is None:
-            return bool(sc.passed_filter)
-        return sel_style in (sc.passed_styles or [])
-
     items, near = [], []
     for sc, name, sector_name in session.execute(base).all():
-        if not _filter_ok(sc):
+        if not sc.passed_filter or sc.total_score is None:
             continue
-        eff = _eff_total(sc, sel_style)  # 依風格用對應配分的總分
-        if eff is None:
-            continue
-        if eff >= threshold:
-            items.append(_to_item(session, sc, name, sector_name, d, total=eff))
-        elif eff >= threshold - _NEAR_BAND:
-            near.append(_to_item(session, sc, name, sector_name, d, total=eff))
+        if track == "wave":
+            items.append(_to_item(session, sc, name, sector_name, d))  # 全清單，前端橫桿切
+        elif sc.total_score >= cutoff:
+            items.append(_to_item(session, sc, name, sector_name, d))
+        elif sc.total_score >= cutoff - _NEAR_BAND:
+            near.append(_to_item(session, sc, name, sector_name, d))
 
     items.sort(key=lambda it: it.total_score or 0, reverse=True)
     near.sort(key=lambda it: it.total_score or 0, reverse=True)
-    return RecommendationList(track=track, style=sel_style, date=d, threshold=threshold, items=items, near=near)
+    return RecommendationList(
+        track=track, date=d, threshold=cutoff, top_pct=top_pct, items=items, near=near
+    )
 
 
 def _score_dto(sc: models.Score | None) -> ScoreDTO | None:
@@ -232,85 +228,6 @@ def stock_search(
     ]
 
 
-@router.get("/calibration")
-def calibration(session: Session = Depends(get_session)) -> dict:
-    """分數校準回測結果（波段軌；L4）。讀快取，無則回空殼。重算用 POST /calibration/recompute。"""
-    row = session.get(models.Setting, "calibration")
-    if row and isinstance(row.value, dict):
-        return row.value
-    return {"track": "wave", "buckets": {}, "baseline": {}, "samples": 0,
-            "window": {"score_dates": 0}, "horizons": [], "note": "尚未計算，請按重新計算。"}
-
-
-@router.post("/calibration/recompute")
-def calibration_recompute(session: Session = Depends(get_session_write)) -> dict:
-    """重跑校準（較重，~分鐘級）。as-of 用最新行情日。"""
-    from ..engines.calibration import CalibrationEngine
-
-    as_of = session.execute(select(func.max(models.DailyPrice.date))).scalar() or date.today()
-    return CalibrationEngine().run(session, as_of)
-
-
-@router.get("/factor-ic")
-def factor_ic(session: Session = Depends(get_session)) -> dict:
-    """單因子 IC + 資料驅動建議權重（波段軌）。讀快取，重算用 POST /factor-ic/recompute。"""
-    row = session.get(models.Setting, "factor_ic")
-    if row and isinstance(row.value, dict):
-        return row.value
-    return {"track": "wave", "factors": {}, "current_weights": {}, "suggested_weights": {},
-            "score_dates": 0, "window": {}, "note": "尚未計算，請按重新計算。"}
-
-
-@router.post("/factor-ic/recompute")
-def factor_ic_recompute(session: Session = Depends(get_session_write)) -> dict:
-    """重算單因子 IC（較重，~分鐘級）。as-of 用最新行情日。"""
-    from ..engines.factor_ic import FactorICEngine
-
-    as_of = session.execute(select(func.max(models.DailyPrice.date))).scalar() or date.today()
-    return FactorICEngine().run(session, as_of)
-
-
-@router.post("/factor-ic/apply")
-def factor_ic_apply(session: Session = Depends(get_session_write)) -> dict:
-    """把 IC 建議權重寫進評分設定（scoring.wave.weights）。需另重跑評分才生效。"""
-    ic = session.get(models.Setting, "factor_ic")
-    if not ic or not isinstance(ic.value, dict):
-        raise HTTPException(status_code=400, detail="尚未計算因子 IC")
-    suggested = {k: v for k, v in (ic.value.get("suggested_weights") or {}).items() if v is not None}
-    if not suggested:
-        raise HTTPException(status_code=400, detail="無可套用的建議權重")
-    row = session.get(models.Setting, "scoring")
-    cfg = dict(row.value) if row and isinstance(row.value, dict) else {}
-    wave = dict(cfg.get("wave") or {})
-    wave["weights"] = {**(wave.get("weights") or {}), **suggested}
-    cfg["wave"] = wave
-    if row is None:
-        session.add(models.Setting(key="scoring", value=cfg))
-    else:
-        row.value = cfg
-    session.flush()
-    return {"status": "ok", "applied": suggested, "note": "已寫入評分設定，需重跑評分才生效。"}
-
-
-@router.get("/expectancy")
-def expectancy(session: Session = Depends(get_session)) -> dict:
-    """逐筆交易期望值回測結果（波段軌）。讀快取，重算用 POST /expectancy/recompute。"""
-    row = session.get(models.Setting, "expectancy")
-    if row and isinstance(row.value, dict):
-        return row.value
-    return {"track": "wave", "overall": {}, "by_score": [], "by_confidence": [],
-            "window": {"entry_dates": 0}, "note": "尚未計算，請按重新計算。"}
-
-
-@router.post("/expectancy/recompute")
-def expectancy_recompute(session: Session = Depends(get_session_write)) -> dict:
-    """重跑逐筆期望值回測（較重，~分鐘級）。"""
-    from ..engines.expectancy import ExpectancyEngine
-
-    as_of = session.execute(select(func.max(models.DailyPrice.date))).scalar() or date.today()
-    return ExpectancyEngine().run(session, as_of)
-
-
 @router.get("/poppable-efficacy")
 def poppable_efficacy(session: Session = Depends(get_session)) -> dict:
     """會噴清單成效回測（波段軌 poppable 風格）。讀快取，重算用 POST /poppable-efficacy/recompute。"""
@@ -328,24 +245,6 @@ def poppable_efficacy_recompute(session: Session = Depends(get_session_write)) -
 
     as_of = session.execute(select(func.max(models.DailyPrice.date))).scalar() or date.today()
     return PoppabilityEfficacyEngine().run(session, as_of)
-
-
-@router.get("/param-sweep")
-def param_sweep(session: Session = Depends(get_session)) -> dict:
-    """出場參數掃描 + walk-forward 結果（波段軌）。讀快取。"""
-    row = session.get(models.Setting, "param_sweep")
-    if row and isinstance(row.value, dict):
-        return row.value
-    return {"track": "wave", "grid_top": [], "walkforward": {}, "note": "尚未計算，請按重新計算。"}
-
-
-@router.post("/param-sweep/recompute")
-def param_sweep_recompute(session: Session = Depends(get_session_write)) -> dict:
-    """重跑參數掃描（最重，~數分鐘）。"""
-    from ..engines.param_sweep import ParamSweepEngine
-
-    as_of = session.execute(select(func.max(models.DailyPrice.date))).scalar() or date.today()
-    return ParamSweepEngine().run(session, as_of)
 
 
 @router.get("/stocks/{stock_id}", response_model=StockDetail)

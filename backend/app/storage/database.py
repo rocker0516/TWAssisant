@@ -54,6 +54,7 @@ _COLUMN_ADDITIONS: dict[str, dict[str, str]] = {
     "scores": {
         "coverage": "FLOAT", "confidence": "FLOAT", "stability": "FLOAT",
         "details": "JSON", "passed_styles": "JSON", "style_totals": "JSON",
+        "style_coverage": "JSON", "style_confidence": "JSON", "style_stability": "JSON",
     },
     "indicators": {"ma120": "FLOAT", "ma240": "FLOAT"},  # 半年線/年線（長期支撐）
 }

@@ -57,11 +57,11 @@ class RecommendationItem(BaseModel):
 
 class RecommendationList(BaseModel):
     track: str
-    style: str | None = None  # 波段軌進場風格 breakout/pullback（長線軌為 None）
+    top_pct: float | None = None  # 波段(會噴)軌：前 N% 為推薦（長線軌為 None）
     date: date | None
-    threshold: float
-    items: list[RecommendationItem]  # 達門檻
-    near: list[RecommendationItem]  # 接近門檻（65~70，折疊觀察區）
+    threshold: float  # 門檻分數（波段軌 = 100 − top_pct）
+    items: list[RecommendationItem]  # 波段軌=全部過硬篩(前端橫桿切)；長線軌=達門檻
+    near: list[RecommendationItem]  # 接近門檻（長線軌用；波段軌為空）
 
 
 class ChipSummary(BaseModel):

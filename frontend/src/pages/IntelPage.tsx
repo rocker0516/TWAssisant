@@ -3,11 +3,12 @@ import { Link } from "react-router-dom";
 import { useIntel, type IntelEvent } from "../api/client";
 import { Markdown } from "../components/Markdown";
 
-const CATEGORIES = ["全部", "利空", "題材", "中性"] as const;
+const CATEGORIES = ["全部", "利空", "展望", "題材", "中性"] as const;
 type Category = (typeof CATEGORIES)[number];
 
 function catClass(category: string | null, isRisk: boolean): string {
   if (isRisk) return "bg-down/20 text-down";
+  if (category === "展望") return "bg-sky-500/20 text-sky-400";
   if (category === "題材") return "bg-up/20 text-up";
   return "bg-panel2 text-muted";
 }

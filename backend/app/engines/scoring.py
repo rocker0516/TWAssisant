@@ -21,6 +21,59 @@ from .tracks import LongTrack, WaveTrack
 
 _STABILITY_LOOKBACK = 5  # 取近 5 個評分日算分數穩定度
 _STABILITY_MIN_POINTS = 3  # 含今日至少 3 點才談穩定度，否則中性不扣
+_DEFAULT_TOP_PCT = 20.0  # 會噴推薦預設前 N%（門檻 = 100 − N；設定/推薦頁橫桿可調）
+
+
+def _pct_ranks(values: list[float | None]) -> list[float | None]:
+    """橫截面百分位 rank（0~1，越大越高）。None 不參與排名、回 None。
+
+    平手取平均序位 / 有效樣本數。空樣本回全 None。
+    """
+    valid = sorted(v for v in values if v is not None)
+    n = len(valid)
+    if n == 0:
+        return [None] * len(values)
+    # 每個值的平均序位（1-based 中點），平手共享 → 轉 0~1
+    import bisect
+
+    out: list[float | None] = []
+    for v in values:
+        if v is None:
+            out.append(None)
+            continue
+        lo = bisect.bisect_left(valid, v)
+        hi = bisect.bisect_right(valid, v)
+        avg_rank = (lo + 1 + hi) / 2.0  # 平手取中點序位（1-based）
+        out.append(avg_rank / n)
+    return out
+
+
+def finalize_wave_pop(rows: list[dict], top_pct: float = _DEFAULT_TOP_PCT) -> None:
+    """會噴分數＝當天全市場橫截面 rank：(2×rank(atr_pct)+rank(ma_align))/3×100。
+
+    就地改寫 wave 列：填 total_score / passed / coverage / confidence，並移除 transient
+    的 pop_inputs（非 Score 欄位）。cutoff = 100 − top_pct（前 N% 進推薦）。
+    rank 範圍 = 傳入 rows 中的全部 wave 列（一個交易日的全市場），自動隨大盤波動正規化。
+    """
+    wave = [r for r in rows if r.get("track") == "wave"]
+    if not wave:
+        return
+    atr_rank = _pct_ranks([(r.get("pop_inputs") or {}).get("atr_pct") for r in wave])
+    align_rank = _pct_ranks([(r.get("pop_inputs") or {}).get("ma_align") for r in wave])
+    cutoff = 100.0 - float(top_pct)
+    for r, ra, rl in zip(wave, atr_rank, align_rank):
+        r.pop("pop_inputs", None)
+        if ra is None or rl is None:
+            r["total_score"] = None
+            r["passed"] = False
+            r["coverage"] = 0.0
+            r["confidence"] = 0.0
+            continue
+        total = round((2.0 * ra + rl) / 3.0 * 100.0, 2)
+        r["total_score"] = total
+        r["coverage"] = 1.0
+        r["confidence"] = 100.0  # 兩個 rank 輸入皆在；穩定度於 _apply_stability 折入
+        r["passed"] = bool(r.get("passed_filter")) and total >= cutoff
 
 
 def _stability_factor(prior_totals: list[float | None], today: float | None) -> float:
@@ -158,6 +211,10 @@ class ScoringEngine(BaseEngine):
                 rows.append(track.evaluate(ctx, config.get(track.track_key, {})))
             scored += 1
 
+        # 會噴：當天全市場橫截面 rank 合成總分（逐檔 evaluate 只給 pop_inputs）
+        top_pct = float((config.get("wave") or {}).get("top_pct", _DEFAULT_TOP_PCT))
+        finalize_wave_pop(rows, top_pct)
+
         self._apply_stability(session, td, rows)
 
         n = BaseRepository(models.Score).upsert_many(session, rows)
@@ -169,6 +226,7 @@ class ScoringEngine(BaseEngine):
         """L3：用近期歷史總分算穩定度，折進 confidence（confidence = 完整度×共識度×穩定度）。
 
         史料不足時穩定度=1.0，confidence 不變。重跑當日冪等（只看 date<td 的歷史）。
+        會噴/長線軌皆用各自 total_score 的歷史穩定度。
         """
         recent_dates = session.execute(
             select(distinct(models.Score.date))
@@ -179,11 +237,13 @@ class ScoringEngine(BaseEngine):
         prior: dict[tuple[str, str], list[float | None]] = {}
         if recent_dates:
             for sid, track, total in session.execute(
-                select(models.Score.stock_id, models.Score.track, models.Score.total_score)
-                .where(models.Score.date.in_(recent_dates))
+                select(
+                    models.Score.stock_id, models.Score.track, models.Score.total_score,
+                ).where(models.Score.date.in_(recent_dates))
             ):
                 prior.setdefault((sid, track), []).append(total)
         for r in rows:
-            st = _stability_factor(prior.get((r["stock_id"], r["track"]), []), r["total_score"])
+            key = (r["stock_id"], r["track"])
+            st = _stability_factor(prior.get(key, []), r["total_score"])
             r["stability"] = round(st, 3)
             r["confidence"] = round((r.get("confidence") or 0.0) * st, 1)

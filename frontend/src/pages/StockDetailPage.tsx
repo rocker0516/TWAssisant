@@ -3,18 +3,22 @@ import { Link, useParams } from "react-router-dom";
 import {
   useChipHistory,
   useHoldingHistory,
+  useHoldings,
   useLevels,
   useOhlcv,
   useStockDetail,
+  type HoldingItem,
   type LevelsResponse,
   type ScoreDTO,
   type StockDetail,
 } from "../api/client";
 import { ChipTrendChart } from "../components/ChipTrendChart";
 import { ConfidenceBadge } from "../components/ConfidenceBadge";
+import { NewHoldingForm, TxnForm } from "../components/HoldingForms";
 import { HoldingTrendChart } from "../components/HoldingTrendChart";
 import { KLineChart } from "../components/KLineChart";
 import { Markdown } from "../components/Markdown";
+import { Modal } from "../components/Modal";
 import { ReasonChips } from "../components/ReasonChips";
 import { ScoreDisplay } from "../components/ScoreDisplay";
 import { changeColor, fmtNum, fmtPct, positionMeta, TRACK_LABELS } from "../lib/format";
@@ -43,6 +47,49 @@ function HealthCard({ stockId }: { stockId: string }) {
         </button>
       </div>
       {text ? <Markdown>{text}</Markdown> : <p className="text-sm text-muted">點「生成健檢」由 AI 綜合技術/籌碼/基本面/類股解讀（不自動生成、保持數據導向）。</p>}
+    </div>
+  );
+}
+
+// ───── 買進 / 加碼 / 賣出（與「我的持股」共用後端與表單）─────
+function BuySellBar({ stockId, name, close }: { stockId: string; name: string; close: number | null | undefined }) {
+  const { data } = useHoldings("open");
+  const [modal, setModal] = useState<{ kind: "new" | "add" | "sell"; holding?: HoldingItem } | null>(null);
+  // 同一檔可能在波段／長線兩軌各有部位；操作以第一筆為主，其餘請至「我的持股」頁處理
+  const held = data?.items.filter((h) => h.stock_id === stockId) ?? [];
+  const primary = held[0];
+  const totalShares = held.reduce((s, h) => s + h.shares, 0);
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+      {primary ? (
+        <>
+          <span className="text-sm text-muted">
+            持有 {totalShares} 張 · 均價 {fmtNum(primary.avg_cost)}
+            {held.length > 1 && <span className="ml-1 text-xs">（{held.length} 筆部位）</span>}
+          </span>
+          <button onClick={() => setModal({ kind: "add", holding: primary })} className="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium">
+            加碼
+          </button>
+          <button onClick={() => setModal({ kind: "sell", holding: primary })} className="rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium">
+            賣出
+          </button>
+        </>
+      ) : (
+        <button onClick={() => setModal({ kind: "new" })} className="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium">
+          + 買進建倉
+        </button>
+      )}
+
+      <Modal title={`買進 ${name}`} open={modal?.kind === "new"} onClose={() => setModal(null)}>
+        <NewHoldingForm onDone={() => setModal(null)} defaultStockId={stockId} defaultPrice={close} lockStock />
+      </Modal>
+      <Modal title={`加碼 ${name}`} open={modal?.kind === "add"} onClose={() => setModal(null)}>
+        {modal?.holding && <TxnForm holding={modal.holding} type="add" onDone={() => setModal(null)} />}
+      </Modal>
+      <Modal title={`賣出 ${name}`} open={modal?.kind === "sell"} onClose={() => setModal(null)}>
+        {modal?.holding && <TxnForm holding={modal.holding} type="sell" onDone={() => setModal(null)} />}
+      </Modal>
     </div>
   );
 }
@@ -277,6 +324,7 @@ export default function StockDetailPage() {
           <div className={`text-sm tabular-nums ${changeColor(d.change_pct)}`}>
             {fmtNum(d.change)}（{fmtPct(d.change_pct)}）
           </div>
+          <BuySellBar stockId={d.stock_id} name={d.name} close={d.close} />
         </div>
       </div>
 

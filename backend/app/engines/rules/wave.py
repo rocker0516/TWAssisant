@@ -1,14 +1,42 @@
-"""波段軌規則（技術 + 籌碼）。
+"""波段軌規則 — 重定錨為「會噴」（docs/poppability-finding.md 定版）。
 
-硬篩：站上20日線且上揚、量增(>5日均量×1.3)、距季線乖離<15%。
-評分5類預設配分：趨勢25 / 動能25 / 量能20 / 籌碼20 / 型態10。
-（內部計分邏輯固定不開放；配分可由 settings 調整。）
+進場推薦地基＝會噴（持有期間摸到 +10% 可賣停利點），非會漲（收盤更高）。
+- 硬篩：站上上揚月線（趨勢成立）＋ 距季線乖離<15%（非過度延伸）。不要求量增。
+- 會噴分數＝橫截面百分位 `(2×rank(atr_pct) + rank(ma_align)) / 3 × 100`，由
+  ScoringEngine 當天全市場一起算（rank 自動隨大盤波動水位正規化）。本檔只提供
+  逐檔原始值 `pop_atr_pct()` / `pop_ma_align()`。
+- 其餘 6 因子（動能/量能/籌碼/融資/型態/位階）**不計入會噴分數**，僅保留
+  evidence/sub_scores 供個股詳情參考。
 """
 
 from __future__ import annotations
 
 from .base import FilterRule, ScoreRule, clamp
 from ..context import StockContext
+
+
+def pop_atr_pct(ctx: StockContext) -> float | None:
+    """會噴主因子：日均波幅比 atr_pct = atr14/close。缺料回 None。"""
+    ind = ctx.ind
+    atr = ind.get("atr14") if ind is not None else None
+    if atr is None or ctx.close is None or ctx.close <= 0:
+        return None
+    return float(atr / ctx.close)
+
+
+def pop_ma_align(ctx: StockContext) -> float | None:
+    """會噴方向因子：均線多頭排列數 (ma5>ma10)+(ma10>ma20)+(ma20>ma60) ∈ 0~3。
+
+    doc 證實這是唯一在波動之上把振幅『偏向上』的因子（skew IC t=4.4）。任一均線
+    缺料回 None（資料不足，不灌 0）。
+    """
+    ind = ctx.ind
+    if ind is None:
+        return None
+    ma5, ma10, ma20, ma60 = (ind.get(k) for k in ("ma5", "ma10", "ma20", "ma60"))
+    if ma5 is None or ma10 is None or ma20 is None or ma60 is None:
+        return None
+    return float((ma5 > ma10) + (ma10 > ma20) + (ma20 > ma60))
 
 # ─────────────── 硬篩 ───────────────
 
@@ -25,16 +53,6 @@ class AboveRisingMa20(FilterRule):
         return above and rising
 
 
-class VolumeIncrease(FilterRule):
-    name = "volume_increase"
-
-    def passes(self, ctx: StockContext) -> bool:
-        ind = ctx.ind
-        v5 = ind.get("vol_ma5") if ind is not None else None
-        vol = float(ctx.prices["volume"].iloc[-1]) if ctx.n_bars else None
-        return v5 is not None and vol is not None and vol > v5 * 1.3
-
-
 class NearMa60(FilterRule):
     name = "near_ma60"
 
@@ -44,48 +62,10 @@ class NearMa60(FilterRule):
         return b is not None and abs(b) < 15
 
 
-class PulledBack(FilterRule):
-    """已回檔：收盤落在近20日『收盤』區間下緣，且未過熱、未過度延伸（非追高）。
+# 會噴硬篩：站上上揚月線（趨勢成立）+ 距季線<15%（非過度延伸）；不要求量增。
+WAVE_FILTERS: list[FilterRule] = [AboveRisingMa20(), NearMa60()]
 
-    刻意用『收盤』而非盤中高低算區間——盤中一根影線/急拉會把區間撐大，讓剛噴上去
-    貼著高點的股票偽裝成中位（實測 興富發 盤中 pir 0.64 但收盤 pir 0.86）。再加
-    KD 未過熱、距季線乖離未過大兩道守門，擋掉「剛拉一波、過熱、過度延伸」的假回檔。
-    回檔風格用，刻意不要求量增（縮量回測常見）。
-    """
-
-    name = "pulled_back"
-    _MAX_PIR = 0.5      # 收盤區間位階上限：>0.5 視為仍在中上緣、非回檔低接
-    _MAX_KD = 75.0      # KD 過熱上限：回檔買點不該追在過熱區
-    _MAX_BIAS60 = 12.0  # 距季線乖離上限（%）：過度延伸非回檔
-
-    def passes(self, ctx: StockContext) -> bool:
-        if ctx.close is None or ctx.n_bars < 20:
-            return False
-        closes = ctx.prices["close"].iloc[-20:]
-        hi, lo = float(closes.max()), float(closes.min())
-        rng = hi - lo
-        if rng <= 0:
-            return False
-        if (ctx.close - lo) / rng > self._MAX_PIR:
-            return False
-        ind = ctx.ind
-        if ind is not None:
-            k = ind.get("kd_k")
-            if k is not None and k >= self._MAX_KD:
-                return False
-            b = ind.get("bias_60")
-            if b is not None and abs(b) >= self._MAX_BIAS60:
-                return False
-        return True
-
-
-# 突破追強（預設）：站上上揚月線 + 量增 + 距季線<15%
-WAVE_FILTERS_BREAKOUT: list[FilterRule] = [AboveRisingMa20(), VolumeIncrease(), NearMa60()]
-# 回檔低接：站上上揚月線(守支撐) + 已回檔到區間下緣 + 距季線<15%；不要求量增（縮量回測常見）
-WAVE_FILTERS_PULLBACK: list[FilterRule] = [AboveRisingMa20(), PulledBack(), NearMa60()]
-WAVE_FILTERS: list[FilterRule] = WAVE_FILTERS_BREAKOUT  # 向後相容
-
-# ─────────────── 評分 ───────────────
+# ─────────────── 評分（僅供 evidence 參考，不計入會噴分數）───────────────
 
 
 class TrendScore(ScoreRule):
@@ -440,8 +420,98 @@ class VolatilityScore(ScoreRule):
         return f"{tier}，日均波幅約 {ap:.1f}%"
 
 
-# 會噴風格：站上上揚月線（趨勢成立）+ 距季線<15%（非過度延伸）；波動/趨勢評分主導，不要求量增
-WAVE_FILTERS_POPPABLE: list[FilterRule] = [AboveRisingMa20(), NearMa60()]
+class ConsolidationScore(ScoreRule):
+    """低檔盤整打底（會噴前的彈簧）：**區間低位** + 近10日振幅相對近40日收斂 + 橫向走平 + 量縮。
+
+    使用者要的是『低位』盤整，故「打底」**硬性要求區間位階偏低**——中位/高位就算振幅收斂也不
+    算打底（高位橫盤多是漲多後的換手，非低接點）。低位以近20日(收盤)區間位階 pir 判：pir<0.4
+    完整給分、0.4~0.5 折半、≥0.5(中位以上)壓到 0.2x 不過門檻。盤整強度＝振幅收斂(≤70)＋橫向
+    走平(≤15)＋量縮(15)，再乘低位係數。注意此分**獨立於** PositionScore(位階)——後者把『貼月線
+    ＋KD未過熱』也算進去，會把中位股灌成「相對低」(如欣銓 pir0.51 卻得 62)，不能拿來判低位。
+    預設權重 0：只落 sub_scores/evidence 供前端『低位盤整』軟篩與回測子集，不擾動會噴 rank。
+    """
+
+    category = "consolidation"
+    default_weight = 0.0
+    _SHORT = 10
+    _LONG = 40
+
+    def _pir(self, ctx: StockContext) -> float | None:
+        """近 20 日(收盤)區間位階：0=區間低、1=區間高。缺料回 None。"""
+        if ctx.n_bars < 20 or ctx.close is None:
+            return None
+        hi = float(ctx.prices["high"].iloc[-20:].max())
+        lo = float(ctx.prices["low"].iloc[-20:].min())
+        rng = hi - lo
+        return (ctx.close - lo) / rng if rng > 0 else 0.5
+
+    @staticmethod
+    def _low_factor(pir: float) -> float:
+        """低位係數：pir<0.4 完整、0.4~0.5 折半、≥0.5(中位以上)壓到 0.2x（非打底）。"""
+        if pir >= 0.5:
+            return 0.2
+        if pir >= 0.4:
+            return 0.6
+        return 1.0
+
+    def _ratio(self, ctx: StockContext) -> float | None:
+        """近 _SHORT 日平均(高低/收)振幅 ÷ 近 _LONG 日：<1 即收斂。缺料/長窗 0 回 None。"""
+        if ctx.n_bars < self._LONG or ctx.close is None:
+            return None
+        close = ctx.prices["close"].replace(0, float("nan"))
+        rng = (ctx.prices["high"] - ctx.prices["low"]) / close
+        short = float(rng.iloc[-self._SHORT:].mean())
+        long = float(rng.iloc[-self._LONG:].mean())
+        if long != long or long <= 0 or short != short:  # NaN / 0
+            return None
+        return short / long
+
+    def _drift(self, ctx: StockContext) -> float | None:
+        """近 20 日淨漂移絕對值：越小＝越橫向（已過上揚月線硬篩，方向偏多免再判向）。"""
+        if ctx.n_bars < 20:
+            return None
+        c0 = float(ctx.prices["close"].iloc[-20])
+        c1 = float(ctx.prices["close"].iloc[-1])
+        if c0 <= 0:
+            return None
+        return abs(c1 / c0 - 1)
+
+    def score(self, ctx: StockContext) -> float | None:
+        ratio = self._ratio(ctx)
+        pir = self._pir(ctx)
+        if ratio is None or pir is None:
+            return None
+        s = clamp((1.0 - ratio) / 0.5 * 100, 0, 70)  # 振幅越收斂分越高（上限 70）
+        drift = self._drift(ctx)
+        if drift is not None:
+            s += 15 if drift < 0.04 else (8 if drift < 0.08 else 0)  # 橫向走平
+        ind = ctx.ind
+        v5 = ind.get("vol_ma5") if ind is not None else None
+        v20 = ind.get("vol_ma20") if ind is not None else None
+        if v5 is not None and v20 is not None and v5 < v20:  # NaN 比較為 False，自動排除
+            s += 15  # 量縮惜售
+        return clamp(s * self._low_factor(pir))  # 乘低位係數：非低位即使收斂也不算打底
+
+    def reason(self, ctx, value):
+        return "低檔盤整打底" if value >= 50 else None
+
+    def evidence(self, ctx, value):
+        ratio = self._ratio(ctx)
+        pir = self._pir(ctx)
+        if ratio is None or pir is None:
+            return None
+        ptier = "區間低位" if pir <= 0.4 else ("區間中位" if pir <= 0.65 else "區間高位")
+        ctier = "波動明顯收斂" if ratio <= 0.7 else ("波動略收斂" if ratio < 0.95 else "波動未收斂")
+        parts = [f"{ptier}、{ctier}（近10日振幅約近月 {ratio * 100:.0f}%）"]
+        drift = self._drift(ctx)
+        if drift is not None and drift < 0.08:
+            parts.append("股價橫向走平")
+        ind = ctx.ind
+        v5 = ind.get("vol_ma5") if ind is not None else None
+        v20 = ind.get("vol_ma20") if ind is not None else None
+        if v5 is not None and v20 is not None and v5 < v20:
+            parts.append("量縮惜售")
+        return "、".join(parts)
 
 
 WAVE_SCORERS: list[ScoreRule] = [
@@ -453,4 +523,5 @@ WAVE_SCORERS: list[ScoreRule] = [
     PatternScore(),
     PositionScore(),
     VolatilityScore(),
+    ConsolidationScore(),
 ]

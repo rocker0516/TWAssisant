@@ -1,7 +1,10 @@
 """雙軌 Track（架構③）。
 
-Track.evaluate() 共骨架：硬篩 → 各類 0~100 → 配分換算 → 類股修正(P3) →
-買賣區間/停損 → 理由。子類只給 track_key + filters + scorers + 預設門檻。
+- 長線軌 LongTrack：沿用共骨架 evaluate()——硬篩 → 各類 0~100 → 配分加權 →
+  類股修正 → 買賣區間/停損 → 理由。
+- 波段軌 WaveTrack：重定錨為「會噴」，總分改由 ScoringEngine 當天全市場橫截面
+  rank 算（見 WaveTrack.evaluate / scoring.py）；此處只算硬篩、原始 rank 輸入、
+  6 因子 evidence 與買賣區間。
 每檔每軌都產一列（詳情頁顯示用），passed 標記是否進推薦。
 """
 
@@ -14,13 +17,7 @@ from .context import StockContext
 from .rules.base import FilterRule, ScoreRule, WeightedScorer, score_confidence
 from .rules.common import COMMON_FILTERS
 from .rules.long import LONG_FILTERS, LONG_SCORERS
-from .rules.wave import (
-    WAVE_FILTERS,
-    WAVE_FILTERS_BREAKOUT,
-    WAVE_FILTERS_POPPABLE,
-    WAVE_FILTERS_PULLBACK,
-    WAVE_SCORERS,
-)
+from .rules.wave import WAVE_FILTERS, WAVE_SCORERS, pop_atr_pct, pop_ma_align
 from .stoploss import StopLossCalculator
 
 _DEFAULT_THRESHOLD = 70.0
@@ -39,26 +36,6 @@ class Track(ABC):
     def _weights(self, config: dict) -> dict[str, float]:
         overrides = (config or {}).get("weights", {})
         return {s.category: overrides.get(s.category, s.default_weight) for s in self.scorers}
-
-    def style_weights(self) -> dict[str, dict[str, float]]:
-        """各風格的配分覆寫（相對預設只蓋差異的維度）。預設無，子類可給。"""
-        return {}
-
-    def _weights_for(self, style: str, config: dict) -> dict[str, float]:
-        """某風格的最終配分 = 預設/設定配分 ← 風格內建覆寫 ← 設定的 weights_<style> 覆寫。"""
-        base = self._weights(config)
-        merged = {**base, **self.style_weights().get(style, {})}
-        cfg_over = (config or {}).get(f"weights_{style}", {})
-        merged.update(cfg_over)
-        return {c: float(merged.get(c, base.get(c, 0.0))) for c in base}
-
-    def styles(self) -> list[tuple[str, list[FilterRule]]]:
-        """此軌支援的進場風格 → (風格名, 該風格專屬硬篩)。
-
-        預設單一 default；子類可給多種（如波段軌 breakout/pullback）。評分與風格無關，
-        差別只在『過哪一組硬篩』——批次時逐風格判定，存 passed_styles 供前端切換。
-        """
-        return [("default", self.filters)]
 
     def _sector_adjust(self, ctx: StockContext) -> tuple[float, str | None]:
         """類股修正（設計定案）：波段=強勢加分/弱勢扣分但不排除；長線=輕加分。±5~10。"""
@@ -80,17 +57,12 @@ class Track(ABC):
         return 0.0, None
 
     def evaluate(self, ctx: StockContext, config: dict | None = None) -> dict:
+        """單一配分加權（長線軌）。波段軌覆寫此法改走會噴 rank。"""
         config = config or {}
         threshold = config.get("threshold", self.default_threshold)
 
-        # 共用硬篩過了才逐風格判定（評分與風格無關，只差過哪組風格硬篩）
         common_ok = all(f.passes(ctx) for f in COMMON_FILTERS)
-        passed_styles = (
-            [name for name, filt in self.styles() if all(f.passes(ctx) for f in filt)]
-            if common_ok
-            else []
-        )
-        passed_filter = len(passed_styles) > 0
+        passed_filter = common_ok and all(f.passes(ctx) for f in self.filters)
 
         sub_scores: dict[str, float] = {}
         reasons: list[str] = []
@@ -106,19 +78,14 @@ class Track(ABC):
                 reasons.append(r)
             details.append({"category": sc.category, "score": val, "evidence": sc.evidence(ctx, val)})
 
-        coverage, confidence = score_confidence(sub_scores, len(self.scorers))
         sector_adjust, sector_reason = self._sector_adjust(ctx)
         if sector_reason:
             reasons.append(sector_reason)
 
-        def _weighted(w: dict[str, float]) -> float:
-            t = float(WeightedScorer.weighted_total(sub_scores, w))
-            return float(round(min(100.0, max(0.0, t + sector_adjust)), 2))
-
-        # 每個風格用各自配分算總分（sub_scores 與風格無關，只有加權總分會變）
-        style_totals = {name: _weighted(self._weights_for(name, config)) for name, _ in self.styles()}
-        primary = self.styles()[0][0]  # 主風格（波段=breakout）總分當作 row 的 total_score（向後相容）
-        total = style_totals.get(primary, _weighted(self._weights(config)))
+        weights = self._weights(config)
+        total = float(WeightedScorer.weighted_total(sub_scores, weights))
+        total = float(round(min(100.0, max(0.0, total + sector_adjust)), 2))
+        coverage, confidence = score_confidence(sub_scores, len(self.scorers), weights)
 
         plan = self._stoploss.compute(ctx, self.track_key)
         passed = passed_filter and total >= threshold
@@ -129,9 +96,7 @@ class Track(ABC):
             "track": self.track_key,
             "passed_filter": passed_filter,
             "passed": passed,
-            "passed_styles": passed_styles,
             "total_score": total,
-            "style_totals": style_totals,
             "sub_scores": sub_scores,
             "sector_adjust": sector_adjust,
             "coverage": coverage,
@@ -146,31 +111,52 @@ class Track(ABC):
 
 
 class WaveTrack(Track):
+    """波段軌＝會噴。total_score 不在此算——逐檔吐 pop_inputs(atr_pct, ma_align)，
+    由 ScoringEngine 當天全市場橫截面 rank 合成。6 因子只算 evidence 供參考。"""
+
     track_key = "wave"
     filters = WAVE_FILTERS
     scorers = WAVE_SCORERS
 
-    # 回檔低接專屬配分：位階(買在相對低)主導、突破型態與量能放大降權、動能略降避免追過熱；
-    # 趨勢/籌碼維持（上升趨勢與法人支撐仍重要）。breakout 用預設配分。
-    _PULLBACK_WEIGHTS = {"trend": 25.0, "momentum": 20.0, "volume": 10.0, "chip": 20.0, "margin": 10.0, "pattern": 5.0, "position": 35.0}
-    # 會噴(poppable)專屬配分：定版實證 = 波動度 主導 + 均線多排(唯一有真上偏的方向因子)，
-    # 其餘全 0（追高動能/爆量/籌碼/位階對「會噴」無預測力、只墊高回撤）。比例≈ 2×波動 : 1×趨勢。
-    _POPPABLE_WEIGHTS = {"volatility": 50.0, "trend": 25.0, "momentum": 0.0, "volume": 0.0, "chip": 0.0, "margin": 0.0, "pattern": 0.0, "position": 0.0}
+    def evaluate(self, ctx: StockContext, config: dict | None = None) -> dict:
+        common_ok = all(f.passes(ctx) for f in COMMON_FILTERS)
+        passed_filter = common_ok and all(f.passes(ctx) for f in self.filters)
 
-    def styles(self) -> list[tuple[str, list]]:
-        """進場風格：breakout 突破追強(量增) / pullback 回檔低接 / poppable 會噴(波動+趨勢)。
+        # 6 因子：不計入會噴分數，只攤成 evidence/sub_scores 供個股詳情參考。
+        sub_scores: dict[str, float] = {}
+        reasons: list[str] = []
+        details: list[dict] = []
+        for sc in self.scorers:
+            raw = sc.score(ctx)
+            if raw is None:
+                continue
+            val = float(round(raw, 1))
+            sub_scores[sc.category] = val
+            r = sc.reason(ctx, val)
+            if r:
+                reasons.append(r)
+            details.append({"category": sc.category, "score": val, "evidence": sc.evidence(ctx, val)})
 
-        各風格共用同一套各因子原始分數，差別在硬篩 + 加權配分。批次逐風格算總分(style_totals)，
-        前端可即時切換。breakout 仍是 primary（row 的 total_score、向後相容）。
-        """
-        return [
-            ("breakout", WAVE_FILTERS_BREAKOUT),
-            ("pullback", WAVE_FILTERS_PULLBACK),
-            ("poppable", WAVE_FILTERS_POPPABLE),
-        ]
-
-    def style_weights(self) -> dict[str, dict[str, float]]:
-        return {"pullback": self._PULLBACK_WEIGHTS, "poppable": self._POPPABLE_WEIGHTS}
+        plan = self._stoploss.compute(ctx, self.track_key)
+        return {
+            "stock_id": ctx.stock.id,
+            "date": ctx.date,
+            "track": self.track_key,
+            "passed_filter": passed_filter,
+            "passed": False,        # 引擎橫截面 rank 後再定
+            "total_score": None,    # 引擎填（會噴 rank 分數）
+            "pop_inputs": {"atr_pct": pop_atr_pct(ctx), "ma_align": pop_ma_align(ctx)},
+            "sub_scores": sub_scores,
+            "sector_adjust": 0.0,   # 會噴分數＝純 rank，不加類股修正（與回測一致）
+            "coverage": None,       # 引擎填
+            "confidence": None,     # 引擎填
+            "buy_low": plan.buy_low,
+            "buy_high": plan.buy_high,
+            "stop_loss": plan.stop_loss,
+            "loss_pct": plan.loss_pct,
+            "reasons": reasons,
+            "details": details,
+        }
 
 
 class LongTrack(Track):

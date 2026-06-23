@@ -38,6 +38,21 @@ def build_pipeline() -> DailyPipeline:
     )
 
 
+def build_backfill_pipeline() -> DailyPipeline:
+    """多日補洞用：跑到 Exit 為止，不含 LLM/通知/回測。
+
+    補一段缺口時，每個「非最新」交易日都跑這條（資料+指標+類股+消息+評分+出場齊全、
+    推薦可用），但**不發 Discord 通知、不跑 LLM 翻譯/回測**——避免一次補 N 天就轟 N 則
+    通知、燒 N 次 LLM。最新那天才跑完整 build_pipeline()。
+    """
+    return DailyPipeline(
+        steps=[
+            FetchStep(), IndicatorStep(), SectorStep(), NewsStep(),
+            ScoringStep(), ExitStep(),
+        ]
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="TWAssistant 每日盤後 pipeline")
     parser.add_argument("--date", help="指定交易日 YYYY-MM-DD（回補用）")

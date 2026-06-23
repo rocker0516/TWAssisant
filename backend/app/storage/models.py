@@ -257,6 +257,9 @@ class Score(Base):
     passed_styles: Mapped[list | None] = mapped_column(JSON)  # 通過哪些進場風格硬篩 ["breakout","pullback"]
     total_score: Mapped[float | None] = mapped_column(Float)  # 主風格(波段=breakout)總分
     style_totals: Mapped[dict | None] = mapped_column(JSON)  # 各風格加權總分 {"breakout":..,"pullback":..}
+    style_coverage: Mapped[dict | None] = mapped_column(JSON)  # 各風格完整度（只看該風格押注維度）
+    style_confidence: Mapped[dict | None] = mapped_column(JSON)  # 各風格可信度（只看該風格押注維度）
+    style_stability: Mapped[dict | None] = mapped_column(JSON)  # 各風格穩定度（各用自己風格總分歷史）
     sub_scores: Mapped[dict | None] = mapped_column(JSON)  # 5 大類細項（缺料維度不入列）
     sector_adjust: Mapped[float | None] = mapped_column(Float)  # 類股修正分
     coverage: Mapped[float | None] = mapped_column(Float)  # 有資料維度占比 0~1（缺料偵測）
