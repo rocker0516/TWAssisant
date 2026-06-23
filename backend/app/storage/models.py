@@ -214,6 +214,31 @@ class EtfProfile(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class InstitutionalMarketTotal(Base):
+    """全市場三大法人買賣超總表（TWSE BFI82U）。PK = date。單位＝億元。
+
+    與個股 institutional（張）不同口徑：這是整個市場的法人資金流向，用來看大盤方向、
+    法人買超循環處於哪一段。foreign/trust/dealer 三欄可個別看（外資/投信/自營常分歧）。
+    """
+
+    __tablename__ = "institutional_market_total"
+
+    date: Mapped[date_] = mapped_column(Date, primary_key=True)
+    foreign_net: Mapped[float | None] = mapped_column(Float)  # 外資（含外資自營商），億元
+    trust_net: Mapped[float | None] = mapped_column(Float)    # 投信，億元
+    dealer_net: Mapped[float | None] = mapped_column(Float)   # 自營商（自行+避險），億元
+    total_net: Mapped[float | None] = mapped_column(Float)    # 三大法人合計，億元
+
+
+class MarketIndex(Base):
+    """加權指數日線（TWSE 發行量加權股價指數收盤）。PK = date。疊圖/量化關係對照用。"""
+
+    __tablename__ = "market_index"
+
+    date: Mapped[date_] = mapped_column(Date, primary_key=True)
+    close: Mapped[float | None] = mapped_column(Float)
+
+
 # ─────────────────────────── D 類股 ───────────────────────────
 
 

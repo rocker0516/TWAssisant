@@ -55,6 +55,12 @@ class FetchStep(PipelineStep):
         ("financials", "fundamental", "FinancialQuarterRepository", "fetch_financials", 1),
         ("holding", "holding", "ShareholdingRepository", "fetch_holding_distribution", 1),
     ]
+    # 市場級資料（無 stock_id，PK=date，不過濾股號）：全市場三大法人總表 + 加權指數。
+    # (key, source_name, repo_cls, method, lookback)
+    _MARKET = [
+        ("inst_market", "twse", "InstitutionalMarketTotalRepository", "fetch_institutional_market_total", 90),
+        ("market_index", "twse", "MarketIndexRepository", "fetch_index", 150),
+    ]
 
     def run(self, ctx: PipelineContext) -> dict:
         session = ctx.session
@@ -82,6 +88,12 @@ class FetchStep(PipelineStep):
             results[key] = self._fetch_dataset(
                 session, key, capability, repo_cls, method, td, known_ids,
                 incremental=False, lookback=lookback,
+            )
+
+        # 4) 市場級增量抓（無 stock_id，不過濾股號）
+        for key, source_name, repo_cls, method, lookback in self._MARKET:
+            results[key] = self._fetch_market_dataset(
+                session, source_name, repo_cls, method, td, lookback,
             )
 
         ok = sum(1 for r in results.values() if r.get("status") == "ok")
@@ -160,6 +172,26 @@ class FetchStep(PipelineStep):
                 return {"status": "empty", "from": start.isoformat(), "to": td.isoformat()}
 
             df = df[df["stock_id"].astype(str).isin(known_ids)]
+            n = repository.upsert_many(session, _records(df))
+            session.flush()
+            return {"status": "ok", "rows": n, "from": start.isoformat(), "to": td.isoformat()}
+        except SourceError as exc:
+            return {"status": "error", "reason": exc.reason}
+
+    def _fetch_market_dataset(
+        self, session, source_name, repo_cls_name, method, td, lookback: int,
+    ) -> dict:
+        """市場級資料集（PK=date，無 stock_id）增量抓。起點＝max_date+1（冷啟回補 lookback）。"""
+        try:
+            src = registry.get_source(source_name)
+            repository = getattr(repo, repo_cls_name)()
+            last = repository.max_date(session)
+            start = (last + timedelta(days=1)) if last else (td - timedelta(days=lookback))
+            if start > td:
+                return {"status": "ok", "rows": 0, "note": "up_to_date"}
+            df = getattr(src, method)(start, td, None)
+            if df.empty:
+                return {"status": "empty", "from": start.isoformat(), "to": td.isoformat()}
             n = repository.upsert_many(session, _records(df))
             session.flush()
             return {"status": "ok", "rows": n, "from": start.isoformat(), "to": td.isoformat()}

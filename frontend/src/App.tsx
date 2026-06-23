@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
+import FlowPage from "./pages/FlowPage";
 import HoldingsPage from "./pages/HoldingsPage";
 import IntelPage from "./pages/IntelPage";
 import OverviewPage from "./pages/OverviewPage";
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="/holdings" element={<HoldingsPage />} />
         <Route path="/sectors" element={<SectorsPage />} />
         <Route path="/sectors/:id" element={<SectorDetailPage />} />
+        <Route path="/flow" element={<FlowPage />} />
         <Route path="/watchlists" element={<WatchlistsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/stocks/:id" element={<StockDetailPage />} />

@@ -107,6 +107,14 @@ class ShareholdingRepository(BaseRepository[models.ShareholdingDistribution]):
     model = models.ShareholdingDistribution
 
 
+class InstitutionalMarketTotalRepository(BaseRepository[models.InstitutionalMarketTotal]):
+    model = models.InstitutionalMarketTotal
+
+
+class MarketIndexRepository(BaseRepository[models.MarketIndex]):
+    model = models.MarketIndex
+
+
 class RevenueMonthlyRepository(BaseRepository[models.RevenueMonthly]):
     model = models.RevenueMonthly
 

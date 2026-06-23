@@ -13,6 +13,16 @@ PRICE_COLS = ["stock_id", "date", "open", "high", "low", "close", "volume", "tur
 
 INSTITUTIONAL_COLS = ["stock_id", "date", "foreign_net", "trust_net", "dealer_net", "total_net"]
 
+# 全市場三大法人買賣超總表（TWSE BFI82U，買賣差額）。單位＝億元（由原始「元」換算）。
+#   foreign_net = 外資及陸資(不含外資自營商) + 外資自營商
+#   trust_net   = 投信
+#   dealer_net  = 自營商(自行買賣) + 自營商(避險)
+#   total_net   = 合計（三大法人）
+INSTITUTIONAL_MARKET_COLS = ["date", "foreign_net", "trust_net", "dealer_net", "total_net"]
+
+# 加權指數日線（TWSE MI_INDEX「發行量加權股價指數」收盤）。疊圖/量化關係對照用。
+MARKET_INDEX_COLS = ["date", "close"]
+
 MARGIN_COLS = ["stock_id", "date", "margin_balance", "margin_change", "short_balance", "short_change"]
 
 REVENUE_COLS = ["stock_id", "year", "month", "revenue", "yoy", "mom"]

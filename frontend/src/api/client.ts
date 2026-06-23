@@ -30,6 +30,25 @@ export type ThemeDigest = components["schemas"]["ThemeDigest"];
 export type StockSearchItem = components["schemas"]["StockSearchItem"];
 export type WatchlistsResponse = components["schemas"]["WatchlistsResponse"];
 export type WatchlistItemCreate = components["schemas"]["WatchlistItemCreate"];
+export type MarketFlowResponse = components["schemas"]["MarketFlowResponse"];
+export type MarketFlowActor = components["schemas"]["MarketFlowActor"];
+export type SectorFlowList = components["schemas"]["SectorFlowList"];
+export type SectorFlowItem = components["schemas"]["SectorFlowItem"];
+export type FlowStockList = components["schemas"]["FlowStockList"];
+export type FlowStockItem = components["schemas"]["FlowStockItem"];
+export type InstPriceRelation = components["schemas"]["InstPriceRelation"];
+export type SectorRotationResponse = components["schemas"]["SectorRotationResponse"];
+export type SectorRotationItem = components["schemas"]["SectorRotationItem"];
+export type SectorRotationPoint = components["schemas"]["SectorRotationPoint"];
+
+// 法人別（合計/外資/投信/自營）
+export type Actor = "total" | "foreign" | "trust" | "dealer";
+export const ACTOR_LABELS: Record<Actor, string> = {
+  total: "三大法人",
+  foreign: "外資",
+  trust: "投信",
+  dealer: "自營商",
+};
 
 export type Track = "wave" | "long";
 export type HoldingStatus = "open" | "closed";
@@ -227,6 +246,51 @@ export function useSectorDetail(sectorId: string | undefined) {
     queryKey: ["sector", sectorId],
     queryFn: () => getJson<SectorDetail>(`/sectors/${sectorId}`),
     enabled: !!sectorId,
+  });
+}
+
+// ── 籌碼動向（法人 + 大戶散戶）──
+
+export function useMarketFlow(days = 250) {
+  return useQuery({
+    queryKey: ["flow-market", days],
+    queryFn: () => getJson<MarketFlowResponse>(`/flow/market?days=${days}`),
+  });
+}
+
+export function useSectorFlow(lookback = 20) {
+  return useQuery({
+    queryKey: ["flow-sectors", lookback],
+    queryFn: () => getJson<SectorFlowList>(`/flow/sectors?lookback=${lookback}`),
+  });
+}
+
+export function useSectorRotation(actor: Actor = "total", weeks = 6) {
+  return useQuery({
+    queryKey: ["flow-rotation", actor, weeks],
+    queryFn: () => getJson<SectorRotationResponse>(`/flow/rotation?actor=${actor}&weeks=${weeks}`),
+  });
+}
+
+export function useFlowStocks(sort = "total_cum20", limit = 50) {
+  return useQuery({
+    queryKey: ["flow-stocks", sort, limit],
+    queryFn: () => getJson<FlowStockList>(`/flow/stocks?sort=${sort}&limit=${limit}`),
+  });
+}
+
+export function useFlowRelation() {
+  return useQuery({
+    queryKey: ["flow-relation"],
+    queryFn: () => getJson<InstPriceRelation>("/flow/relation"),
+  });
+}
+
+export function useRecomputeFlowRelation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => sendJson<InstPriceRelation>("POST", "/flow/relation/recompute"),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["flow-relation"] }),
   });
 }
 

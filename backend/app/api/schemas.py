@@ -339,6 +339,122 @@ class SectorDetail(BaseModel):
     interpretation: str | None = None  # AI 類股方向解讀（盤後批次快取）
 
 
+# ─────────── 籌碼動向（法人 + 大戶散戶）───────────
+
+
+class ActorRelation(BaseModel):
+    """單一 actor：法人 20 日累計 vs 指數未來報酬的量化關係。"""
+
+    h: int
+    samples: int
+    avg_ret_pos: float | None = None   # 累積買超時指數未來平均報酬 %
+    avg_ret_neg: float | None = None   # 累積賣超時指數未來平均報酬 %
+    winrate_pos: float | None = None   # 累積買超時上漲勝率 0~1
+    corr: float | None = None          # 累積 vs 未來報酬相關係數
+
+
+class MarketFlowActor(BaseModel):
+    """單一 actor（合計/外資/投信/自營）的市場資金流向（億元）。"""
+
+    daily: list[float | None]          # 每日淨買超
+    cum: list[float | None]            # 累積淨買超曲線（主視角）
+    cum20: float | None = None
+    cum60: float | None = None
+    cum120: float | None = None
+    consec_days: int = 0               # 連買(+)/連賣(-)天數
+    phase: str | None = None           # 週期段
+    relation: ActorRelation | None = None
+
+
+class MarketFlowResponse(BaseModel):
+    from_date: str | None
+    to_date: str | None
+    dates: list[str]
+    index: list[float | None]          # 加權指數收盤（疊圖對照）
+    actors: dict[str, MarketFlowActor]  # total / foreign / trust / dealer
+
+
+class SectorFlowItem(BaseModel):
+    id: int
+    name: str
+    foreign_cum: int | None = None     # 近 lookback 日法人淨買超累計（張）
+    trust_cum: int | None = None
+    dealer_cum: int | None = None
+    total_cum: int | None = None
+    constituents: int | None = None
+
+
+class SectorFlowList(BaseModel):
+    date: str | None
+    lookback: int
+    items: list[SectorFlowItem]
+
+
+class SectorRotationPoint(BaseModel):
+    """類股輪動軌跡單點：原始量，前端依強度/絕對模式各自算 X/Y/size。"""
+
+    date: str
+    net20: int      # 近20日法人淨買超（張）
+    net5: int       # 近5日法人淨買超（張）
+    turnover20: int  # 近20日成交量（張）
+    turnover5: int   # 近5日成交量（張）
+
+
+class SectorRotationItem(BaseModel):
+    id: int
+    name: str
+    points: list[SectorRotationPoint]  # 升冪（舊→新），最後一點為現況頭部
+
+
+class SectorRotationResponse(BaseModel):
+    actor: str
+    weeks: int
+    date: str | None
+    sectors: list[SectorRotationItem]
+
+
+class FlowStockItem(BaseModel):
+    stock_id: str
+    name: str
+    sector_name: str | None = None
+    foreign_cum20: int | None = None
+    trust_cum20: int | None = None
+    dealer_cum20: int | None = None
+    total_cum20: int | None = None
+    foreign_cum60: int | None = None
+    trust_cum60: int | None = None
+    dealer_cum60: int | None = None
+    total_cum60: int | None = None
+    consec_days: int = 0               # 三大法人合計連買/連賣天數
+    big_pct: float | None = None       # 最新大戶占比
+    big_trend: float | None = None     # 大戶占比近 ~8 週變化（個百分點）
+    small_trend: float | None = None   # 散戶占比近 ~8 週變化
+    holders_change: float | None = None  # 股東人數近 ~8 週變化 %
+    close: float | None = None
+    change_pct: float | None = None
+
+
+class FlowStockList(BaseModel):
+    date: str | None
+    sort: str
+    items: list[FlowStockItem]
+
+
+class InstActorIC(BaseModel):
+    ic: float | None = None            # 法人累積 → 未來報酬 rank-IC
+    winrate_pos: float | None = None
+    avg_ret_pos: float | None = None
+    samples: int = 0
+
+
+class InstPriceRelation(BaseModel):
+    generated_at: str | None
+    horizon: int
+    entry_dates: int
+    actors: dict[str, InstActorIC]
+    note: str | None = None
+
+
 # ─────────── 觀察清單（P6）───────────
 
 

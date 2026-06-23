@@ -16,6 +16,7 @@ from sqlalchemy import func, select
 
 from .api.routes import router as api_router
 from .api.routes_assistant import router as assistant_router
+from .api.routes_flow import router as flow_router
 from .api.routes_holdings import router as holdings_router
 from .api.routes_intel import router as intel_router
 from .api.routes_overview import router as overview_router
@@ -40,6 +41,7 @@ app.add_middleware(
 app.include_router(api_router)
 app.include_router(holdings_router)
 app.include_router(sectors_router)
+app.include_router(flow_router)
 app.include_router(overview_router)
 app.include_router(intel_router)
 app.include_router(watchlists_router)
@@ -79,6 +81,8 @@ def system_status() -> dict:
         "shareholding": models.ShareholdingDistribution,
         "revenue_monthly": models.RevenueMonthly,
         "valuation": models.Valuation,
+        "institutional_market_total": models.InstitutionalMarketTotal,
+        "market_index": models.MarketIndex,
     }
     with session_scope() as s:
         counts = {

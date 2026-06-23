@@ -219,6 +219,75 @@ class TwseSource(BaseSource, PriceProvider, ChipProvider, FundamentalProvider, N
             df[c] = df[c].astype("Int64")
         return df[schemas.MARGIN_COLS]
 
+    # ── 市場級彙總（全市場三大法人總表 + 加權指數，皆 by date 逐日，無 stock_id）──
+
+    def fetch_institutional_market_total(
+        self, start: date, end: date, stock_ids: list[str] | None = None
+    ) -> pd.DataFrame:
+        """全市場三大法人買賣超總表（BFI82U，買賣差額）。單位元→億元（float）。
+
+        欄位見 schemas.INSTITUTIONAL_MARKET_COLS。無 stock_id（PK=date）。
+        歷史早期自營商可能未拆「自行買賣/避險」，缺欄時回退合計「自營商」。
+        """
+        e8 = 1e8
+        rows: list[dict] = []
+        for d in self._iter_days(start, end):
+            params = {"response": "json", "dayDate": d.strftime("%Y%m%d"), "type": "day"}
+            body = self._request("/fund/BFI82U", params=params).json()
+            if body.get("stat") != "OK" or not body.get("data"):
+                continue
+            vals: dict[str, float] = {}
+            for r in body["data"]:
+                name = str(_cell(r, 0) or "").strip()
+                vals[name] = _num(_cell(r, 3)) or 0.0  # 買賣差額
+            foreign = vals.get("外資及陸資(不含外資自營商)", 0.0) + vals.get("外資自營商", 0.0)
+            if "外資及陸資(不含外資自營商)" not in vals:
+                foreign = vals.get("外資及陸資", 0.0) + vals.get("外資自營商", 0.0)
+            trust = vals.get("投信", 0.0)
+            if "自營商(自行買賣)" in vals or "自營商(避險)" in vals:
+                dealer = vals.get("自營商(自行買賣)", 0.0) + vals.get("自營商(避險)", 0.0)
+            else:
+                dealer = vals.get("自營商", 0.0)
+            total = vals.get("合計")
+            if total is None:
+                total = foreign + trust + dealer
+            rows.append({
+                "date": d,
+                "foreign_net": round(foreign / e8, 2),
+                "trust_net": round(trust / e8, 2),
+                "dealer_net": round(dealer / e8, 2),
+                "total_net": round(total / e8, 2),
+            })
+        if not rows:
+            return pd.DataFrame(columns=schemas.INSTITUTIONAL_MARKET_COLS)
+        return pd.DataFrame(rows)[schemas.INSTITUTIONAL_MARKET_COLS]
+
+    def fetch_index(
+        self, start: date, end: date, stock_ids: list[str] | None = None
+    ) -> pd.DataFrame:
+        """加權指數日線（MI_INDEX「價格指數(臺灣證券交易所)」表中『發行量加權股價指數』收盤）。
+
+        欄位見 schemas.MARKET_INDEX_COLS。無 stock_id（PK=date）。
+        """
+        rows: list[dict] = []
+        for d in self._iter_days(start, end):
+            body = self._day_json("/exchangeReport/MI_INDEX", d, {"type": "ALLBUT0999"})
+            if not body:
+                continue
+            table = self._pick_table(body, "價格指數(臺灣證券交易所)")
+            if not table:
+                continue
+            idx = {name: i for i, name in enumerate(table["fields"])}
+            for r in table["data"]:
+                if str(_cell(r, idx.get("指數")) or "").strip() == "發行量加權股價指數":
+                    close = _num(_cell(r, idx.get("收盤指數")))
+                    if close is not None:
+                        rows.append({"date": d, "close": close})
+                    break
+        if not rows:
+            return pd.DataFrame(columns=schemas.MARKET_INDEX_COLS)
+        return pd.DataFrame(rows)[schemas.MARKET_INDEX_COLS]
+
     # ── FundamentalProvider（TWSE 全市場免費）──
 
     def fetch_valuation(
