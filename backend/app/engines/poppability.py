@@ -4,9 +4,10 @@
 point-in-time 跑**真引擎**的 poppable 風格，對過門檻的清單量後來 H 日的**實際結果**
 （有沒有摸到 +10%、最高漲多少、最深回撤），並與「全市場(過會噴硬篩宇宙)」基準對比。
 
-進場價刻意用**進場日當天最高價**（保守，假設買在當天最差價位）——「就算買在最高，後面
-還噴得到 +10% 嗎」。摸+10%/回撤/20日收盤皆相對此進場高價，且只看進場日**之後**的 H 根
-（不含當天，避免用同日高點作弊）。
+進場錨點 = **隔天(推薦日次日)**：實務上盤後看到推薦、隔天才能進；保守錨=隔天最高
+(最壞情況追高)、一般錨=隔天開盤(較貼近實際)。摸+10%/回撤皆相對此進場價，只看隔天**之後**
+的 H 根（不含隔天當日，避免用同日高作弊）。此為 2026-07 修改，先前錨點是推薦日當天，
+不符實務（盤後才知推薦、當天已收盤）。
 
 誠實定位：清單負責「給你一個停利點」(會噴)，**賺不賺看出場紀律**——故同時呈現
 「摸+10%率」(清單的職責) 與「最深回撤 / 20日收盤」(提醒噴完可能吐回去)。
@@ -18,19 +19,29 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import pandas as pd
-from sqlalchemy import distinct, select
+from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
 from ..storage import models
 from .base import BaseEngine
 from .calibration import _INST_COLS, _MIN_BARS, _iter_stock_groups
 from .context import StockContext
+from .rules.common import COMMON_FILTERS
+from .rules.wave import WAVE_FILTERS, ConsolidationScore, pop_atr_pct, pop_ma_align
 from .scoring import _DEFAULT_TOP_PCT, _pct_ranks
 from .tracks import WaveTrack
 
-_H = 20            # 未來交易日（與會噴定義一致）
+# 回測只需：硬篩是否通過 + 會噴 rank 輸入(atr_pct/ma_align) + 低位盤整分(coil 濾網)。
+# 故不跑完整 WaveTrack.evaluate(那會多算 9 個不影響會噴分數的規則+停損+evidence，極慢)，
+# 改直接呼叫所需的少數規則；且 ctx 不帶法人/融資(這些規則用不到)，省逐日切片。
+_EFF_FILTERS = COMMON_FILTERS + WAVE_FILTERS
+_EFF_CONS = ConsolidationScore()
+_EMPTY_INST = pd.DataFrame(columns=_INST_COLS)
+
+_H = 30            # 未來交易日（會噴定義：30 日內碰到 +10%，2026-06 改 20→30 定版）
 _POP_TARGET = 0.10  # 「會噴」門檻：持有期間摸到 +10%
-_N_DATES = 6        # 取最近幾個進場日
+_N_DATES = 200      # 統計窗口：取最近 N 個進場日算碰到率（~4年含空頭→可信度橫幅穩定、不被近期牛市虛高）
+_PANEL_DATES = 12   # 面板 by_date 表只顯示最近幾列（避免整個統計窗口塞進表格）
 _SAMPLE = 5         # 每 5 個交易日取一個（約週頻）
 _TOPN = 30          # 明細列出檔數
 _WARMUP_DAYS = 160  # 載入往前多抓的日曆天（確保 n_bars≥60）
@@ -40,13 +51,31 @@ def _f(x) -> float | None:
     return None if x is None or pd.isna(x) else float(x)
 
 
+def _jsonable(o):
+    """把結果 dict 內殘留的 numpy 純量轉成原生型別，避免寫入 JSON 欄 TypeError。
+
+    numpy 2.x 的 bool_/float64 比較與運算容易漏進來（且 numpy.bool_ 的型名就叫 'bool'，
+    很難一眼看出），統一在存檔前收斂一次最省心。
+    """
+    if isinstance(o, dict):
+        return {k: _jsonable(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_jsonable(v) for v in o]
+    item = getattr(o, "item", None)  # numpy 純量 → python 原生
+    if callable(item) and o.__class__.__module__ == "numpy":
+        return o.item()
+    return o
+
+
 def _is_coil(c: dict) -> bool:
     """低位盤整＝低檔盤整打底(consolidation≥50)。
 
     低位已內建在 consolidation 分數裡（區間中位/高位被低位係數壓到不過門檻），故此處只需
     一個門檻、不再另外判 position。與前端『低位盤整』軟篩同門檻(consolidationMeta ≥50)。
     """
-    return (c.get("cons") or 0) >= 50
+    # cons 來自 pandas/numpy 運算 → numpy 比較會產生 numpy.bool_（numpy 2.x 名為 'bool'），
+    # 直接塞進 JSON 欄會 TypeError；強制轉回原生 bool。
+    return bool((c.get("cons") or 0) >= 50)
 
 
 class PoppabilityEfficacyEngine(BaseEngine):
@@ -56,7 +85,7 @@ class PoppabilityEfficacyEngine(BaseEngine):
         self.track = WaveTrack()
 
     def run(self, session: Session, trading_date: date) -> dict:
-        result = self.compute(session, generated_at=trading_date)
+        result = _jsonable(self.compute(session, generated_at=trading_date))
         row = session.get(models.Setting, "poppable_efficacy")
         if row is None:
             session.add(models.Setting(key="poppable_efficacy", value=result))
@@ -99,6 +128,7 @@ class PoppabilityEfficacyEngine(BaseEngine):
             if inst_g is None:
                 inst_g = pd.DataFrame(columns=_INST_COLS)
             pos_of = {d: i for i, d in enumerate(pdf["date"])}
+            opens = [_f(x) for x in pdf["open"]]
             highs = [_f(x) for x in pdf["high"]]
             lows = [_f(x) for x in pdf["low"]]
             closes = [_f(x) for x in pdf["close"]]
@@ -108,40 +138,40 @@ class PoppabilityEfficacyEngine(BaseEngine):
                     continue
                 ctx = StockContext(
                     stock=stock, date=T, prices=pdf.iloc[: p + 1],
-                    inds=ind_g[ind_g["date"] <= T],
-                    inst=inst_g[inst_g["date"] <= T] if not inst_g.empty else inst_g,
-                    margin=margin_g[margin_g["date"] <= T] if margin_g is not None else None,
+                    inds=ind_g[ind_g["date"] <= T], inst=_EMPTY_INST,
                 )
-                res = self.track.evaluate(ctx, {})
-                pin = res.get("pop_inputs") or {}
-                atr_pct, ma_align = pin.get("atr_pct"), pin.get("ma_align")
+                atr_pct, ma_align = pop_atr_pct(ctx), pop_ma_align(ctx)
                 if atr_pct is None or ma_align is None:  # 不可排名 → 不進當日宇宙
                     continue
-                sub = res.get("sub_scores") or {}  # 低位盤整擇時濾網（point-in-time，與線上同算）
-                # 實際結果：保守進場 = 進場日當天最高價（最差買點），只看之後 H 根
-                c0 = highs[p]
+                passed_filter = all(f.passes(ctx) for f in _EFF_FILTERS)
+                cons = _EFF_CONS.score(ctx)  # 低位盤整擇時濾網（point-in-time，與線上同算）
+                # 實務：盤後看到推薦→隔天才能進。保守錨=隔天最高(最壞情況追高)；一般錨=隔天開盤。
+                c0 = highs[p + 1] if p + 1 < len(highs) else None
+                ce = opens[p + 1] if p + 1 < len(opens) else None
                 mfe = dd = cret = None
-                hit = has_out = False
-                if c0 and c0 > 0 and p + _H < len(closes):
-                    fhis = [h for h in highs[p + 1 : p + 1 + _H] if h is not None]
-                    flos = [lo for lo in lows[p + 1 : p + 1 + _H] if lo is not None]
+                hit = hit_close = has_out = False
+                if c0 and c0 > 0 and p + 1 + _H < len(closes):
+                    fhis = [h for h in highs[p + 2 : p + 2 + _H] if h is not None]
+                    flos = [lo for lo in lows[p + 2 : p + 2 + _H] if lo is not None]
                     if fhis and flos:
-                        c20 = closes[p + _H]
+                        c20 = closes[p + 1 + _H]
                         mfe = max(fhis) / c0 - 1
                         dd = min(flos) / c0 - 1
                         cret = (c20 / c0 - 1) if c20 else None
                         hit = mfe >= _POP_TARGET
+                        hit_close = bool(ce and ce > 0 and (max(fhis) / ce - 1) >= _POP_TARGET)
                         has_out = True
                 agg[T].append({
                     "stock_id": sid, "name": stock.name,
                     "atr_pct": atr_pct, "ma_align": ma_align,
-                    "pos": sub.get("position"), "cons": sub.get("consolidation"),
-                    "passed_filter": bool(res["passed_filter"]),
-                    "has_out": has_out, "mfe": mfe, "dd": dd, "cret": cret, "hit": hit,
+                    "pos": None, "cons": cons,
+                    "passed_filter": passed_filter,
+                    "has_out": has_out, "mfe": mfe, "dd": dd, "cret": cret,
+                    "hit": hit, "hit_close": hit_close,
                 })
 
         by_date = []
-        tot_n = tot_hit = 0
+        tot_n = tot_hit = tot_hit_close = 0
         tot_coil_n = tot_coil_hit = 0
         list_by_t: dict[date, list] = {}
         for t in targets:
@@ -156,12 +186,14 @@ class PoppabilityEfficacyEngine(BaseEngine):
             lst = [c for c in uni if c["pop"] is not None and c["pop"] >= cutoff]  # 過硬篩 + 前N%
             n = len(lst)
             hit = sum(1 for c in lst if c["hit"])
+            hit_close = sum(1 for c in lst if c["hit_close"])
             base_rate = round(uni_hit / uni_n, 3) if uni_n else None
             coil = [c for c in lst if _is_coil(c)]  # 清單中再過「低位盤整」擇時濾網
             coil_n = len(coil)
             coil_hit = sum(1 for c in coil if c["hit"])
             tot_n += n
             tot_hit += hit
+            tot_hit_close += hit_close
             tot_coil_n += coil_n
             tot_coil_hit += coil_hit
             list_by_t[t] = lst
@@ -192,8 +224,9 @@ class PoppabilityEfficacyEngine(BaseEngine):
             "generated_at": generated_at.isoformat(),
             "horizon": _H, "pop_target": _POP_TARGET, "threshold": cutoff,
             "window": {"from": targets[0].isoformat(), "to": latest.isoformat(), "entry_dates": len(targets)},
-            "by_date": by_date,
+            "by_date": by_date[-_PANEL_DATES:],  # 表格只顯示最近數列；整體率仍以全統計窗口計
             "overall_hit_rate": round(tot_hit / tot_n, 3) if tot_n else None,
+            "overall_hit_rate_close": round(tot_hit_close / tot_n, 3) if tot_n else None,
             "total_list": tot_n,
             "coil_total": tot_coil_n,
             "coil_overall_hit_rate": round(tot_coil_hit / tot_coil_n, 3) if tot_coil_n else None,
@@ -202,9 +235,10 @@ class PoppabilityEfficacyEngine(BaseEngine):
             "note": (
                 f"取最近 {len(targets)} 個已有 ≥{_H} 交易日未來的進場日，point-in-time 跑真引擎："
                 f"當天全市場橫截面算會噴分數，取**前 {100 - cutoff:.0f}%**（分數≥{cutoff:.0f}）為清單。"
-                "**進場價=進場日當天最高價**(保守，假設你買在當天最差價位)。「摸+10%」=之後持有期間最高價"
-                "較進場再漲 +10%；基準=當日過會噴硬篩宇宙的摸+10%率。清單負責『給停利點』，賺不賺看出場"
-                "——故另列最深回撤/20日收盤提醒噴完可能吐回。**低位盤整子集**＝清單中再過『低檔盤整"
+                f"「摸+10%」=之後 {_H} 交易日內持有期間最高價較進場再漲 +10%。同時給兩個進場價："
+                "**買在當日最高**(保守、最差價位)=overall_hit_rate；**買在當日收盤**(較貼近實際進場)="
+                "overall_hit_rate_close。基準=當日過會噴硬篩宇宙的摸+10%率。清單負責『給停利點』，賺不賺看出場"
+                f"——故另列最深回撤/{_H}日收盤提醒噴完可能吐回。**低位盤整子集**＝清單中再過『低檔盤整"
                 "打底(區間低位＋波動收斂)』的擇時濾網，比對其摸+10%率是否優於全清單，判這個進場濾網的生死。非投資建議。"
             ),
         }
@@ -214,7 +248,24 @@ class PoppabilityEfficacyEngine(BaseEngine):
             "track": "wave", "style": "poppable", "generated_at": generated_at.isoformat(),
             "horizon": _H, "pop_target": _POP_TARGET, "threshold": cutoff,
             "window": {"from": None, "to": None, "entry_dates": 0},
-            "by_date": [], "overall_hit_rate": None, "total_list": 0,
+            "by_date": [], "overall_hit_rate": None, "overall_hit_rate_close": None, "total_list": 0,
             "coil_total": 0, "coil_overall_hit_rate": None,
             "detail_date": None, "detail": [], "note": "歷史資料不足以回測。",
         }
+
+
+def recompute_latest() -> dict:
+    """as-of 最新行情日跑一次成效回測並寫入 Setting。供獨立子行程呼叫（見 poppability_recompute）。
+
+    刻意走獨立程序：此計算讀全市場×多年、約 3 分鐘，放 uvicorn 內 daemon 執行緒會與請求
+    共用 SQLite 連線而鎖死；獨立程序完全隔離、與 standalone 同環境，可靠跑完。
+    """
+    from ..storage.database import session_scope
+
+    with session_scope() as s:
+        as_of = s.execute(select(func.max(models.DailyPrice.date))).scalar() or date.today()
+        return PoppabilityEfficacyEngine().run(s, as_of)
+
+
+if __name__ == "__main__":  # python -m app.engines.poppability
+    recompute_latest()

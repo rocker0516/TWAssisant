@@ -4,6 +4,22 @@ import type { components } from "./types";
 export type RecommendationList = components["schemas"]["RecommendationList"];
 export type RecommendationItem = components["schemas"]["RecommendationItem"];
 export type RecommendationDetail = components["schemas"]["RecommendationDetail"];
+export type RecommendationLookbackResponse = components["schemas"]["RecommendationLookbackResponse"];
+export type LookbackReview = components["schemas"]["LookbackReview"];
+export type LookbackSummary = components["schemas"]["LookbackSummary"];
+// 月曆端點型別（新加，尚未跑 openapi 生型別；等 openapi 重跑後改回 components["schemas"][…]）
+export type LookbackDatePoint = {
+  date: string;
+  n: number;
+  hit_count: number;
+  hit_rate: number | null;
+};
+export type LookbackCalendar = {
+  today_date: string | null;
+  top_pct: number;
+  cutoff: number;
+  dates: LookbackDatePoint[];
+};
 export type StockDetail = components["schemas"]["StockDetail"];
 export type OhlcvResponse = components["schemas"]["OhlcvResponse"];
 export type Candle = components["schemas"]["Candle"];
@@ -71,6 +87,33 @@ export function useRecommendations(track: Track) {
   });
 }
 
+// 回看：指定推薦日（月曆點選）；未給 date 就用 N 個交易日前
+export function useRecommendationsLookback(
+  opts: { date?: string | null; days?: number; topPct?: number },
+) {
+  const { date, days, topPct } = opts;
+  const params = new URLSearchParams();
+  if (date) params.set("date", date);
+  else if (days != null && days > 0) params.set("days", String(days));
+  if (topPct != null) params.set("top_pct", String(topPct));
+  const enabled = !!date || (days != null && days > 0);
+  return useQuery({
+    queryKey: ["recommendations-lookback", date ?? null, days ?? null, topPct ?? null],
+    queryFn: () => getJson<RecommendationLookbackResponse>(`/recommendations/lookback?${params}`),
+    enabled,
+  });
+}
+
+// 月曆：每個過去 Score 日一筆命中率
+export function useRecommendationsLookbackCalendar(topPct?: number) {
+  const params = new URLSearchParams();
+  if (topPct != null) params.set("top_pct", String(topPct));
+  return useQuery({
+    queryKey: ["recommendations-lookback-calendar", topPct ?? null],
+    queryFn: () => getJson<LookbackCalendar>(`/recommendations/lookback/calendar?${params}`),
+  });
+}
+
 export function useStockSearch(q: string) {
   const term = q.trim();
   return useQuery({
@@ -113,7 +156,8 @@ export type PoppableEfficacy = {
   threshold?: number;
   window: { from?: string | null; to?: string | null; entry_dates: number };
   by_date: PoppableEffByDate[];
-  overall_hit_rate?: number | null;
+  overall_hit_rate?: number | null;  // 買在隔天最高（保守；追高最壞情境）
+  overall_hit_rate_close?: number | null;  // 買在隔天開盤（一般實務進場）
   total_list: number;
   coil_total?: number;
   coil_overall_hit_rate?: number | null;
@@ -132,7 +176,21 @@ export function usePoppableEfficacy() {
 export function useRecomputePoppableEfficacy() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => sendJson<{ status: string }>("POST", "/poppable-efficacy/recompute"),
+    // 背景重算：POST 立即返回，再輪詢 status 直到跑完（避免長 HTTP 逾時；isPending 期間按鈕維持「回測中」）
+    mutationFn: async () => {
+      await sendJson<{ running: boolean }>("POST", "/poppable-efficacy/recompute");
+      for (let i = 0; i < 240; i++) {
+        await new Promise((r) => setTimeout(r, 3000));
+        const st = await getJson<{ running: boolean; error?: string | null }>(
+          "/poppable-efficacy/recompute/status",
+        );
+        if (!st.running) {
+          if (st.error) throw new Error(st.error);
+          return;
+        }
+      }
+      throw new Error("重算逾時");
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["poppable-efficacy"] }),
   });
 }

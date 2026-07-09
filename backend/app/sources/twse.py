@@ -345,32 +345,14 @@ class TwseSource(BaseSource, PriceProvider, ChipProvider, FundamentalProvider, N
     def fetch_financials(
         self, start: date, end: date, stock_ids: list[str] | None = None
     ) -> pd.DataFrame:
-        """營益分析（openapi 最新季快照）：毛利率/營業利益率/稅後純益率。EPS 由估值推導。"""
-        resp = self._request(f"{_OPENAPI}/opendata/t187ap17_L")
-        data = resp.json()
-        rows: list[dict] = []
-        for r in data:
-            year = _num(r.get("年度"))
-            q = _num(r.get("季別"))
-            if year is None or q is None:
-                continue
-            rev_m = _num(r.get("營業收入(百萬元)"))
-            rows.append(
-                {
-                    "stock_id": str(r.get("公司代號", "")).strip(),
-                    "year": int(year) + 1911,
-                    "quarter": int(q),
-                    "eps": None,
-                    "revenue": rev_m * 1000 if rev_m is not None else None,  # 百萬→千元
-                    "gross_margin": _num(r.get("毛利率(%)(營業毛利)/(營業收入)")),
-                    "op_margin": _num(r.get("營業利益率(%)(營業利益)/(營業收入)")),
-                    "net_margin": _num(r.get("稅後純益率(%)(稅後純益)/(營業收入)")),
-                    "roe": None,
-                }
-            )
-        if not rows:
-            return pd.DataFrame(columns=schemas.FINANCIAL_COLS)
-        return pd.DataFrame(rows)[schemas.FINANCIAL_COLS]
+        """季財報（MOPS 累計制→單季，含 EPS）。
+
+        原 openapi t187ap17_L 為「累計」快照：Q2 起會把上半年累計率當單季寫庫，
+        污染長線軌的單季成長/利潤率趨勢因子 → 改走 MOPS 彙總表差分還原單季。
+        """
+        from . import mops  # 延遲匯入避免循環
+
+        return mops.fetch_recent_financials(markets=("sii",), today=end)
 
     # ── ETF 身分資料（基金基本資料彙總表 t187ap47_L，openapi 全快照）──
 

@@ -131,8 +131,11 @@ class MomentumScore(ScoreRule):
             s += 20
         if prev is not None and k is not None and prev.get("kd_k") is not None and k > prev["kd_k"]:
             s += 15
-        if k is not None and 20 < k < 80:
-            s += 15
+        if k is not None:
+            # KD 中場甜蜜區(距 50 越近分越高)：k=50 得 15、k=0/100 為 0。
+            # 原本 `20<k<80 → +15、否則 0` 是階梯：k=79 得 15、k=81 得 0 只差 2 卻懸崖。
+            # 換連續 tent 函數後市場 regime 漂移(整體 KD 中樞 40 或 60)不用重調門檻。
+            s += clamp(15 * (1 - abs(k - 50) / 50), 0, 15)
         return clamp(s)
 
     def reason(self, ctx, value):
@@ -351,16 +354,13 @@ class PositionScore(ScoreRule):
         s = clamp((1.0 - pir) * 60, 0, 60)  # 越低位分越高（最多 60）
         b = ind.get("bias_20")
         if b is not None:
-            if b <= 4:
-                s += 25  # 貼月線、剛拉回
-            elif b <= 8:
-                s += 12
+            # 越貼月線越好：|b|=0 得 25、|b|≥20% 得 0，連續衰減去階梯。
+            # 原 `b<=4 → 25、b<=8 → 12、其餘 0` 換 tent：b=4 得 20、b=8 得 15。
+            s += clamp((20 - abs(b)) / 20 * 25, 0, 25)
         k = ind.get("kd_k")
         if k is not None:
-            if k < 50:
-                s += 15  # 未過熱、低檔翻揚空間大
-            elif k < 70:
-                s += 8
+            # KD 越低分越高：k=0 得 15、k≥85 得 0，連續衰減去階梯。
+            s += clamp((85 - k) / 85 * 15, 0, 15)
         return clamp(s)
 
     def reason(self, ctx, value):
@@ -447,12 +447,13 @@ class ConsolidationScore(ScoreRule):
 
     @staticmethod
     def _low_factor(pir: float) -> float:
-        """低位係數：pir<0.4 完整、0.4~0.5 折半、≥0.5(中位以上)壓到 0.2x（非打底）。"""
-        if pir >= 0.5:
-            return 0.2
-        if pir >= 0.4:
-            return 0.6
-        return 1.0
+        """區間位階越低係數越高：pir=0 → 1.0、pir≥0.6 → 0.2，之間線性衰減去階梯。
+
+        原三段(<0.4=1.0/0.4-0.5=0.6/≥0.5=0.2)在 pir=0.39 vs 0.41 差 0.4x 是懸崖。
+        改連續衰減後 pir=0.39/0.41 幾乎無差、pir=0.6 才確定壓到 0.2；同樣把「非低位」
+        壓下不擾動會噴 rank，但沒有選定 0.4/0.5 這種 arbitrary 門檻的問題。
+        """
+        return clamp(1.0 - pir / 0.6 * 0.8, 0.2, 1.0)
 
     def _ratio(self, ctx: StockContext) -> float | None:
         """近 _SHORT 日平均(高低/收)振幅 ÷ 近 _LONG 日：<1 即收斂。缺料/長窗 0 回 None。"""
@@ -484,12 +485,15 @@ class ConsolidationScore(ScoreRule):
         s = clamp((1.0 - ratio) / 0.5 * 100, 0, 70)  # 振幅越收斂分越高（上限 70）
         drift = self._drift(ctx)
         if drift is not None:
-            s += 15 if drift < 0.04 else (8 if drift < 0.08 else 0)  # 橫向走平
+            # 越橫向越高：drift=0 得 15、drift≥10% 得 0，連續衰減去 4%/8% 三段階梯。
+            s += clamp((0.10 - drift) / 0.10 * 15, 0, 15)
         ind = ctx.ind
         v5 = ind.get("vol_ma5") if ind is not None else None
         v20 = ind.get("vol_ma20") if ind is not None else None
-        if v5 is not None and v20 is not None and v5 < v20:  # NaN 比較為 False，自動排除
-            s += 15  # 量縮惜售
+        if v5 is not None and v20 is not None and v20 > 0:
+            # 量縮越明顯越好：v5/v20=0.5(近5日均量僅一半)得 15、持平(=1)得 0，
+            # 原「v5<v20 即 +15、否則 0」布林在 v5/v20=0.99/1.01 差 15 分是懸崖。
+            s += clamp((1.0 - v5 / v20) / 0.5 * 15, 0, 15)
         return clamp(s * self._low_factor(pir))  # 乘低位係數：非低位即使收斂也不算打底
 
     def reason(self, ctx, value):
@@ -514,6 +518,74 @@ class ConsolidationScore(ScoreRule):
         return "、".join(parts)
 
 
+class EntryTimingScore(ScoreRule):
+    """進場時機（擇時，非選股）：法人『剛進場』的時機分，只供清單內次要排序/徽章，不入會噴 rank。
+
+    研究實證（chip_ic_research*.py，2021-2026 walk-forward 樣本外）：把『法人買超量級』拿來
+    橫截面選股最弱（控制波動後僅 +2pp）；改看『法人剛轉買的時機』才有料——法人 20 日累計
+    由賣轉正(翻買)當天進場 +5.3pp、外資投信同步買超、投信連續買超，這三者在**已選出的會噴
+    清單內部**把摸+10%率再拉高 +2.6~2.9pp（兩段樣本外一致）。
+
+    關鍵：混進會噴分數再重切前 N% 會把增益抵掉≈0，**唯有不動清單成員、只在成員間區分**才吃得
+    到。故做成獨立『進場時機分數』(0~100)、default_weight=0：只落 sub_scores/evidence 供前端
+    清單內排序與徽章，不改清單成員、不進會噴分數（與 VolatilityScore/ConsolidationScore 同模式）。
+    合成＝法人翻買近期性(0.4)＋外資投信共識同向(0.3)＋投信連買天數(0.3)，等權自研究定版。
+    """
+
+    category = "entry_timing"
+    default_weight = 0.0
+    _STREAK_CAP = 8  # 投信連買天數封頂（正規化用）
+
+    def _components(self, ctx: StockContext):
+        """回 (recency, consensus, streak, streak_norm)；史料不足(無法人資料)回 None。"""
+        recency = ctx.inst_cum_flip_recency()
+        if recency is None:
+            return None
+        f20 = ctx.inst_sum("foreign_net", 20)
+        t20 = ctx.inst_sum("trust_net", 20)
+        consensus = 1.0 if (f20 > 0 and t20 > 0) else (0.5 if (f20 > 0 or t20 > 0) else 0.0)
+        streak = ctx.inst_consecutive_buy("trust_net")
+        return recency, consensus, streak, min(streak, self._STREAK_CAP) / self._STREAK_CAP
+
+    def score(self, ctx: StockContext) -> float | None:
+        comp = self._components(ctx)
+        if comp is None:
+            return None  # 無法人資料：缺料剔除，不灌 0（避免把『沒料』當『時機差』）
+        recency, consensus, _, streak_norm = comp
+        return clamp(100.0 * (0.4 * recency + 0.3 * consensus + 0.3 * streak_norm))
+
+    def reason(self, ctx, value):
+        comp = self._components(ctx)
+        if comp is None:
+            return None
+        recency, consensus, streak, _ = comp
+        if recency >= 0.6:
+            return "法人剛翻買進場"
+        if consensus >= 1.0 and value >= 50:
+            return "外資投信同步進場"
+        if streak >= 3 and value >= 50:
+            return f"投信連{streak}日買超"
+        return None
+
+    def evidence(self, ctx, value):
+        comp = self._components(ctx)
+        if comp is None:
+            return None
+        recency, consensus, streak, _ = comp
+        parts: list[str] = []
+        if recency >= 0.6:
+            parts.append("法人20日累計剛由賣轉買")
+        elif recency > 0:
+            parts.append("法人轉買中")
+        if consensus >= 1.0:
+            parts.append("外資投信同步買超")
+        elif consensus >= 0.5:
+            parts.append("法人單邊買超")
+        if streak >= 2:
+            parts.append(f"投信連{streak}日買超")
+        return "、".join(parts) if parts else None  # 無時機訊號回 None：不污染行情白話/詳情
+
+
 WAVE_SCORERS: list[ScoreRule] = [
     TrendScore(),
     MomentumScore(),
@@ -524,4 +596,5 @@ WAVE_SCORERS: list[ScoreRule] = [
     PositionScore(),
     VolatilityScore(),
     ConsolidationScore(),
+    EntryTimingScore(),
 ]

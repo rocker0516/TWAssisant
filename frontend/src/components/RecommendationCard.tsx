@@ -1,13 +1,19 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { RecommendationItem } from "../api/client";
-import { changeColor, consolidationMeta, fmtNum, fmtPct, positionMeta, rangePositionMeta, TRACK_LABELS } from "../lib/format";
-import { marketNarrative } from "../lib/narrative";
+import { changeColor, consolidationMeta, entryTimingMeta, fmtNum, fmtPct, positionMeta, rangePositionMeta, TRACK_LABELS } from "../lib/format";
+import { hasNegative, marketSegments, type NarrativeTone } from "../lib/narrative";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { EvidencePanel } from "./EvidencePanel";
 import { ReasonChips } from "./ReasonChips";
 import { ScoreDisplay } from "./ScoreDisplay";
 import { Sparkline } from "./Sparkline";
+
+function toneClass(tone: NarrativeTone): string {
+  if (tone === "neg") return "text-amber-400";
+  if (tone === "pos") return "text-gray-300";
+  return "text-gray-500";
+}
 
 export function RecommendationCard({
   item,
@@ -18,7 +24,8 @@ export function RecommendationCard({
 }) {
   const [open, setOpen] = useState(false);
   const hasDetails = (item.details?.length ?? 0) > 0;
-  const narrative = marketNarrative(item);
+  const segments = marketSegments(item);
+  const narrativeHasNeg = hasNegative(segments);
   const spark = sparkDays && item.spark ? item.spark.slice(-sparkDays) : item.spark;
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-edge bg-panel p-4 transition hover:border-sky-700">
@@ -41,6 +48,14 @@ export function RecommendationCard({
       <div className="flex flex-wrap items-center justify-between gap-y-1">
         <ScoreDisplay total={item.total_score} subScores={item.sub_scores} />
         <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
+          {(() => {
+            const tm = entryTimingMeta(item.sub_scores?.entry_timing);
+            return tm ? (
+              <span className={`whitespace-nowrap rounded bg-rose-950/40 px-1.5 py-0.5 text-xs font-medium ${tm.color}`}>
+                {tm.label}
+              </span>
+            ) : null;
+          })()}
           {(() => {
             const cm = consolidationMeta(item.sub_scores?.consolidation);
             return cm ? (
@@ -65,10 +80,48 @@ export function RecommendationCard({
 
       <Sparkline data={spark} />
 
-      {narrative && (
-        <div className="rounded-lg border border-edge bg-bg/40 px-3 py-2 text-xs leading-relaxed">
+      {item.review && (
+        <div
+          className={`rounded-lg border px-3 py-2 text-xs leading-relaxed ${
+            item.review.hit_pop
+              ? "border-rose-700/60 bg-rose-950/30"
+              : "border-edge bg-bg/40"
+          }`}
+        >
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {item.review.hit_pop ? (
+              <span className="font-medium text-rose-300">
+                ✅ 已噴 +10%（第 {item.review.days_to_pop} 個交易日）
+              </span>
+            ) : (
+              <span className="font-medium text-gray-400">⏸ 還沒噴</span>
+            )}
+            <span className="text-gray-300">
+              至今 <span className={changeColor(item.review.return_pct)}>{fmtPct(item.review.return_pct)}</span>
+            </span>
+            <span className="text-muted">
+              期間 <span className="text-up">{fmtPct(item.review.mfe_pct)}</span>
+              <span className="mx-0.5">/</span>
+              <span className="text-down">{fmtPct(item.review.mae_pct)}</span>
+            </span>
+            <span className="text-muted">已過 {item.review.days_elapsed} 個交易日</span>
+          </div>
+        </div>
+      )}
+
+      {!item.review && segments.length > 0 && (
+        <div
+          className={`rounded-lg border px-3 py-2 text-xs leading-relaxed ${
+            narrativeHasNeg ? "border-amber-700/50 bg-amber-950/20" : "border-edge bg-bg/40"
+          }`}
+        >
           <span className="font-medium text-gray-400">行情　</span>
-          <span className="text-gray-300">{narrative}</span>
+          {segments.map((seg, i) => (
+            <span key={seg.category}>
+              <span className={toneClass(seg.tone)}>{seg.text}</span>
+              {i < segments.length - 1 && <span className="text-gray-500">；</span>}
+            </span>
+          ))}
         </div>
       )}
 

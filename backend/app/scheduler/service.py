@@ -82,7 +82,7 @@ def backfill_to_latest(*, trigger: str = "manual") -> dict:
     """補齊「所有缺的交易日（含分數）」到最新——設定頁「立即載入」用。
 
     - target = 目前理應已完成的最近交易日（盤前/未到排程時間 → 上一交易日，不抓還沒齊的當天）。
-    - 逐日（升冪）跑 pipeline：最新那天跑完整（含 LLM/通知/回測），其餘天跑精簡版（到 Exit、
+    - 逐日（升冪）跑 pipeline：最新那天跑完整（含通知/回測），其餘天跑精簡版（到 Exit、
       不重複通知）。每天各寫一筆 PipelineRun（設定頁可見各步驟燈號）。
     - 沒有缺口時 → 仍重跑 target 一次當刷新。fetch 為增量、indicator 全量重算，故整段冪等可重跑。
     - 全程持鎖一次，與排程/補跑互斥。
@@ -93,7 +93,7 @@ def backfill_to_latest(*, trigger: str = "manual") -> dict:
         target = _expected_ready_date(datetime.now(), _current_sched_time())
         last = _last_score_date()
         days = _missing_trading_days(target, last) if (last is None or last < target) else []
-        # 沒缺口 → 仍重跑 target 一次當「刷新」，但走精簡版（不重發通知/不跑 LLM）。
+        # 沒缺口 → 仍重跑 target 一次當「刷新」，但走精簡版（不重發通知）。
         refresh_only = not days
         if refresh_only:
             days = [target]
@@ -103,8 +103,8 @@ def backfill_to_latest(*, trigger: str = "manual") -> dict:
         )
         per_day: list[dict] = []
         for i, d in enumerate(days):
-            # 只有「真的新補進來的最新交易日」才跑完整版（含通知/LLM/回測）；
-            # 其餘日與純刷新走精簡版，避免補多天/重按時轟 Discord、燒 LLM。
+            # 只有「真的新補進來的最新交易日」才跑完整版（含通知/回測）；
+            # 其餘日與純刷新走精簡版，避免補多天/重按時轟 Discord。
             full = (i == len(days) - 1) and not refresh_only
             r = (build_pipeline() if full else build_backfill_pipeline()).run(d)
             per_day.append({"date": d.isoformat(), "status": r["status"], "seconds": r["seconds"]})

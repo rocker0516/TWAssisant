@@ -10,7 +10,16 @@ export const CATEGORY_LABELS: Record<string, string> = {
   position: "位階",
   volatility: "波動度",
   consolidation: "盤整",
-  // 長線軌
+  entry_timing: "進場時機",
+  // 長線軌（釣大魚＝持續成長+展望好，2026-07 重定錨）
+  persistence: "成長持續",
+  outlook: "展望",
+  freshness: "新鮮度",
+  strength: "成長強度",
+  accel: "成長加速",
+  quality_confirm: "品質確認",
+  valuation_sane: "估值合理",
+  // 長線軌舊類別（歷史 Score 列顯示用）
   profit: "獲利",
   growth: "營收成長",
   valuation: "估值",
@@ -88,6 +97,16 @@ export function rangePositionMeta(
 export function consolidationMeta(consScore: number | null | undefined): { label: string; color: string } | null {
   if (consScore === null || consScore === undefined) return null;
   return consScore >= 50 ? { label: "盤整打底", color: "text-emerald-400" } : null;
+}
+
+// 進場時機（擇時，非選股）：法人「剛進場」的時機分（翻買近期性＋外資投信共識＋投信連買）。
+// 不改清單成員、不進會噴分數，只在清單內排序/標註——研究實證高時機半比低時機半多噴 +2.6pp。
+// 分數低＝法人無明顯進場時機，回 null 不顯示徽章（避免雜訊，與 consolidationMeta 同模式）。
+export function entryTimingMeta(timingScore: number | null | undefined): { label: string; color: string } | null {
+  if (timingScore === null || timingScore === undefined) return null;
+  if (timingScore >= 60) return { label: "法人進場時機佳", color: "text-rose-400" };
+  if (timingScore >= 42) return { label: "法人進場中", color: "text-amber-400" };
+  return null;
 }
 
 export function scoreColor(v: number | null | undefined): string {

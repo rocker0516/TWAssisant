@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..engines.exit_engine import ExitEngine
-from ..llm.store import cache_key, get_cached
+from ..llm.lazy import market_note
 from ..services.holding_service import HoldingService
 from ..storage import models
 from .deps import get_session
@@ -138,7 +138,7 @@ def overview(session: Session = Depends(get_session)) -> OverviewResponse:
                                 title=e.title, is_risk=e.is_risk) for e, name in ev_rows]
 
     return OverviewResponse(
-        market=_market(session, td), market_note=get_cached(session, cache_key("market", "tw", td)),
+        market=_market(session, td), market_note=market_note(session, td),
         holdings_alerts=alerts[:5],
         reco_wave_count=counts["wave"], reco_long_count=counts["long"], reco_top=reco_top,
         sectors_top=sectors_top, recent_events=recent_events,

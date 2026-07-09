@@ -3,16 +3,20 @@
 純 pandas 手算（透明可維護、無額外依賴）。指標集對齊 models.Indicator：
 均線 ma5/10/20/60、量能均線 vol_ma5/20、KD(9)、MACD(12,26,9)、ATR14、乖離 bias_20/60。
 
-冪等：每次重算全歷史再 upsert 覆寫（本機資料量可接受；日後可只算近窗）。
+增量：只處理「價格日期比指標新」的股票，載入暖身窗（近 _WARMUP_DAYS 日曆天，
+涵蓋 ma240 + ewm 收斂所需的 ~400 交易日），只 upsert 比該股既有指標新的列。
+K 線回補到 2020 後全量重算+重寫 300 萬列一次要 7 分鐘，增量後秒級。
+ewm 指標（KD/MACD/ATR）理論上吃全歷史，但 400 交易日暖身後與全量差異在 1e-13
+量級，數值上等同。冷啟動（該股無任何指標）仍載全歷史。
 """
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 import numpy as np
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..storage import models
@@ -71,22 +75,43 @@ class IndicatorEngine(BaseEngine):
 
     # 一次處理 N 檔。全市場 ×多年一次載入會吃爆記憶體（OOM），故依股票分批串流。
     _BATCH = 300
+    # 暖身窗（日曆天）≈ 410 交易日：ma240 需 240 交易日、ewm 再收斂 ~150 日即誤差 <1e-13。
+    _WARMUP_DAYS = 600
 
-    def run(self, session: Session, trading_date: date) -> dict:
-        stock_ids = (
-            session.execute(select(models.DailyPrice.stock_id).distinct()).scalars().all()
+    def run(self, session: Session, trading_date: date, *, full: bool = False) -> dict:
+        """full=True 強制全量重算（回補「更舊的」歷史價格後用；日常增量即可）。"""
+        price_max = dict(
+            session.execute(
+                select(models.DailyPrice.stock_id, func.max(models.DailyPrice.date))
+                .group_by(models.DailyPrice.stock_id)
+            ).all()
         )
-        if not stock_ids:
+        if not price_max:
             return {"status": "empty"}
-        stock_ids = sorted(stock_ids)
+        ind_max: dict = {} if full else dict(
+            session.execute(
+                select(models.Indicator.stock_id, func.max(models.Indicator.date))
+                .group_by(models.Indicator.stock_id)
+            ).all()
+        )
+
+        # 只處理有新價格的股票（下市/停更股 price==indicator max → 直接跳過）
+        work_ids = sorted(
+            s for s, pmax in price_max.items()
+            if ind_max.get(s) is None or pmax > ind_max[s]
+        )
+        if not work_ids:
+            return {"status": "ok", "rows": 0, "stocks": 0, "note": "up_to_date"}
 
         repo = BaseRepository(models.Indicator)
         ind_cols = [c for c in _OUT_COLS if c not in ("stock_id", "date")]
         total = 0
         stocks = 0
-        for i in range(0, len(stock_ids), self._BATCH):
-            ids = stock_ids[i : i + self._BATCH]
-            rows = session.execute(
+        for i in range(0, len(work_ids), self._BATCH):
+            ids = work_ids[i : i + self._BATCH]
+            # 批內暖身起點：既有指標最舊的續算點再往前 _WARMUP_DAYS；含冷啟動股則載全歷史
+            batch_cutoffs = [ind_max[s] for s in ids if ind_max.get(s) is not None]
+            q = (
                 select(
                     models.DailyPrice.stock_id,
                     models.DailyPrice.date,
@@ -98,7 +123,11 @@ class IndicatorEngine(BaseEngine):
                 )
                 .where(models.DailyPrice.stock_id.in_(ids))
                 .order_by(models.DailyPrice.stock_id, models.DailyPrice.date)
-            ).all()
+            )
+            if len(batch_cutoffs) == len(ids):
+                warm_start = min(batch_cutoffs) - timedelta(days=self._WARMUP_DAYS)
+                q = q.where(models.DailyPrice.date >= warm_start)
+            rows = session.execute(q).all()
             if not rows:
                 continue
 
@@ -111,8 +140,13 @@ class IndicatorEngine(BaseEngine):
                 continue
             result = pd.concat(parts, ignore_index=True)
 
+            # 只留「比該股既有指標新」的列（冷啟動股全留）
+            cutoff = result["stock_id"].map(ind_max)
+            result = result[cutoff.isna() | (result["date"] > cutoff)]
             # 全 NaN 的領先列（早期不足窗）丟掉再落庫
             result = result.dropna(how="all", subset=ind_cols)
+            if result.empty:
+                continue
             records = (
                 result[_OUT_COLS]
                 .astype(object)
@@ -124,5 +158,5 @@ class IndicatorEngine(BaseEngine):
             session.flush()
 
         if total == 0:
-            return {"status": "empty"}
+            return {"status": "ok", "rows": 0, "stocks": 0, "note": "up_to_date"}
         return {"status": "ok", "rows": total, "stocks": stocks}

@@ -25,6 +25,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/recommendations/lookback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recommendations Lookback
+         * @description 波段(會噴)軌「回看」：那天推薦清單到今天的實況（已噴 / 至今報酬 / 期間 MFE/MAE）。
+         */
+        get: operations["recommendations_lookback_recommendations_lookback_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/stocks/search": {
         parameters: {
             query?: never;
@@ -76,9 +96,29 @@ export interface paths {
         put?: never;
         /**
          * Poppable Efficacy Recompute
-         * @description 重跑會噴清單成效回測（較重，~分鐘級）。as-of 用最新行情日。
+         * @description 背景重跑會噴清單成效回測（~分鐘級）。立即回傳狀態；前端輪詢 status 端點直到 running=False。
          */
         post: operations["poppable_efficacy_recompute_poppable_efficacy_recompute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/poppable-efficacy/recompute/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Poppable Efficacy Recompute Status
+         * @description 背景重算狀態：{running, started_at, finished_at, error}。
+         */
+        get: operations["poppable_efficacy_recompute_status_poppable_efficacy_recompute_status_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -579,6 +619,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/assistant/brief": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Assistant Brief
+         * @description 進頁今日重點（情境感知）。命中當日該頁快取直接吐、未命中跑 Haiku 串流並回寫快取。
+         */
+        post: operations["assistant_brief_assistant_brief_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/assistant/chat": {
         parameters: {
             query?: never;
@@ -724,6 +784,16 @@ export interface components {
             return_pct: number | null;
             /** Signals */
             signals: string[];
+        };
+        /** BriefRequest */
+        BriefRequest: {
+            /**
+             * Context
+             * @default {}
+             */
+            context: {
+                [key: string]: unknown;
+            };
         };
         /** Candle */
         Candle: {
@@ -1202,6 +1272,54 @@ export interface components {
             resistances: components["schemas"]["LevelDTO"][];
         };
         /**
+         * LookbackReview
+         * @description 回看：那天推薦至今的實際表現。買在當日收盤（與 PoppableEfficacy 同錨點）。
+         */
+        LookbackReview: {
+            /** Entry Close */
+            entry_close: number | null;
+            /** Current Close */
+            current_close: number | null;
+            /** Return Pct */
+            return_pct: number | null;
+            /** Mfe Pct */
+            mfe_pct: number | null;
+            /** Mae Pct */
+            mae_pct: number | null;
+            /**
+             * Hit Pop
+             * @default false
+             */
+            hit_pop: boolean;
+            /** Hit Pop Date */
+            hit_pop_date?: string | null;
+            /** Days To Pop */
+            days_to_pop?: number | null;
+            /**
+             * Days Elapsed
+             * @default 0
+             */
+            days_elapsed: number;
+        };
+        /**
+         * LookbackSummary
+         * @description 回看清單摘要（命中率/平均報酬）。
+         */
+        LookbackSummary: {
+            /** N */
+            n: number;
+            /** Hit Count */
+            hit_count: number;
+            /** Hit Rate */
+            hit_rate: number | null;
+            /** Avg Return Pct */
+            avg_return_pct: number | null;
+            /** Avg Mfe Pct */
+            avg_mfe_pct: number | null;
+            /** Avg Mae Pct */
+            avg_mae_pct: number | null;
+        };
+        /**
          * MarketFlowActor
          * @description 單一 actor（合計/外資/投信/自營）的市場資金流向（億元）。
          */
@@ -1361,6 +1479,7 @@ export interface components {
             details?: components["schemas"]["RecommendationDetail"][] | null;
             /** Spark */
             spark?: number[] | null;
+            review?: components["schemas"]["LookbackReview"] | null;
         };
         /** RecommendationList */
         RecommendationList: {
@@ -1376,6 +1495,27 @@ export interface components {
             items: components["schemas"]["RecommendationItem"][];
             /** Near */
             near: components["schemas"]["RecommendationItem"][];
+        };
+        /**
+         * RecommendationLookbackResponse
+         * @description 回看：N 個交易日前波段軌推薦的至今實況。
+         */
+        RecommendationLookbackResponse: {
+            /** Track */
+            track: string;
+            /** Lookback Date */
+            lookback_date: string | null;
+            /** Today Date */
+            today_date: string | null;
+            /** Days Back */
+            days_back: number;
+            /** Top Pct */
+            top_pct: number;
+            /** Cutoff */
+            cutoff: number;
+            /** Items */
+            items: components["schemas"]["RecommendationItem"][];
+            summary: components["schemas"]["LookbackSummary"];
         };
         /** ScoreDTO */
         ScoreDTO: {
@@ -1797,6 +1937,40 @@ export interface operations {
             };
         };
     };
+    recommendations_lookback_recommendations_lookback_get: {
+        parameters: {
+            query?: {
+                /** @description 回看幾個交易日前的波段推薦 */
+                days?: number;
+                /** @description 覆寫嚴格度（前 N%）；不傳用設定值 */
+                top_pct?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecommendationLookbackResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     stock_search_stocks_search_get: {
         parameters: {
             query: {
@@ -1852,6 +2026,28 @@ export interface operations {
         };
     };
     poppable_efficacy_recompute_poppable_efficacy_recompute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    poppable_efficacy_recompute_status_poppable_efficacy_recompute_status_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2786,6 +2982,39 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    assistant_brief_assistant_brief_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BriefRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from ..engines.exit_engine import ExitEngine
 from ..services.holding_service import HoldingService
 from ..storage import models
+from .store import cache_key, get_cached
 from .translators import _level, _mom, _net
 
 ASSISTANT_SYSTEM_BASE = """你是台股操作助手 App 內的 AI 助手。請依據『App 內部已經算好的結論』回答使用者，不要編造畫面上沒有的數字，也不要引用外部即時行情或新聞。嚴守規範：只談方向（偏多／偏空／中性）與觀察點、不要說買進或賣出、結尾附一句免責。使用繁體中文，回答精簡、貼合使用者問題。
@@ -24,6 +25,30 @@ ASSISTANT_SYSTEM_BASE = """你是台股操作助手 App 內的 AI 助手。請�
 能查就查、查到再答；同一輪可連續呼叫多個工具把事實湊齊。只有當工具也查不到時，才說明該資訊目前不在可用範圍。所有工具回的都是 App 已算好的質化結論，請据此解讀，切勿自行臆測數字或外部消息。
 
 下方已先附上大盤、持股、推薦與類股的概況背景，常見問題可直接引用、不必再查。"""
+
+BRIEF_SYSTEM_BASE = """你是台股操作助手 App 內的 AI 助手。使用者剛點進「{page}」這個頁面，請你主動用三言兩語報今天這個頁面的重點與該注意的事——不是回答問題，而是進頁時的開場提醒。
+
+規範：
+- 只根據下方『App 內部已算好的事實』講，不要編造畫面上沒有的數字、不引用外部即時行情或新聞。
+- 緊扣「{page}」這個頁面最該關心的事；其他頁的背景僅在有助於理解時順帶一句。
+- 只談方向（偏多／偏空／中性）、觀察點與風險，不要說買進或賣出。
+- 用繁體中文，輸出兩個小段，各以條列呈現：
+  **📌 今日重點**：2～4 條。
+  **⚠️ 注意事項**：1～3 條，講風險或要留意處；若確實沒有，寫「今日無特別風險訊號」。
+- 全文精簡（約 200 字內），結尾附一句簡短免責。"""
+
+# 各頁中文名（給 brief 的開場用語與情境感知）
+_PAGE_LABEL = {
+    "overview": "今日總覽",
+    "intel": "情報",
+    "recommendations": "進場推薦",
+    "sectors": "類股行情",
+    "flow": "籌碼動向",
+    "holdings": "我的持股",
+    "watchlists": "觀察清單",
+    "stock": "個股詳情",
+    "sector": "類股詳情",
+}
 
 _exit = ExitEngine()
 _holding = HoldingService()
@@ -250,17 +275,8 @@ def health_facts(session: Session, stock_id: str, td: date) -> dict | None:
     }
 
 
-def context_facts(session: Session, context: dict) -> str:
-    """依情境組可用事實（接地）。
-
-    分兩層：①情境焦點（使用者正在看的個股／類股）放最前面；
-    ②全域背景（大盤、持股、推薦、類股排行）一律附上，讓助手有足夠事實可答，
-    不會動輒回「沒有資料」。
-    """
-    td = _market_date(session)
-    if not td:
-        return "（目前尚無盤後資料）"
-
+def _focus_facts(session: Session, context: dict, td: date) -> list[str]:
+    """情境焦點：使用者正在看的個股／類股，組成接地事實句（可能為空）。"""
     focus: list[str] = []
     sid = context.get("stock_id")
     if sid:
@@ -306,6 +322,27 @@ def context_facts(session: Session, context: dict) -> str:
                 f"使用者正在看類股「{name}」：強弱{_level(sd.strength_score)}、"
                 f"短波段{sd.trend_short}、中長期{sd.trend_long}、輪動階段{sd.rotation_stage}。"
             )
+    return focus
+
+
+def _news_brief(session: Session, td: date) -> str | None:
+    """近期消息面摘要（重用每日盤後已快取的市場消息 digest）。"""
+    txt = get_cached(session, cache_key("news_market", "tw", td))
+    return f"近期消息面摘要：{txt.strip()}" if txt else None
+
+
+def context_facts(session: Session, context: dict) -> str:
+    """依情境組可用事實（接地）。
+
+    分兩層：①情境焦點（使用者正在看的個股／類股）放最前面；
+    ②全域背景（大盤、持股、推薦、類股排行）一律附上，讓助手有足夠事實可答，
+    不會動輒回「沒有資料」。
+    """
+    td = _market_date(session)
+    if not td:
+        return "（目前尚無盤後資料）"
+
+    focus = _focus_facts(session, context, td)
 
     # 全域背景：一律附上 App 已算好的結論
     background = [
@@ -329,3 +366,42 @@ def context_facts(session: Session, context: dict) -> str:
 
 def assistant_system(session: Session, context: dict) -> str:
     return f"{ASSISTANT_SYSTEM_BASE}\n\n[目前情境與可用事實]\n{context_facts(session, context)}"
+
+
+# 各頁今日重點要優先參考的事實（鍵對應下方 parts；焦點事實一律排最前）
+_BRIEF_ORDER = {
+    "overview": ["market", "news", "reco", "holdings", "secrank"],
+    "intel": ["news", "market"],
+    "recommendations": ["reco", "market", "secrank"],
+    "sectors": ["secrank", "market"],
+    "flow": ["market", "reco"],
+    "holdings": ["holdings", "market"],
+    "watchlists": ["market", "reco", "news"],
+    "stock": ["market"],
+    "sector": ["secrank", "market"],
+}
+
+
+def brief_facts(session: Session, context: dict) -> tuple[str, str]:
+    """組『進頁今日重點』用的事實，與頁面相關者排前。回 (頁名, 事實字串)。"""
+    page = context.get("page") or "overview"
+    label = _PAGE_LABEL.get(page, page)
+    td = _market_date(session)
+    if not td:
+        return label, ""
+
+    focus = _focus_facts(session, context, td)  # 個股/類股焦點（可能空）
+    parts = {
+        "market": _market_facts(session, td),
+        "holdings": _holdings_facts(session, td),
+        "reco": _reco_facts(session, td),
+        "secrank": _sector_rank_facts(session, td),
+        "news": _news_brief(session, td),
+    }
+    order = _BRIEF_ORDER.get(page, ["market", "reco", "holdings", "secrank"])
+    lines = list(focus) + [parts[k] for k in order if parts.get(k)]
+    return label, "\n".join(l for l in lines if l)
+
+
+def brief_system(page_label: str, facts: str) -> str:
+    return BRIEF_SYSTEM_BASE.format(page=page_label) + f"\n\n[App 已算好的事實]\n{facts}"

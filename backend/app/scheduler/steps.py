@@ -1,7 +1,8 @@
 """Pipeline steps。P0 只有 FetchStep（抓資料落庫）。
 
 後續階段在此新增 IndicatorStep / SectorStep / NewsStep / ScoringStep /
-ExitStep / LLMBatchStep / NotifyStep，再加進 run.py 的 step 清單。
+ExitStep / NotifyStep，再加進 run.py 的 step 清單。
+（LLM 翻白話已改端點首讀懶生成 llm/lazy.py + news_digest.py，不再是 pipeline step。）
 """
 
 from __future__ import annotations
@@ -17,7 +18,6 @@ from ..engines.news_engine import NewsEngine
 from ..engines.poppability import PoppabilityEfficacyEngine
 from ..engines.scoring import ScoringEngine
 from ..engines.sector_engine import SectorEngine
-from ..llm.batch import run_batch
 from ..notify import build_daily_message, send_discord
 from ..sources import registry
 from ..sources.base import SourceError
@@ -48,8 +48,10 @@ class FetchStep(PipelineStep):
         ("margin", "chip", "MarginRepository", "fetch_margin", 90),
         ("valuation", "fundamental", "ValuationRepository", "fetch_valuation", 90),
     ]
-    # 快照來源（openapi 回最新月/季/週，日期參數忽略，靠 upsert 去重）
+    # 快照來源（回最新期，日期參數忽略，靠 upsert 去重）
     # holding：TDCC 集保股權分散僅回最新一週，靠每週 upsert 累積歷史。
+    # financials：已改走 MOPS 累計制差分（回最近 2 個已結束季度的「單季」值），
+    #             歷史由 scripts.backfill_fundamentals 回補。
     _WINDOW = [
         ("revenue", "fundamental", "RevenueMonthlyRepository", "fetch_revenue_monthly", 1),
         ("financials", "fundamental", "FinancialQuarterRepository", "fetch_financials", 1),
@@ -247,16 +249,6 @@ class ExitStep(PipelineStep):
 
     def run(self, ctx: PipelineContext) -> dict:
         return ExitEngine().run(ctx.session, ctx.trading_date)
-
-
-class LLMBatchStep(PipelineStep):
-    """LLM 批次翻白話 → llm_cache（P5，非必要）。掛了白天讀舊快取。"""
-
-    name = "llm"
-    required = False
-
-    def run(self, ctx: PipelineContext) -> dict:
-        return run_batch(ctx.session, ctx.trading_date)
 
 
 class NotifyStep(PipelineStep):

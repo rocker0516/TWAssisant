@@ -374,17 +374,18 @@ function PoppableEfficacyPanel() {
         <div className="mb-1 font-semibold">會噴清單成效（波段軌 · 會噴風格）</div>
         <p className="text-sm text-muted">
           會噴清單到底準不準？取最近幾個「已有完整未來」的歷史進場日，用<b className="text-gray-200">真引擎</b>
-          重跑當時的會噴清單，看那些股票後來 {eff?.horizon ?? 20} 個交易日<b className="text-gray-200">有沒有摸到 +10%</b>，
+          重跑當時的會噴清單，看那些股票後來 {eff?.horizon ?? 30} 個交易日<b className="text-gray-200">有沒有碰到 +10%</b>，
           對比全市場基準。
         </p>
         <div className="mt-2 rounded-lg border border-amber-700/50 bg-amber-950/30 px-3 py-2 text-xs leading-relaxed text-amber-200/90">
-          清單的職責是<b>「給你一個停利點」</b>，不是「會自動賺」。所以同時看<b>最深回撤 / 20 日收盤</b>
+          清單的職責是<b>「給你一個停利點」</b>，不是「會自動賺」。所以同時看<b>最深回撤 / {eff?.horizon ?? 30} 日收盤</b>
           ——噴完不賣可能吐回去，能不能入袋全看出場紀律。
         </div>
         {has && (
           <p className="mt-2 text-xs text-muted">
             {eff!.window.from} ~ {eff!.window.to}・{eff!.window.entry_dates} 個進場日・清單共 {eff!.total_list} 檔
-            　|　整體摸+10% <b className="text-gray-200">{pct(eff!.overall_hit_rate)}</b>　|　計算於 {eff!.generated_at}
+            　|　碰到+10% 隔天開 <b className="text-gray-200">{pct(eff!.overall_hit_rate_close)}</b>
+            ／隔天高 <b className="text-gray-200">{pct(eff!.overall_hit_rate)}</b>　|　計算於 {eff!.generated_at}
           </p>
         )}
         {has && (
@@ -406,7 +407,7 @@ function PoppableEfficacyPanel() {
           disabled={recompute.isPending}
           className="mt-3 rounded-md bg-sky-600 px-4 py-2 text-sm font-medium disabled:opacity-50"
         >
-          {recompute.isPending ? "回測中…（約 1 分鐘）" : "重新計算"}
+          {recompute.isPending ? "背景回測中…（約 3–4 分鐘，可離開本頁）" : "重新計算"}
         </button>
         {recompute.isError && <span className="ml-3 text-sm text-down">失敗，請重試</span>}
       </div>
@@ -453,7 +454,7 @@ function PoppableEfficacyPanel() {
         <div className="rounded-xl border border-edge bg-panel p-4">
           <div className="mb-2 flex items-baseline justify-between">
             <span className="font-semibold">{eff!.detail_date} 會噴清單明細</span>
-            <span className="text-xs text-muted">後來 {eff!.horizon ?? 20} 交易日實際</span>
+            <span className="text-xs text-muted">後來 {eff!.horizon ?? 30} 交易日實際</span>
           </div>
           <table className="w-full text-sm">
             <thead>

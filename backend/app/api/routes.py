@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from ..storage import models
 from .deps import get_session, get_session_write
 from ..llm.assistant import _etf_kind, _scale_label
-from ..llm.store import cache_key, get_cached
+from ..llm.news_digest import stock_digest
 from .schemas import (
     Candle,
     ChipSummary,
@@ -27,9 +27,14 @@ from .schemas import (
     HoldingPoint,
     LevelDTO,
     LevelsResponse,
+    LookbackCalendar,
+    LookbackDatePoint,
+    LookbackReview,
+    LookbackSummary,
     OhlcvResponse,
     RecommendationItem,
     RecommendationList,
+    RecommendationLookbackResponse,
     ScoreDTO,
     StockDetail,
     StockSearchItem,
@@ -176,6 +181,275 @@ def recommendations(
     )
 
 
+_POP_TARGET = 0.10  # 「會噴」門檻：摸到 +10%（與 PoppabilityEfficacyEngine 對齊）
+
+
+def _lookback_review(
+    session: Session, stock_id: str, lookback_d: date, today_d: date
+) -> LookbackReview:
+    """從推薦日到今日的實況：以「隔天最高價」為進場錨（實務：盤後看到推薦、隔日追高最壞情境）。
+
+    MFE/MAE/hit 都以此錨算，days_to_pop 從隔天起算=1；days_elapsed 不含隔天當日。
+    """
+    rows = session.execute(
+        select(
+            models.DailyPrice.date,
+            models.DailyPrice.high,
+            models.DailyPrice.low,
+            models.DailyPrice.close,
+        )
+        .where(
+            models.DailyPrice.stock_id == stock_id,
+            models.DailyPrice.date >= lookback_d,
+            models.DailyPrice.date <= today_d,
+        )
+        .order_by(models.DailyPrice.date)
+    ).all()
+    # 沒有隔天資料 → 無法回測
+    if len(rows) < 2 or rows[1][1] is None:
+        return LookbackReview(
+            entry_close=None, current_close=None, return_pct=None,
+            mfe_pct=None, mae_pct=None,
+        )
+    entry = float(rows[1][1])  # 隔天最高（保守：追高進場的最壞情況）
+    following = rows[2:]  # 隔天之後的實現（隔天當日 high=entry 不可能自破+10%）
+    if not following:
+        return LookbackReview(
+            entry_close=round(entry, 2), current_close=round(rows[1][3], 2) if rows[1][3] is not None else None,
+            return_pct=(round((rows[1][3] - entry) / entry * 100, 2)
+                        if rows[1][3] is not None and entry > 0 else None),
+            mfe_pct=None, mae_pct=None, days_elapsed=0,
+        )
+    current_close = next((r[3] for r in reversed(following) if r[3] is not None), None)
+    highs = [r[1] for r in following if r[1] is not None]
+    lows = [r[2] for r in following if r[2] is not None]
+    pop_target_px = entry * (1.0 + _POP_TARGET)
+    hit = False
+    hit_date: date | None = None
+    days_to_pop: int | None = None
+    for i, r in enumerate(following, start=1):
+        if r[1] is not None and r[1] >= pop_target_px:
+            hit = True
+            hit_date = r[0]
+            days_to_pop = i
+            break
+    return LookbackReview(
+        entry_close=round(entry, 2),
+        current_close=round(current_close, 2) if current_close is not None else None,
+        return_pct=(
+            round((current_close - entry) / entry * 100, 2)
+            if current_close is not None and entry > 0 else None
+        ),
+        mfe_pct=round((max(highs) - entry) / entry * 100, 2) if highs and entry > 0 else None,
+        mae_pct=round((min(lows) - entry) / entry * 100, 2) if lows and entry > 0 else None,
+        hit_pop=hit,
+        hit_pop_date=hit_date,
+        days_to_pop=days_to_pop,
+        days_elapsed=len(following),
+    )
+
+
+def _build_lookback_response(
+    session: Session, lookback_d: date, today_d: date,
+    eff_top_pct: float, cutoff: float, days_back: int,
+) -> RecommendationLookbackResponse:
+    """給定推薦日與今日，組出該日回看清單（含每檔 review、整批摘要）。"""
+    base = (
+        select(models.Score, models.Stock.name, models.Sector.name)
+        .join(models.Stock, models.Score.stock_id == models.Stock.id)
+        .join(models.Sector, models.Stock.sector_id == models.Sector.id, isouter=True)
+        .where(models.Score.track == "wave", models.Score.date == lookback_d)
+    )
+    items: list[RecommendationItem] = []
+    hit_count = 0
+    returns: list[float] = []
+    mfes: list[float] = []
+    maes: list[float] = []
+    for sc, name, sector_name in session.execute(base).all():
+        if not sc.passed_filter or sc.total_score is None:
+            continue
+        if sc.total_score < cutoff:
+            continue
+        base_item = _to_item(session, sc, name, sector_name, lookback_d)
+        review = _lookback_review(session, sc.stock_id, lookback_d, today_d)
+        base_item.review = review
+        items.append(base_item)
+        if review.hit_pop:
+            hit_count += 1
+        if review.return_pct is not None:
+            returns.append(review.return_pct)
+        if review.mfe_pct is not None:
+            mfes.append(review.mfe_pct)
+        if review.mae_pct is not None:
+            maes.append(review.mae_pct)
+    items.sort(key=lambda it: it.total_score or 0, reverse=True)
+    n = len(items)
+    return RecommendationLookbackResponse(
+        track="wave",
+        lookback_date=lookback_d,
+        today_date=today_d,
+        days_back=days_back,
+        top_pct=eff_top_pct,
+        cutoff=cutoff,
+        items=items,
+        summary=LookbackSummary(
+            n=n,
+            hit_count=hit_count,
+            hit_rate=round(hit_count / n, 3) if n else None,
+            avg_return_pct=round(sum(returns) / len(returns), 2) if returns else None,
+            avg_mfe_pct=round(sum(mfes) / len(mfes), 2) if mfes else None,
+            avg_mae_pct=round(sum(maes) / len(maes), 2) if maes else None,
+        ),
+    )
+
+
+@router.get("/recommendations/lookback", response_model=RecommendationLookbackResponse)
+def recommendations_lookback(
+    date_: date | None = Query(None, alias="date", description="直接指定推薦日；不傳=用 days 算"),
+    days: int = Query(3, ge=1, le=60, description="N 個交易日前（date 未指定時用）"),
+    top_pct: float | None = Query(None, ge=1.0, le=50.0, description="覆寫嚴格度（前 N%）；不傳用設定值"),
+    session: Session = Depends(get_session),
+) -> RecommendationLookbackResponse:
+    """波段(會噴)軌「回看」：那天推薦清單到今天的實況（已噴 / 至今報酬 / 期間 MFE/MAE）。
+
+    優先用 `date` 直接指定推薦日（月曆點選）；否則以 DailyPrice 交易日曆定位 `days` 個交易日前，
+    Score 表可能有空隙，退到目標日 ≤ 的最近可用快照。
+    """
+    eff_top_pct = float(top_pct) if top_pct is not None else _wave_top_pct(session)
+    cutoff = round(100.0 - eff_top_pct, 2)
+
+    def _empty(lb_d: date | None, td_d: date | None) -> RecommendationLookbackResponse:
+        return RecommendationLookbackResponse(
+            track="wave", lookback_date=lb_d, today_date=td_d,
+            days_back=days, top_pct=eff_top_pct, cutoff=cutoff,
+            items=[],
+            summary=LookbackSummary(
+                n=0, hit_count=0, hit_rate=None,
+                avg_return_pct=None, avg_mfe_pct=None, avg_mae_pct=None,
+            ),
+        )
+
+    today_d = _latest_score_date(session)
+    if today_d is None:
+        return _empty(None, None)
+
+    if date_ is not None:
+        has_score = session.execute(
+            select(func.count()).select_from(models.Score)
+            .where(models.Score.track == "wave", models.Score.date == date_)
+        ).scalar() or 0
+        if not has_score or date_ >= today_d:
+            return _empty(None, today_d)
+        return _build_lookback_response(
+            session, date_, today_d, eff_top_pct, cutoff, 0,
+        )
+
+    # 沒指定 date：以 days 為主，退到最近可用快照
+    trading_dates = session.execute(
+        select(models.DailyPrice.date)
+        .where(models.DailyPrice.date <= today_d)
+        .group_by(models.DailyPrice.date)
+        .order_by(models.DailyPrice.date.desc())
+        .limit(days + 1)
+    ).scalars().all()
+    if len(trading_dates) < days + 1:
+        return _empty(None, today_d)
+    target_day = trading_dates[days]
+    lookback_d = session.execute(
+        select(models.Score.date)
+        .where(models.Score.track == "wave", models.Score.date <= target_day)
+        .group_by(models.Score.date)
+        .order_by(models.Score.date.desc())
+        .limit(1)
+    ).scalar()
+    if lookback_d is None or lookback_d >= today_d:
+        return _empty(None, today_d)
+    return _build_lookback_response(
+        session, lookback_d, today_d, eff_top_pct, cutoff, days,
+    )
+
+
+@router.get("/recommendations/lookback/calendar", response_model=LookbackCalendar)
+def recommendations_lookback_calendar(
+    since: date | None = Query(None, description="起始日；不傳=全部歷史"),
+    top_pct: float | None = Query(None, ge=1.0, le=50.0, description="覆寫嚴格度（前 N%）"),
+    session: Session = Depends(get_session),
+) -> LookbackCalendar:
+    """回看月曆：每個過去的 Score 日一筆命中率（過硬篩且分數≥cutoff、期間 high ≥ entry×1.10）。
+
+    進場錨＝隔天最高價（實務：盤後看到推薦、隔日追高的最壞情況）；MFE 只看隔天之後的 high。
+    路徑無關（與 `_lookback_review` 一致）。
+    """
+    eff_top_pct = float(top_pct) if top_pct is not None else _wave_top_pct(session)
+    cutoff = round(100.0 - eff_top_pct, 2)
+    today_d = _latest_score_date(session)
+    if today_d is None:
+        return LookbackCalendar(today_date=None, top_pct=eff_top_pct, cutoff=cutoff, dates=[])
+
+    q = (
+        select(models.Score.date)
+        .where(models.Score.track == "wave", models.Score.date < today_d)
+        .group_by(models.Score.date)
+        .order_by(models.Score.date)
+    )
+    if since is not None:
+        q = q.where(models.Score.date >= since)
+    score_dates = session.execute(q).scalars().all()
+
+    pop_ratio = 1.0 + _POP_TARGET
+    points: list[LookbackDatePoint] = []
+    for lb_d in score_dates:
+        sids = session.execute(
+            select(models.Score.stock_id).where(
+                models.Score.track == "wave",
+                models.Score.date == lb_d,
+                models.Score.passed_filter == True,  # noqa: E712
+                models.Score.total_score >= cutoff,
+            )
+        ).scalars().all()
+        n = len(sids)
+        if n == 0:
+            points.append(LookbackDatePoint(date=lb_d, n=0, hit_count=0, hit_rate=None))
+            continue
+        # 隔一交易日（推薦錨定的進場日）
+        entry_day = session.execute(
+            select(models.DailyPrice.date)
+            .where(models.DailyPrice.date > lb_d, models.DailyPrice.date <= today_d)
+            .group_by(models.DailyPrice.date)
+            .order_by(models.DailyPrice.date)
+            .limit(1)
+        ).scalar()
+        if entry_day is None:
+            points.append(LookbackDatePoint(date=lb_d, n=n, hit_count=0, hit_rate=None))
+            continue
+        entry_rows = session.execute(
+            select(models.DailyPrice.stock_id, models.DailyPrice.high)
+            .where(models.DailyPrice.date == entry_day, models.DailyPrice.stock_id.in_(sids))
+        ).all()
+        entry_map = {sid: float(h) for sid, h in entry_rows if h is not None and h > 0}
+        high_rows = session.execute(
+            select(models.DailyPrice.stock_id, func.max(models.DailyPrice.high))
+            .where(
+                models.DailyPrice.date > entry_day,
+                models.DailyPrice.date <= today_d,
+                models.DailyPrice.stock_id.in_(sids),
+            )
+            .group_by(models.DailyPrice.stock_id)
+        ).all()
+        high_map = {sid: float(h) for sid, h in high_rows if h is not None}
+        hit = sum(
+            1 for sid, e in entry_map.items()
+            if high_map.get(sid) is not None and high_map[sid] >= e * pop_ratio
+        )
+        points.append(LookbackDatePoint(
+            date=lb_d, n=n, hit_count=hit,
+            hit_rate=round(hit / n, 3) if n else None,
+        ))
+    return LookbackCalendar(
+        today_date=today_d, top_pct=eff_top_pct, cutoff=cutoff, dates=points,
+    )
+
+
 def _score_dto(sc: models.Score | None) -> ScoreDTO | None:
     if sc is None:
         return None
@@ -239,12 +513,19 @@ def poppable_efficacy(session: Session = Depends(get_session)) -> dict:
 
 
 @router.post("/poppable-efficacy/recompute")
-def poppable_efficacy_recompute(session: Session = Depends(get_session_write)) -> dict:
-    """重跑會噴清單成效回測（較重，~分鐘級）。as-of 用最新行情日。"""
-    from ..engines.poppability import PoppabilityEfficacyEngine
+def poppable_efficacy_recompute() -> dict:
+    """背景重跑會噴清單成效回測（~分鐘級）。立即回傳狀態；前端輪詢 status 端點直到 running=False。"""
+    from ..services.poppability_recompute import trigger
 
-    as_of = session.execute(select(func.max(models.DailyPrice.date))).scalar() or date.today()
-    return PoppabilityEfficacyEngine().run(session, as_of)
+    return trigger()
+
+
+@router.get("/poppable-efficacy/recompute/status")
+def poppable_efficacy_recompute_status() -> dict:
+    """背景重算狀態：{running, started_at, finished_at, error}。"""
+    from ..services.poppability_recompute import status
+
+    return status()
 
 
 @router.get("/stocks/{stock_id}", response_model=StockDetail)
@@ -345,9 +626,7 @@ def stock_detail(stock_id: str, session: Session = Depends(get_session)) -> Stoc
     ).scalars().all()
 
     market_td = session.execute(select(func.max(models.DailyPrice.date))).scalar()
-    news_digest = (
-        get_cached(session, cache_key("news_stock", stock_id, market_td)) if market_td else None
-    )
+    news_digest = stock_digest(session, stock_id, market_td) if market_td else None
 
     return StockDetail(
         stock_id=stock.id,

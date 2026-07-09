@@ -6,6 +6,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from ..engines.exit_engine import ExitEngine
@@ -27,6 +28,12 @@ router = APIRouter(prefix="/holdings", tags=["holdings"])
 LOT = 1000  # 1 張 = 1000 股
 _svc = HoldingService()
 _exit = ExitEngine()
+
+
+def _raise_if_db_locked(exc: OperationalError) -> None:
+    """背景 pipeline 卡住 SQLite writer 鎖 → 把難看的 500 翻成 503 + 中文提示。"""
+    if "database is locked" in str(exc.orig).lower():
+        raise HTTPException(503, "資料更新中（背景補資料），請稍候約 1 分鐘後再試一次") from exc
 
 
 def _market_date(session: Session) -> date | None:
@@ -118,13 +125,17 @@ def list_holdings(
 def create_holding(body: HoldingCreate, session: Session = Depends(get_session_write)) -> HoldingItem:
     if session.get(models.Stock, body.stock_id) is None:
         raise HTTPException(404, f"找不到股票 {body.stock_id}")
-    h = _svc.create(
-        session, stock_id=body.stock_id, track=body.track, date_=body.date,
-        price=body.price, shares=body.shares, fee=body.fee,
-        stop_loss_override=body.stop_loss_override,
-        trail_trigger_override=body.trail_trigger_override,
-        trail_pullback_override=body.trail_pullback_override, note=body.note,
-    )
+    try:
+        h = _svc.create(
+            session, stock_id=body.stock_id, track=body.track, date_=body.date,
+            price=body.price, shares=body.shares, fee=body.fee,
+            stop_loss_override=body.stop_loss_override,
+            trail_trigger_override=body.trail_trigger_override,
+            trail_pullback_override=body.trail_pullback_override, note=body.note,
+        )
+    except OperationalError as e:
+        _raise_if_db_locked(e)
+        raise
     return build_item(session, h, _market_date(session))
 
 
@@ -141,6 +152,9 @@ def add_transaction(
         )
     except ValueError as e:
         raise HTTPException(404, str(e)) from e
+    except OperationalError as e:
+        _raise_if_db_locked(e)
+        raise
     return build_item(session, h, _market_date(session))
 
 
@@ -153,7 +167,11 @@ def patch_holding(
         raise HTTPException(404, f"持股 {holding_id} 不存在")
     for field, val in body.model_dump(exclude_unset=True).items():
         setattr(h, field, val)
-    session.flush()
+    try:
+        session.flush()
+    except OperationalError as e:
+        _raise_if_db_locked(e)
+        raise
     return build_item(session, h, _market_date(session))
 
 
@@ -162,5 +180,10 @@ def delete_holding(holding_id: int, session: Session = Depends(get_session_write
     h = session.get(models.Holding, holding_id)
     if h is None:
         raise HTTPException(404, f"持股 {holding_id} 不存在")
-    session.delete(h)
+    try:
+        session.delete(h)
+        session.flush()
+    except OperationalError as e:
+        _raise_if_db_locked(e)
+        raise
     return {"ok": True}

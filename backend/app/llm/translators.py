@@ -121,18 +121,6 @@ class MarketTranslator(BaseTranslator):
         return "\n".join(lines)
 
 
-class HoldingAlertTranslator(BaseTranslator):
-    role = "任務：把一檔持股的出場狀態翻成白話提醒，幫使用者理解現在該留意什麼。"
-
-    def build_facts(self, *, name, track, level, signals, profitable) -> str:
-        light = {"red": "建議出場", "orange": "警戒", "yellow": "留意", "green": "續抱"}.get(level, level)
-        return (
-            f"持股：{name}（{'波段' if track == 'wave' else '長線'}軌）\n出場狀態：{light}\n"
-            f"目前損益方向：{'獲利中' if profitable else '虧損中'}\n"
-            f"觸發的訊號：{('、'.join(signals)) if signals else '無'}"
-        )
-
-
 class StockHealthTranslator(BaseTranslator):
     role = ("任務：對一檔標的做『健檢』，綜合技術、籌碼、基本面與所屬類股，給出整體方向解讀。"
             "若提供了技術支撐/壓力，請點出『目前最關鍵的支撐與壓力各一』並說明為何（多來源重疊者較硬），"

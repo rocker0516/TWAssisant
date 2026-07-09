@@ -34,6 +34,20 @@ class ScoreDTO(BaseModel):
     details: list[RecommendationDetail] | None = None
 
 
+class LookbackReview(BaseModel):
+    """回看：那天推薦至今的實際表現。買在當日收盤（與 PoppableEfficacy 同錨點）。"""
+
+    entry_close: float | None          # 推薦日收盤（進場參考價）
+    current_close: float | None        # 至今收盤
+    return_pct: float | None           # 至今報酬 %（buy-and-hold 到今天）
+    mfe_pct: float | None              # 期間內最大有利偏移 %（=最高 high / entry_close − 1）
+    mae_pct: float | None              # 期間內最大不利偏移 %（=最低 low / entry_close − 1）
+    hit_pop: bool = False              # 期間內是否摸到 +10%
+    hit_pop_date: date | None = None   # 首次摸到 +10% 的交易日
+    days_to_pop: int | None = None     # 從進場日到摸到 +10% 用了幾個交易日
+    days_elapsed: int = 0              # 進場日後已過幾個交易日
+
+
 class RecommendationItem(BaseModel):
     stock_id: str
     name: str
@@ -53,6 +67,7 @@ class RecommendationItem(BaseModel):
     reasons: list[str] | None
     details: list[RecommendationDetail] | None = None  # 展開區：各面向分數+證據
     spark: list[float] | None = None  # 近期收盤序列（約近 20 個交易日，由舊到新）
+    review: LookbackReview | None = None  # 回看模式才有：那天到今天的實際表現
 
 
 class RecommendationList(BaseModel):
@@ -62,6 +77,48 @@ class RecommendationList(BaseModel):
     threshold: float  # 門檻分數（波段軌 = 100 − top_pct）
     items: list[RecommendationItem]  # 波段軌=全部過硬篩(前端橫桿切)；長線軌=達門檻
     near: list[RecommendationItem]  # 接近門檻（長線軌用；波段軌為空）
+
+
+class LookbackSummary(BaseModel):
+    """回看清單摘要（命中率/平均報酬）。"""
+
+    n: int                              # 清單檔數
+    hit_count: int                      # 已摸 +10% 檔數
+    hit_rate: float | None              # 命中率 0~1
+    avg_return_pct: float | None        # 至今平均報酬 %
+    avg_mfe_pct: float | None           # 至今平均最大有利偏移 %
+    avg_mae_pct: float | None           # 至今平均最大不利偏移 %
+
+
+class RecommendationLookbackResponse(BaseModel):
+    """回看：N 個交易日前波段軌推薦的至今實況。"""
+
+    track: str                          # 固定 wave
+    lookback_date: date | None          # 推薦日（N 個交易日前）
+    today_date: date | None             # 最新交易日（資料截止）
+    days_back: int                      # 回看了幾個交易日（=入參 days）
+    top_pct: float                      # 套用的嚴格度（前 N%）
+    cutoff: float                       # 對應的分數門檻
+    items: list[RecommendationItem]     # 已含 review；依當日分數降序
+    summary: LookbackSummary            # 整批摘要
+
+
+class LookbackDatePoint(BaseModel):
+    """月曆單日：那天的會噴清單至今命中率。"""
+
+    date: date                          # 推薦日
+    n: int                              # 清單檔數（過硬篩且分數≥cutoff）
+    hit_count: int                      # 已摸 +10% 檔數
+    hit_rate: float | None              # 命中率 0~1
+
+
+class LookbackCalendar(BaseModel):
+    """回看月曆：每個過去的 Score 日一筆命中率。"""
+
+    today_date: date | None             # 最新交易日（也是回看的資料截止）
+    top_pct: float                      # 套用的嚴格度
+    cutoff: float                       # 分數門檻
+    dates: list[LookbackDatePoint]      # 由舊到新
 
 
 class ChipSummary(BaseModel):

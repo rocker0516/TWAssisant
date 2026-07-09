@@ -138,25 +138,10 @@ class TpexSource(BaseSource, PriceProvider, ChipProvider, FundamentalProvider):
         return pd.DataFrame(rows)[schemas.REVENUE_COLS] if rows else pd.DataFrame(columns=schemas.REVENUE_COLS)
 
     def fetch_financials(self, start: date, end: date, stock_ids: list[str] | None = None) -> pd.DataFrame:
-        rows: list[dict] = []
-        for r in self._openapi("mopsfin_t187ap14_O"):
-            y = _num(r.get("Year"))
-            q = _num(r.get("季別"))
-            if y is None or q is None:
-                continue
-            year = int(y) + 1911 if y < 1911 else int(y)
-            rev = _num(r.get("營業收入"))
-            op = _num(r.get("營業利益"))
-            net = _num(r.get("稅後淨利"))
-            rows.append({
-                "stock_id": str(r.get("SecuritiesCompanyCode", "")).strip(), "year": year, "quarter": int(q),
-                "eps": _num(r.get("基本每股盈餘")), "revenue": rev,
-                "gross_margin": None,
-                "op_margin": round(op / rev * 100, 2) if rev and op is not None else None,
-                "net_margin": round(net / rev * 100, 2) if rev and net is not None else None,
-                "roe": None,
-            })
-        return pd.DataFrame(rows)[schemas.FINANCIAL_COLS] if rows else pd.DataFrame(columns=schemas.FINANCIAL_COLS)
+        """季財報（MOPS 累計制→單季）。原 openapi 快照為累計制，同 TwseSource 改走差分。"""
+        from . import mops  # 延遲匯入避免循環
+
+        return mops.fetch_recent_financials(markets=("otc",), today=end)
 
     def fetch_margin(self, start: date, end: date, stock_ids: list[str] | None = None) -> pd.DataFrame:
         # 位置：2前資餘 6資餘 10前券餘 14券餘（張）

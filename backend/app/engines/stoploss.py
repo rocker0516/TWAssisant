@@ -50,7 +50,8 @@ class StopLossCalculator:
 
         atr = ind.get("atr14")
         atr_stop = close - _ATR_MULT * atr if atr is not None else None
-        struct_stop = support
+        # 支撐在現價上方（跌破均線）就不能當停損，否則停損＞現價、loss_pct 變正值
+        struct_stop = support if support is not None and support < close else None
         cands = [x for x in (atr_stop, struct_stop) if x is not None]
         # 取較高者（較貼近現價 = 較嚴謹）
         stop = max(cands) if cands else None

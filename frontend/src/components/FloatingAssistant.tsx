@@ -18,10 +18,25 @@ const HINT: Record<string, string> = {
   stock: "正在看個股",
   sector: "正在看類股",
   overview: "今日總覽",
+  intel: "情報",
   recommendations: "進場推薦",
-  holdings: "我的持股",
   sectors: "類股行情",
+  flow: "籌碼動向",
+  holdings: "我的持股",
   watchlists: "觀察清單",
+};
+
+// 依目前頁面提供「建議問題」（情境感知）：點一下即送出。取代原本進頁自動彈出的今日重點。
+const SUGGESTIONS: Record<string, string[]> = {
+  overview: ["今天大盤怎麼看？", "今天有哪些重點與注意事項？", "現在進場氣氛如何？"],
+  recommendations: ["今天最值得關注的會噴股是哪幾檔？", "為什麼這幾檔分數高？", "現在進場要注意什麼風險？"],
+  sectors: ["今天哪些類股最強？", "資金往哪個類股流？"],
+  flow: ["法人今天偏多還偏空？", "大戶與散戶在買還是在賣？"],
+  holdings: ["我的持股目前出場燈號如何？", "哪些持股要注意停損？"],
+  watchlists: ["觀察清單有哪些接近到價或達門檻？"],
+  intel: ["今天有哪些重要消息？", "有沒有利空或處置要注意？"],
+  stock: ["這檔現在怎麼看？", "進場點位與參考停損在哪？", "籌碼面如何？"],
+  sector: ["這個類股方向如何？", "有哪些強勢成分股？"],
 };
 
 export function FloatingAssistant() {
@@ -34,8 +49,8 @@ export function FloatingAssistant() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages, open]);
 
-  const send = async () => {
-    const text = input.trim();
+  const send = async (override?: string) => {
+    const text = (override ?? input).trim();
     if (!text || busy) return;
     const history = [...messages, { role: "user" as const, content: text }];
     addUser(text);
@@ -50,6 +65,8 @@ export function FloatingAssistant() {
       setBusy(false);
     }
   };
+
+  const suggestions = SUGGESTIONS[ctx.page] ?? SUGGESTIONS.overview;
 
   return (
     <>
@@ -70,9 +87,21 @@ export function FloatingAssistant() {
 
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
             {messages.length === 0 && (
-              <p className="mt-8 text-center text-sm text-muted">
-                問我關於目前畫面的解讀，例如<br />「這檔現在怎麼看？」<br />「今天大盤如何？」
-              </p>
+              <div className="mt-2">
+                <p className="mb-2 text-sm text-muted">想問什麼？可以從這些開始（依目前畫面）：</p>
+                <div className="flex flex-col gap-2">
+                  {suggestions.map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => send(q)}
+                      disabled={busy}
+                      className="rounded-lg border border-edge bg-panel2 px-3 py-2 text-left text-sm transition hover:border-sky-600 hover:text-sky-200 disabled:opacity-50"
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
             {messages.map((m, i) =>
               m.role === "user" ? (
@@ -91,7 +120,7 @@ export function FloatingAssistant() {
               placeholder="輸入問題…" value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && send()} />
-            <button onClick={send} disabled={busy || !input.trim()}
+            <button onClick={() => send()} disabled={busy || !input.trim()}
               className="rounded-md bg-sky-600 px-3 text-sm font-medium disabled:opacity-50">送出</button>
           </div>
         </div>
