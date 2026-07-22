@@ -1481,6 +1481,28 @@ export interface components {
             spark?: number[] | null;
             review?: components["schemas"]["LookbackReview"] | null;
         };
+        /**
+         * MarketRegime
+         * @description 大盤 regime 燈（MA60 遲滯）：defense 期會噴命中率實證較低，前端預設收起清單。
+         */
+        MarketRegime: {
+            /** State — hold=持有 | defense=防禦(收盤跌破季線MA60逾2%、尚未站回) */
+            state: string;
+            /** Date */
+            date: string;
+            /** Since */
+            since: string;
+            /** Close */
+            close: number;
+            /** Ma60 */
+            ma60: number;
+            /** Gap Pct */
+            gap_pct: number;
+            /** Hold Hit Rate */
+            hold_hit_rate: number;
+            /** Defense Hit Rate */
+            defense_hit_rate: number;
+        };
         /** RecommendationList */
         RecommendationList: {
             /** Track */
@@ -1495,6 +1517,7 @@ export interface components {
             items: components["schemas"]["RecommendationItem"][];
             /** Near */
             near: components["schemas"]["RecommendationItem"][];
+            regime?: components["schemas"]["MarketRegime"] | null;
         };
         /**
          * RecommendationLookbackResponse

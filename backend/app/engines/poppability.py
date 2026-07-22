@@ -34,6 +34,8 @@ from .tracks import WaveTrack
 # 回測只需：硬篩是否通過 + 會噴 rank 輸入(atr_pct/ma_align) + 低位盤整分(coil 濾網)。
 # 故不跑完整 WaveTrack.evaluate(那會多算 9 個不影響會噴分數的規則+停損+evidence，極慢)，
 # 改直接呼叫所需的少數規則；且 ctx 不帶法人/融資(這些規則用不到)，省逐日切片。
+# 注意：此處用「當日原始硬篩」、不含線上的遲滯寬限（週頻取樣做不了連續日狀態機）。
+# 寬限股實測命中率高於清單均值(scripts/pop_hysteresis_backtest.py)，故此統計略保守。
 _EFF_FILTERS = COMMON_FILTERS + WAVE_FILTERS
 _EFF_CONS = ConsolidationScore()
 _EMPTY_INST = pd.DataFrame(columns=_INST_COLS)

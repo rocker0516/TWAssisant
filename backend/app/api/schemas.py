@@ -70,6 +70,19 @@ class RecommendationItem(BaseModel):
     review: LookbackReview | None = None  # 回看模式才有：那天到今天的實際表現
 
 
+class MarketRegime(BaseModel):
+    """大盤 regime 燈（MA60 遲滯）：defense 期會噴命中率實證較低，前端預設收起清單。"""
+
+    state: str  # hold=持有 | defense=防禦(收盤跌破季線MA60逾2%、尚未站回)
+    date: date  # 判斷所用的最新指數日
+    since: date  # 本狀態起始日
+    close: float
+    ma60: float
+    gap_pct: float  # 收盤相對 MA60 %
+    hold_hit_rate: float  # 驗證常數：持有期清單摸+10% 機率
+    defense_hit_rate: float  # 驗證常數：防禦期清單摸+10% 機率
+
+
 class RecommendationList(BaseModel):
     track: str
     top_pct: float | None = None  # 波段(會噴)軌：前 N% 為推薦（長線軌為 None）
@@ -77,6 +90,7 @@ class RecommendationList(BaseModel):
     threshold: float  # 門檻分數（波段軌 = 100 − top_pct）
     items: list[RecommendationItem]  # 波段軌=全部過硬篩(前端橫桿切)；長線軌=達門檻
     near: list[RecommendationItem]  # 接近門檻（長線軌用；波段軌為空）
+    regime: MarketRegime | None = None  # 波段軌限定的大盤閘門；長線軌/資料不足為 None
 
 
 class LookbackSummary(BaseModel):

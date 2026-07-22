@@ -49,6 +49,7 @@ export default function RecommendationsPage() {
   const [maxPrice, setMaxPrice] = useState(""); // 股價上限（元，空＝不限）
   const [sparkDays, setSparkDays] = useState(60); // 走勢視窗：近 N 個交易日（預設近3月）
   const [showCalendar, setShowCalendar] = useState(false); // 月曆折疊
+  const [showDefenseList, setShowDefenseList] = useState(false); // 大盤防禦期仍要查看清單
   const [selectedLookbackDate, setSelectedLookbackDate] = useState<string | null>(null); // null=今天；否則=月曆點選的推薦日
   // 回看只支援波段軌；切到長線軌時自動回到今天
   const effTrack: Track = selectedLookbackDate ? "wave" : track;
@@ -58,6 +59,12 @@ export default function RecommendationsPage() {
   // 波段(會噴)軌：API 回全部過硬篩股，前端用「前 N%」橫桿就地切（分數=百分位，前N% = 分數≥100−N）
   const topPct = topPctOverride ?? (data?.top_pct ?? 20);
   const cutoff = 100 - topPct;
+
+  // 大盤 regime 閘門（僅波段軌）：防禦期(收盤跌破季線逾2%未站回)清單命中率實證較低
+  // (39.5% vs 47.4%，walk-forward 三段皆成立)，預設收起清單、可手動展開。
+  const regime = data?.regime ?? null;
+  const inDefense = track === "wave" && selectedLookbackDate == null && regime?.state === "defense";
+  const gateClosed = inDefense && !showDefenseList;
 
   // 月曆摘要（命中率）
   const calendar = useRecommendationsLookbackCalendar(topPct);
@@ -212,6 +219,21 @@ export default function RecommendationsPage() {
         </div>
       )}
 
+      {/* 大盤防禦期閘門（僅波段軌）：命中率實證較低 → 預設暫停顯示推薦 */}
+      {inDefense && regime && (
+        <div className="mb-4 rounded-lg border border-red-700/50 bg-red-950/30 px-3.5 py-2.5 text-sm leading-relaxed text-red-200/90">
+          🛡 <b>大盤防禦期</b>——{regime.since} 起加權指數收盤跌破季線逾 2%（現距季線 {regime.gap_pct}%），尚未站回 {Math.round(regime.ma60).toLocaleString()}。
+          此時段清單歷史命中率約 <b>{Math.round(regime.defense_hit_rate * 100)}%</b>（平時約 {Math.round(regime.hold_hit_rate * 100)}%）、回撤較深，<b>已預設收起新進場推薦</b>；指數收盤站回季線自動恢復。
+          注意：約<b>半數</b>防禦期事後看是正常的——收起是<b>保守偏誤</b>，不是預知會跌。
+          <button
+            onClick={() => setShowDefenseList((s) => !s)}
+            className="ml-2 rounded-md border border-red-700/60 px-2 py-0.5 text-xs text-red-200 hover:bg-red-900/40"
+          >
+            {showDefenseList ? "收起清單" : "仍要查看清單"}
+          </button>
+        </div>
+      )}
+
       {/* 回看摘要（清單為空時隱掉，避免和下方空狀態重複） */}
       {isLookback && lbSummary && lbSummary.n > 0 && (
         <div className="mb-4 rounded-lg border border-sky-700/40 bg-sky-950/30 px-3.5 py-2.5 text-xs leading-relaxed">
@@ -229,7 +251,7 @@ export default function RecommendationsPage() {
       )}
 
       {/* 會噴門檻橫桿（僅波段軌）*/}
-      {track === "wave" && (
+      {track === "wave" && !gateClosed && (
         <div className="mb-3 flex flex-wrap items-center gap-3">
           <span className="text-sm text-muted">嚴格度</span>
           <input
@@ -246,7 +268,7 @@ export default function RecommendationsPage() {
       )}
 
       {/* 位階篩選（個人偏好，不影響會噴分數；回看模式不適用）*/}
-      {track === "wave" && !isLookback && (
+      {track === "wave" && !isLookback && !gateClosed && (
         <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted">買點</span>
           <div className="inline-flex rounded-lg border border-edge bg-panel p-0.5">
@@ -267,7 +289,7 @@ export default function RecommendationsPage() {
       )}
 
       {/* 會噴誠實話術：分數=會噴機率(回測實證)，非漲跌保證；高波動雙面刃。回看模式改顯示回看摘要 */}
-      {track === "wave" && !isLookback && (
+      {track === "wave" && !isLookback && !gateClosed && (
         <div className="mb-4 rounded-lg border border-amber-700/50 bg-amber-950/30 px-3.5 py-2.5 text-xs leading-relaxed text-amber-200/90">
           分數＝<b>「會噴機率」</b>——當天全市場 <b>2×波動度＋均線多排</b> 的百分位。
           {effHitClose != null && effPct != null
@@ -279,7 +301,8 @@ export default function RecommendationsPage() {
         </div>
       )}
 
-      {/* 工具列 */}
+      {/* 工具列（防禦期收起清單時一併隱藏） */}
+      {!gateClosed && (
       <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
         <div className="flex items-center gap-2">
           <span className="text-muted">排序</span>
@@ -351,6 +374,7 @@ export default function RecommendationsPage() {
           )}
         </div>
       </div>
+      )}
 
       {(isLookback ? lookback.isLoading : isLoading) && <p className="text-muted">載入中…</p>}
       {isLookback
@@ -362,7 +386,7 @@ export default function RecommendationsPage() {
           該日沒有過門檻的推薦。可點月曆其他日期。
         </div>
       )}
-      {!isLookback && data && main.length === 0 && (
+      {!isLookback && data && main.length === 0 && !gateClosed && (
         <div className="rounded-xl border border-dashed border-edge py-16 text-center text-sm leading-relaxed text-muted">
           {(minPrice !== "" || maxPrice !== "")
             ? "目前篩選的股價區間內沒有符合的標的，可調整或清除股價上下限。"
@@ -374,14 +398,16 @@ export default function RecommendationsPage() {
         </div>
       )}
 
+      {!gateClosed && (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {main.map((it) => (
           <RecommendationCard key={it.stock_id} item={it} sparkDays={sparkDays} />
         ))}
       </div>
+      )}
 
       {/* 觀察區折疊 */}
-      {extra.length > 0 && (
+      {extra.length > 0 && !gateClosed && (
         <div className="mt-6">
           <button
             onClick={() => setShowExtra((s) => !s)}

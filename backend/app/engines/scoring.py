@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import pandas as pd
-from sqlalchemy import distinct, select
+from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
 from ..storage import models
@@ -314,7 +314,8 @@ class ScoringEngine(BaseEngine):
                 rows.append(track.evaluate(ctx, config.get(track.track_key, {})))
             scored += 1
 
-        # 會噴：當天全市場橫截面 rank 合成總分（逐檔 evaluate 只給 pop_inputs）
+        # 會噴：先套遲滯（用昨日狀態去抖動硬篩），再當天全市場橫截面 rank 合成總分
+        self._apply_wave_hysteresis(session, td, rows)
         top_pct = float((config.get("wave") or {}).get("top_pct", _DEFAULT_TOP_PCT))
         finalize_wave_pop(rows, top_pct)
 
@@ -324,6 +325,41 @@ class ScoringEngine(BaseEngine):
         session.flush()
         passed = {t.track_key: sum(1 for r in rows if r["track"] == t.track_key and r["passed"]) for t in self.tracks}
         return {"status": "ok", "scored_stocks": scored, "rows": n, "passed": passed}
+
+    def _apply_wave_hysteresis(self, session: Session, td: date, rows: list[dict]) -> None:
+        """波段硬篩遲滯（去抖動，scripts/pop_hysteresis_backtest.py 定版）。
+
+        改寫 wave 列的 passed_filter：
+        - 昨日不在榜 → 進榜要嚴：原始硬篩全過 且 收盤 > 月線×(1+margin)（enter_ok）。
+        - 昨日在榜   → 出榜要鬆：只有「大破線」（hard_break）或「原始硬篩連 2 天
+          不滿足」（今日 strict=False 且 昨日 strict_filter=False）才踢，單日失守寬限。
+        昨日＝td 之前最近的評分日；無史料（冷啟動/舊列 strict_filter=NULL）時，舊列
+        以 passed_filter 代 strict（歷史上兩者同義）。重跑當日冪等（只讀 date<td）。
+        """
+        wave = [r for r in rows if r.get("track") == "wave"]
+        if not wave:
+            return
+        prev_date = session.execute(
+            select(func.max(models.Score.date)).where(
+                models.Score.date < td, models.Score.track == "wave")
+        ).scalar()
+        prev: dict[str, tuple[bool, bool]] = {}
+        if prev_date is not None:
+            for sid, pf, strict in session.execute(
+                select(
+                    models.Score.stock_id, models.Score.passed_filter, models.Score.strict_filter,
+                ).where(models.Score.date == prev_date, models.Score.track == "wave")
+            ):
+                prev[sid] = (bool(pf), bool(pf if strict is None else strict))
+        for r in wave:
+            h = r.pop("hyst_inputs", None) or {"enter_ok": False, "hard_break": True}
+            strict_t = bool(r["passed_filter"])
+            state_y, strict_y = prev.get(r["stock_id"], (False, False))
+            if not state_y:
+                r["passed_filter"] = h["enter_ok"]
+            else:
+                soft_break = not strict_t and not strict_y
+                r["passed_filter"] = not (h["hard_break"] or soft_break)
 
     def _apply_stability(self, session: Session, td: date, rows: list[dict]) -> None:
         """L3：用近期歷史總分算穩定度，折進 confidence（confidence = 完整度×共識度×穩定度）。

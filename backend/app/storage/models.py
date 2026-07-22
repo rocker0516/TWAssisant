@@ -277,7 +277,8 @@ class Score(Base):
     date: Mapped[date_] = mapped_column(Date, primary_key=True)
     track: Mapped[str] = mapped_column(String(10), primary_key=True)  # wave / long
 
-    passed_filter: Mapped[bool] = mapped_column(Boolean, default=False)  # 過任一風格硬篩
+    passed_filter: Mapped[bool] = mapped_column(Boolean, default=False)  # 過任一風格硬篩（波段=遲滯後狀態）
+    strict_filter: Mapped[bool | None] = mapped_column(Boolean)  # 當日原始硬篩（無遲滯；狀態機隔日回看用）
     passed: Mapped[bool] = mapped_column(Boolean, default=False)  # 過硬篩 + 門檻
     passed_styles: Mapped[list | None] = mapped_column(JSON)  # 通過哪些進場風格硬篩 ["breakout","pullback"]
     total_score: Mapped[float | None] = mapped_column(Float)  # 主風格(波段=breakout)總分

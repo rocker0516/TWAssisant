@@ -65,6 +65,31 @@ class NearMa60(FilterRule):
 # 會噴硬篩：站上上揚月線（趨勢成立）+ 距季線<15%（非過度延伸）；不要求量增。
 WAVE_FILTERS: list[FilterRule] = [AboveRisingMa20(), NearMa60()]
 
+# ─────────────── 遲滯（去抖動，scripts/pop_hysteresis_backtest.py 定版）───────────────
+# 硬篩是二元開關、切在雜訊最大處（月線附近震盪股天天翻面）→ 榜單日換血 40%。
+# 遲滯=進榜嚴、出榜鬆：3 年三段 walk-forward，寬限股命中率 42.4% > 清單均值 37.9%
+# （三段皆高）、日存活率 58.5%→69.1%，穩定性等於免費。
+HYST_ENTER_MARGIN = 0.01  # 進榜（新股）：硬篩全過 且 收盤 > 月線×(1+margin)
+HYST_HARD_BREAK = 0.02    # 出榜（在榜）：單日收盤 < 月線×(1−break) 立即踢
+# 軟出榜＝原始硬篩「連 2 天」不滿足（單日失守寬限）——由 ScoringEngine 拿昨日
+# strict_filter 判定；此處只吐當日輸入。
+
+
+def hyst_inputs(ctx: StockContext, strict: bool) -> dict:
+    """遲滯狀態機的當日輸入：enter_ok（可新進榜）/ hard_break（大破線立即出榜）。
+
+    缺料（無收盤或月線）視同 hard_break——資料斷了不硬留在榜上。
+    """
+    ind = ctx.ind
+    ma20 = ind.get("ma20") if ind is not None else None
+    c = ctx.close
+    if c is None or ma20 is None or ma20 <= 0:
+        return {"enter_ok": False, "hard_break": True}
+    return {
+        "enter_ok": bool(strict and c > ma20 * (1.0 + HYST_ENTER_MARGIN)),
+        "hard_break": bool(c < ma20 * (1.0 - HYST_HARD_BREAK)),
+    }
+
 # ─────────────── 評分（僅供 evidence 參考，不計入會噴分數）───────────────
 
 

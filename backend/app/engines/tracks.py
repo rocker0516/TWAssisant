@@ -17,7 +17,7 @@ from .context import StockContext
 from .rules.base import FilterRule, ScoreRule, WeightedScorer, score_confidence
 from .rules.common import COMMON_FILTERS
 from .rules.long import LONG_FILTERS, LONG_SCORERS
-from .rules.wave import WAVE_FILTERS, WAVE_SCORERS, pop_atr_pct, pop_ma_align
+from .rules.wave import WAVE_FILTERS, WAVE_SCORERS, hyst_inputs, pop_atr_pct, pop_ma_align
 from .stoploss import StopLossCalculator
 
 _DEFAULT_THRESHOLD = 70.0
@@ -95,6 +95,7 @@ class Track(ABC):
             "date": ctx.date,
             "track": self.track_key,
             "passed_filter": passed_filter,
+            "strict_filter": passed_filter,  # 長線無遲滯，與原始硬篩相同（批次 upsert 欄位鍵需一致）
             "passed": passed,
             "total_score": total,
             "sub_scores": sub_scores,
@@ -120,7 +121,7 @@ class WaveTrack(Track):
 
     def evaluate(self, ctx: StockContext, config: dict | None = None) -> dict:
         common_ok = all(f.passes(ctx) for f in COMMON_FILTERS)
-        passed_filter = common_ok and all(f.passes(ctx) for f in self.filters)
+        strict = common_ok and all(f.passes(ctx) for f in self.filters)
 
         # 6 因子：不計入會噴分數，只攤成 evidence/sub_scores 供個股詳情參考。
         sub_scores: dict[str, float] = {}
@@ -142,7 +143,10 @@ class WaveTrack(Track):
             "stock_id": ctx.stock.id,
             "date": ctx.date,
             "track": self.track_key,
-            "passed_filter": passed_filter,
+            # passed_filter 先放當日原始硬篩；ScoringEngine 再用昨日狀態套遲滯改寫
+            "passed_filter": strict,
+            "strict_filter": strict,
+            "hyst_inputs": hyst_inputs(ctx, strict),  # transient，引擎用完即拔
             "passed": False,        # 引擎橫截面 rank 後再定
             "total_score": None,    # 引擎填（會噴 rank 分數）
             "pop_inputs": {"atr_pct": pop_atr_pct(ctx), "ma_align": pop_ma_align(ctx)},

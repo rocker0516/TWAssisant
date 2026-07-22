@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from ..engines.market_regime import wave_market_regime
 from ..storage import models
 from .deps import get_session, get_session_write
 from ..llm.assistant import _etf_kind, _scale_label
@@ -151,9 +152,11 @@ def recommendations(
     else:
         top_pct = None
         cutoff = _threshold(session, track)
+    regime = wave_market_regime(session) if track == "wave" else None
     if d is None:
         return RecommendationList(
-            track=track, date=None, threshold=cutoff, top_pct=top_pct, items=[], near=[]
+            track=track, date=None, threshold=cutoff, top_pct=top_pct, items=[], near=[],
+            regime=regime,
         )
 
     base = (
@@ -177,7 +180,8 @@ def recommendations(
     items.sort(key=lambda it: it.total_score or 0, reverse=True)
     near.sort(key=lambda it: it.total_score or 0, reverse=True)
     return RecommendationList(
-        track=track, date=d, threshold=cutoff, top_pct=top_pct, items=items, near=near
+        track=track, date=d, threshold=cutoff, top_pct=top_pct, items=items, near=near,
+        regime=regime,
     )
 
 
