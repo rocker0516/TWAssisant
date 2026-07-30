@@ -499,6 +499,138 @@ class FlowEngine:
                 out[sid] = round(float(dt_sum) / (float(v) / 1000.0) * 100, 1)
         return out
 
+    # ───────────────────────── 籌碼異動偵測 ─────────────────────────
+
+    def chip_alerts(self, session: Session) -> dict:
+        """最新交易日的籌碼異動清單（規則式、無方向宣稱，把「去看」變「來找你」）。
+
+        四類：投信首買（60 日內首度買超）、投信連買（≥3 日且累計夠大）、
+        借券暴增（單日增 ≥ 近 20 日平均日變動 3 倍且 ≥1000 張）、
+        大戶連增（集保大戶占比連 3 週上升且累計 ≥ +0.5pp）。
+        排除 ETF；20 日均量 <500 張的殭屍股不報。
+        """
+        axis = self._inst_axis(session, 61)
+        if not axis:
+            return {"date": None, "items": []}
+        latest = axis[-1]
+        d_lo = axis[0]
+        d20 = axis[-20] if len(axis) >= 20 else axis[0]
+
+        etf_ids = set(
+            session.execute(select(models.Stock.id).where(models.Stock.is_etf.is_(True))).scalars().all()
+        )
+        names = dict(session.execute(select(models.Stock.id, models.Stock.name)).all())
+        sectors = dict(
+            session.execute(
+                select(models.Stock.id, models.Sector.name)
+                .join(models.Sector, models.Stock.sector_id == models.Sector.id)
+            ).all()
+        )
+        # 流動性門檻：近 20 日均量 ≥500 張
+        vol_rows = session.execute(
+            select(models.DailyPrice.stock_id, func.avg(models.DailyPrice.volume))
+            .where(models.DailyPrice.date >= d20)
+            .group_by(models.DailyPrice.stock_id)
+        ).all()
+        liquid = {sid for sid, v in vol_rows if v and v / 1000.0 >= 500}
+
+        items: list[dict] = []
+
+        # ── 投信首買 / 連買 ──
+        inst = pd.DataFrame(
+            session.execute(
+                select(models.Institutional.stock_id, models.Institutional.date, models.Institutional.trust_net)
+                .where(models.Institutional.date >= d_lo)
+                .order_by(models.Institutional.stock_id, models.Institutional.date)
+            ).all(),
+            columns=["stock_id", "date", "trust_net"],
+        )
+        for sid, g in inst.groupby("stock_id", sort=False):
+            if sid in etf_ids or sid not in liquid:
+                continue
+            if g.iloc[-1]["date"] != latest:
+                continue
+            today = _f(g.iloc[-1]["trust_net"])
+            if today is None or today <= 0:
+                continue
+            prev = [_f(v) for v in g.iloc[:-1]["trust_net"].tolist()]
+            if today >= 100 and len(prev) >= 40 and all((v or 0) <= 0 for v in prev):
+                items.append({
+                    "stock_id": sid, "kind": "trust_first_buy", "kind_label": "投信首買",
+                    "detail": f"60 日內首度買超 {int(today):,} 張", "value": today,
+                })
+                continue  # 首買不重複報連買
+            streak = _consec([_f(v) for v in g["trust_net"].tolist()])
+            if streak >= 3:
+                cum = float(g.tail(streak)["trust_net"].fillna(0).sum())
+                if cum >= 300:
+                    items.append({
+                        "stock_id": sid, "kind": "trust_streak", "kind_label": "投信連買",
+                        "detail": f"連 {streak} 日買超、累計 {int(cum):,} 張", "value": cum,
+                    })
+
+        # ── 借券暴增 ──
+        sbl = pd.DataFrame(
+            session.execute(
+                select(models.ShortLending.stock_id, models.ShortLending.date, models.ShortLending.sbl_change)
+                .where(models.ShortLending.date >= d20)
+                .order_by(models.ShortLending.stock_id, models.ShortLending.date)
+            ).all(),
+            columns=["stock_id", "date", "sbl_change"],
+        )
+        sbl_latest = sbl["date"].max() if not sbl.empty else None  # 借券與法人到檔日可能差一天
+        for sid, g in sbl.groupby("stock_id", sort=False):
+            if sid in etf_ids or sid not in liquid:
+                continue
+            if g.iloc[-1]["date"] != sbl_latest:
+                continue
+            today = _f(g.iloc[-1]["sbl_change"])
+            if today is None or today < 1000:
+                continue
+            prev = [abs(_f(v) or 0.0) for v in g.iloc[:-1]["sbl_change"].tolist()]
+            base = max(_mean(prev) or 0.0, 100.0)
+            if today >= 3 * base:
+                items.append({
+                    "stock_id": sid, "kind": "sbl_spike", "kind_label": "借券暴增",
+                    "detail": f"單日借券賣出餘額 +{int(today):,} 張（近月平均日變動 {int(base):,} 張）",
+                    "value": today,
+                })
+
+        # ── 大戶連增（週資料）──
+        hold = pd.DataFrame(
+            session.execute(
+                select(
+                    models.ShareholdingDistribution.stock_id,
+                    models.ShareholdingDistribution.date,
+                    models.ShareholdingDistribution.big_pct,
+                )
+                .order_by(models.ShareholdingDistribution.stock_id, models.ShareholdingDistribution.date)
+            ).all(),
+            columns=["stock_id", "date", "big_pct"],
+        )
+        for sid, g in hold.groupby("stock_id", sort=False):
+            if sid in etf_ids or sid not in liquid:
+                continue
+            bigs = [_f(v) for v in g["big_pct"].tolist() if _f(v) is not None]
+            if len(bigs) < 4:
+                continue
+            last4 = bigs[-4:]
+            rises = all(b > a for a, b in zip(last4, last4[1:]))
+            gain = last4[-1] - last4[0]
+            if rises and gain >= 0.5:
+                items.append({
+                    "stock_id": sid, "kind": "big_up_weeks", "kind_label": "大戶連增",
+                    "detail": f"大戶占比連 3 週上升、累計 +{gain:.1f}pp（至 {last4[-1]:.1f}%）",
+                    "value": gain,
+                })
+
+        for it in items:
+            it["name"] = names.get(it["stock_id"], it["stock_id"])
+            it["sector_name"] = sectors.get(it["stock_id"])
+        order = {"trust_first_buy": 0, "sbl_spike": 1, "trust_streak": 2, "big_up_weeks": 3}
+        items.sort(key=lambda x: (order.get(x["kind"], 9), -x["value"]))
+        return {"date": latest.isoformat(), "items": items[:40]}
+
     def _holding_trends(self, session: Session) -> dict[str, dict]:
         """每檔集保大戶/散戶/股東近 ~8 週變化（最新 − 約 8 週前）。"""
         rows = session.execute(

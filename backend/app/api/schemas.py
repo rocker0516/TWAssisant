@@ -543,6 +543,21 @@ class FlowStockList(BaseModel):
     items: list[FlowStockItem]
 
 
+class ChipAlertItem(BaseModel):
+    stock_id: str
+    name: str
+    sector_name: str | None = None
+    kind: str                  # trust_first_buy / trust_streak / sbl_spike / big_up_weeks
+    kind_label: str            # 投信首買 / 投信連買 / 借券暴增 / 大戶連增
+    detail: str                # 白話一句（含數字）
+    value: float               # 排序用強度
+
+
+class ChipAlertList(BaseModel):
+    date: str | None
+    items: list[ChipAlertItem]
+
+
 class InstActorIC(BaseModel):
     ic: float | None = None            # 法人累積 → 未來報酬 rank-IC
     winrate_pos: float | None = None

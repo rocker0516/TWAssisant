@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ACTOR_LABELS,
+  useChipAlerts,
   useFlowRelation,
   useFlowStocks,
   useMarketFlow,
@@ -64,6 +65,7 @@ export default function FlowPage() {
   const rotation = useSectorRotation(actor, 6);
   const stocks = useFlowStocks(sort, 50);
   const relation = useFlowRelation();
+  const alerts = useChipAlerts();
 
   const a = market.data?.actors?.[actor];
   const phase = a?.phase ?? "—";
@@ -206,6 +208,42 @@ export default function FlowPage() {
           <FlowColumn title="資金流出" tone="down" items={outflow} cumKey={cumKey} maxAbs={maxAbs} onSelect={(id) => navigate(`/sectors/${id}`)} />
         </div>
       </section>
+
+      {/* ── 籌碼異動 ── */}
+      {alerts.data && alerts.data.items.length > 0 && (
+        <section className="mb-6">
+          <div className="mb-2 flex items-baseline gap-2">
+            <h2 className="text-base font-semibold">今日籌碼異動</h2>
+            <span className="text-xs text-muted">
+              {alerts.data.date} · 規則式偵測（投信首買/連買、借券暴增、大戶連增），非進出訊號
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-1.5 md:grid-cols-2">
+            {alerts.data.items.map((a) => (
+              <div
+                key={`${a.kind}-${a.stock_id}`}
+                onClick={() => navigate(`/stocks/${a.stock_id}`)}
+                className="flex cursor-pointer items-center gap-2 rounded-lg border border-edge bg-panel px-3 py-1.5 text-sm hover:bg-panel2"
+              >
+                <span
+                  className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${
+                    a.kind === "sbl_spike"
+                      ? "bg-down/20 text-down"
+                      : a.kind === "trust_first_buy"
+                        ? "bg-amber-500/20 text-amber-400"
+                        : "bg-up/20 text-up"
+                  }`}
+                >
+                  {a.kind_label}
+                </span>
+                <span className="shrink-0 font-medium">{a.name}</span>
+                <span className="shrink-0 text-xs text-muted">{a.stock_id}</span>
+                <span className="truncate text-xs text-gray-400">{a.detail}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ── 下半：個股籌碼榜 ── */}
       <section>

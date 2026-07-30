@@ -15,6 +15,7 @@ from ..engines.flow_engine import FlowEngine
 from ..storage import models
 from .deps import get_session, get_session_write
 from .schemas import (
+    ChipAlertList,
     FlowStockList,
     InstPriceRelation,
     MarketFlowResponse,
@@ -70,6 +71,12 @@ def stock_flow(
     if sort not in _SORTS:
         sort = "total_cum20"
     return FlowStockList(**_engine.stock_flow_ranking(session, sort=sort, limit=limit))
+
+
+@router.get("/alerts", response_model=ChipAlertList)
+def chip_alerts(session: Session = Depends(get_session)) -> ChipAlertList:
+    """最新交易日籌碼異動：投信首買/連買、借券暴增、大戶連增（規則式）。"""
+    return ChipAlertList(**_engine.chip_alerts(session))
 
 
 @router.get("/relation", response_model=InstPriceRelation)

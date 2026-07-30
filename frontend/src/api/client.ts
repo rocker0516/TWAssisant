@@ -57,6 +57,8 @@ export type SectorFlowItem = components["schemas"]["SectorFlowItem"];
 export type FlowStockList = components["schemas"]["FlowStockList"];
 export type FlowStockItem = components["schemas"]["FlowStockItem"];
 export type InstPriceRelation = components["schemas"]["InstPriceRelation"];
+export type ChipAlertList = components["schemas"]["ChipAlertList"];
+export type ChipAlertItem = components["schemas"]["ChipAlertItem"];
 export type SectorRotationResponse = components["schemas"]["SectorRotationResponse"];
 export type SectorRotationItem = components["schemas"]["SectorRotationItem"];
 export type SectorRotationPoint = components["schemas"]["SectorRotationPoint"];
@@ -371,6 +373,13 @@ export function useFlowRelation() {
   return useQuery({
     queryKey: ["flow-relation"],
     queryFn: () => getJson<InstPriceRelation>("/flow/relation"),
+  });
+}
+
+export function useChipAlerts() {
+  return useQuery({
+    queryKey: ["flow-alerts"],
+    queryFn: () => getJson<ChipAlertList>("/flow/alerts"),
   });
 }
 

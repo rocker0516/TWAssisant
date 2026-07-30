@@ -51,12 +51,27 @@ def build_daily_message(session: Session, td: date) -> str | None:
         for tk in ("wave", "long")
     }
 
-    if not alerts and not any(rec.values()):
+    # 籌碼異動（投信首買/借券暴增優先，最多 5 則；失敗不擋通知）
+    chip_lines: list[str] = []
+    try:
+        from .engines.flow_engine import FlowEngine
+
+        chip = FlowEngine().chip_alerts(session)
+        picked = [i for i in chip["items"] if i["kind"] in ("trust_first_buy", "sbl_spike")][:5]
+        chip_lines = [f"・{i['kind_label']} {i['name']}（{i['stock_id']}）：{i['detail']}" for i in picked]
+    except Exception:  # noqa: BLE001 — 異動偵測掛了不影響主通知
+        pass
+
+    if not alerts and not any(rec.values()) and not chip_lines:
         return None
     lines = [f"📊 **TWAssistant 盤後提醒 {td}**", ""]
     if alerts:
         lines.append("**持股提醒**")
         lines.extend(alerts)
+        lines.append("")
+    if chip_lines:
+        lines.append("**籌碼異動**")
+        lines.extend(chip_lines)
         lines.append("")
     lines.append(f"**今日進場推薦**：波段 {rec['wave']} 檔、長線 {rec['long']} 檔")
     return "\n".join(lines)

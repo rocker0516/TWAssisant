@@ -421,6 +421,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/flow/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Chip Alerts
+         * @description 最新交易日籌碼異動：投信首買/連買、借券暴增、大戶連增（規則式）。
+         */
+        get: operations["chip_alerts_flow_alerts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/flow/relation": {
         parameters: {
             query?: never;
@@ -894,6 +914,30 @@ export interface components {
             };
             /** History */
             history: components["schemas"]["ChatMsg"][];
+        };
+        /** ChipAlertItem */
+        ChipAlertItem: {
+            /** Stock Id */
+            stock_id: string;
+            /** Name */
+            name: string;
+            /** Sector Name */
+            sector_name?: string | null;
+            /** Kind */
+            kind: string;
+            /** Kind Label */
+            kind_label: string;
+            /** Detail */
+            detail: string;
+            /** Value */
+            value: number;
+        };
+        /** ChipAlertList */
+        ChipAlertList: {
+            /** Date */
+            date: string | null;
+            /** Items */
+            items: components["schemas"]["ChipAlertItem"][];
         };
         /** ChipHistoryResponse */
         ChipHistoryResponse: {
@@ -2794,6 +2838,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    chip_alerts_flow_alerts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChipAlertList"];
                 };
             };
         };
