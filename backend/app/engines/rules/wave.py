@@ -65,6 +65,86 @@ class NearMa60(FilterRule):
 # 會噴硬篩：站上上揚月線（趨勢成立）+ 距季線<15%（非過度延伸）；不要求量增。
 WAVE_FILTERS: list[FilterRule] = [AboveRisingMa20(), NearMa60()]
 
+# ─────────────── 爆發風格（scripts/pop_presurge_mine.py 定版）───────────────
+# 起漲點反推＋三段 OOS：極高波動(atr>7%)+上揚月線 測試段摸+10%命中 72%（收盤錨/20日）
+# vs 現行清單 54.8%，三段 命中−基準 +22/+24/+29pp 全穩；代價=avg MAE −12.7% 較清單
+# 深約 2pp。刻意**不含 NearMa60**——乖離帽正好砍掉命中率最高的熱股（消融判死）。
+# 純門檻篩（非 rank 前 N%），約 20 檔/日；共用 COMMON_FILTERS（ETF/流動性/處置照排）。
+EXPLOSIVE_ATR_MIN = 0.07
+
+_ABOVE_RISING = AboveRisingMa20()
+
+
+def explosive_ok(ctx: StockContext) -> bool:
+    """爆發風格硬篩：極高波動 + 站上上揚月線（不看季線乖離）。"""
+    a = pop_atr_pct(ctx)
+    return a is not None and a > EXPLOSIVE_ATR_MIN and _ABOVE_RISING.passes(ctx)
+
+# ─────────────── 2026-07 答案反推定版（scripts/pop_condition_judge.py，holdout 已驗）───────
+# 排序新因子（清單內 IC 挖掘窗+holdout 雙活）：pos_52w IC+6.9→+9.8、pb IC+3.8→+11.9；
+# 缺值以中性 rank 併入，混合排序挖掘窗 46.9% vs 現行 43.8%（三段全贏、MAE 不變）。
+# 三個純門檻風格（控波動增量皆過 holdout 2025-01~2026-06）：
+#   strong 強勢延伸 = 52週位置>0.8 + 收盤>月線×1.23         holdout 命中 66.7% / +14.6pp
+#   story  故事股   = pb>5.5 + pe>56 + atr>4.9%              holdout 命中 68.0% / +13.8pp
+#   crash  深跌反攻 = (strong|story) + atr>6% + 大盤距季線≤−2.3%（市場端由
+#          ScoringEngine 判；本檔吐 crash_cand）             holdout 命中 68.2% / +10.3pp
+# strong/story 刻意不受 near60 乖離帽限制（乖離>28% 段落正是其增量來源）。
+STRONG_POS_MIN = 0.8
+STRONG_OVER_MA20 = 0.23
+STORY_PB_MIN = 5.5
+STORY_PE_MIN = 56.0
+STORY_ATR_MIN = 0.049
+CRASH_ATR_MIN = 0.06
+CRASH_MKT_BIAS60 = -2.3  # 大盤距季線 %（ScoringEngine 用）
+
+
+def pop_pos_52w(ctx: StockContext) -> float | None:
+    """52 週位置 0~1：(收盤−240日最低)/(240日最高−240日最低)。<60 根不算。"""
+    p = ctx.prices
+    if len(p) < 60 or ctx.close is None:
+        return None
+    w = p.iloc[-240:]
+    hi, lo = float(w["high"].max()), float(w["low"].min())
+    if hi <= lo:
+        return None
+    return (ctx.close - lo) / (hi - lo)
+
+
+def pop_pb(ctx: StockContext) -> float | None:
+    v = ctx.valuation
+    pb = v.get("pb") if v is not None else None
+    return float(pb) if pb is not None and pb > 0 else None
+
+
+def _pe(ctx: StockContext) -> float | None:
+    v = ctx.valuation
+    pe = v.get("pe") if v is not None else None
+    return float(pe) if pe is not None and pe > 0 else None
+
+
+def strong_ok(ctx: StockContext) -> bool:
+    """強勢延伸：52 週高檔 + 月線上方 23%+（不看季線乖離帽）。"""
+    pos = pop_pos_52w(ctx)
+    ind = ctx.ind
+    ma20 = ind.get("ma20") if ind is not None else None
+    if pos is None or not ma20 or ctx.close is None:
+        return False
+    return pos > STRONG_POS_MIN and ctx.close / ma20 - 1.0 > STRONG_OVER_MA20
+
+
+def story_ok(ctx: StockContext) -> bool:
+    """高估值故事股：pb>5.5 + pe>56 + 高波動。"""
+    pb, pe, a = pop_pb(ctx), _pe(ctx), pop_atr_pct(ctx)
+    return (pb is not None and pe is not None and a is not None
+            and pb > STORY_PB_MIN and pe > STORY_PE_MIN and a > STORY_ATR_MIN)
+
+
+def crash_cand_ok(ctx: StockContext) -> bool:
+    """深跌反攻的個股端條件：(強勢延伸|故事股)+atr>6%。市場端由引擎判。"""
+    a = pop_atr_pct(ctx)
+    return (a is not None and a > CRASH_ATR_MIN
+            and (strong_ok(ctx) or story_ok(ctx)))
+
 # ─────────────── 遲滯（去抖動，scripts/pop_hysteresis_backtest.py 定版）───────────────
 # 硬篩是二元開關、切在雜訊最大處（月線附近震盪股天天翻面）→ 榜單日換血 40%。
 # 遲滯=進榜嚴、出榜鬆：3 年三段 walk-forward，寬限股命中率 42.4% > 清單均值 37.9%

@@ -402,6 +402,18 @@ function PoppableEfficacyPanel() {
             </span>
           </div>
         )}
+        {has && eff!.explosive_total != null && eff!.explosive_total > 0 && (
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-orange-800/50 bg-orange-950/20 px-3 py-2 text-xs">
+            <span className="font-medium text-orange-300">爆發風格（波幅&gt;7%＋上揚月線）</span>
+            <span className="text-muted">
+              碰到+10% 隔天開 <b className="text-orange-300">{pct(eff!.overall_explosive_hit_rate_close)}</b>
+              ／隔天高 <b className="text-gray-200">{pct(eff!.overall_explosive_hit_rate)}</b>（{eff!.explosive_total} 檔）
+            </span>
+            <span className="text-muted">
+              vs 會噴清單 隔天開 {pct(eff!.overall_hit_rate_close)}／隔天高 {pct(eff!.overall_hit_rate)}
+            </span>
+          </div>
+        )}
         <button
           onClick={() => recompute.mutate()}
           disabled={recompute.isPending}
@@ -429,6 +441,8 @@ function PoppableEfficacyPanel() {
                 <th className="py-1 text-right font-normal">平均回撤</th>
                 <th className="py-1 text-right font-normal text-emerald-400/80">盤整檔</th>
                 <th className="py-1 text-right font-normal text-emerald-400/80">盤整摸+10%</th>
+                <th className="py-1 text-right font-normal text-orange-400/80">爆發檔</th>
+                <th className="py-1 text-right font-normal text-orange-400/80">爆發摸+10%</th>
               </tr>
             </thead>
             <tbody>
@@ -443,6 +457,8 @@ function PoppableEfficacyPanel() {
                   <td className="py-1.5 text-right tabular-nums text-down">{sign(r.avg_dd)}</td>
                   <td className="py-1.5 text-right tabular-nums text-muted">{r.coil_n ?? 0}</td>
                   <td className="py-1.5 text-right tabular-nums font-medium text-emerald-300">{pct(r.coil_hit_rate)}</td>
+                  <td className="py-1.5 text-right tabular-nums text-muted">{r.exp_n ?? 0}</td>
+                  <td className="py-1.5 text-right tabular-nums font-medium text-orange-300">{pct(r.exp_hit_rate)}</td>
                 </tr>
               ))}
             </tbody>

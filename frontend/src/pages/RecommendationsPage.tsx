@@ -6,6 +6,8 @@ import {
   usePoppableEfficacy,
   type RecommendationItem,
   type Track,
+  type WaveStyle,
+  useTagComboStats,
 } from "../api/client";
 import { RecommendationCard } from "../components/RecommendationCard";
 import { LookbackCalendar } from "../components/LookbackCalendar";
@@ -51,10 +53,14 @@ export default function RecommendationsPage() {
   const [showCalendar, setShowCalendar] = useState(false); // 月曆折疊
   const [showDefenseList, setShowDefenseList] = useState(false); // 大盤防禦期仍要查看清單
   const [selectedLookbackDate, setSelectedLookbackDate] = useState<string | null>(null); // null=今天；否則=月曆點選的推薦日
+  // 風格改標籤制（2026-07-28）：不再分頁切換，清單=會噴候選∪風格股，
+  // 每檔卡片顯示標籤（會噴/爆發/強勢延伸/故事股/深跌反攻），標籤越多排越前。
   // 回看只支援波段軌；切到長線軌時自動回到今天
   const effTrack: Track = selectedLookbackDate ? "wave" : track;
-  const { data, isLoading, isError, error } = useRecommendations(effTrack);
+  const effStyle: WaveStyle = "pop";
+  const { data, isLoading, isError, error } = useRecommendations(effTrack, effStyle);
   const { data: eff } = usePoppableEfficacy();
+  const { data: tagStats } = useTagComboStats();
 
   // 波段(會噴)軌：API 回全部過硬篩股，前端用「前 N%」橫桿就地切（分數=百分位，前N% = 分數≥100−N）
   const topPct = topPctOverride ?? (data?.top_pct ?? 20);
@@ -66,13 +72,14 @@ export default function RecommendationsPage() {
   const inDefense = track === "wave" && selectedLookbackDate == null && regime?.state === "defense";
   const gateClosed = inDefense && !showDefenseList;
 
-  // 月曆摘要（命中率）
-  const calendar = useRecommendationsLookbackCalendar(topPct);
+  // 月曆摘要（命中率）：隨風格切換（爆發=純門檻篩成員的命中率）
+  const calendar = useRecommendationsLookbackCalendar(topPct, effStyle);
 
-  // 回看：指定推薦日的清單（含 review）
+  // 回看：指定推薦日的清單（含 review），同樣隨風格
   const lookback = useRecommendationsLookback({
     date: selectedLookbackDate,
     topPct: selectedLookbackDate ? topPct : undefined,
+    style: effStyle,
   });
 
   // 位階/買點篩選（僅波段軌、個人偏好）：比對卡片同一套標籤，缺料則濾掉。
@@ -114,24 +121,32 @@ export default function RecommendationsPage() {
         : sortItems(baseItems, sort).filter(matchPos).filter(matchPrice),
     [isLookback, baseItems, sort, matchPos, matchPrice],
   );
-  // 波段軌：依橫桿切「達標 / 未達」；長線軌：API 已切 items / near；回看：後端已切
+  // 標籤數：會噴(過硬篩且分數達橫桿) + 各純門檻風格；標籤越多=越多獨立驗證的訊號共振
+  const tagCountOf = useMemo(
+    () => (it: RecommendationItem) =>
+      (it.passed_styles?.length ?? 0)
+      + (it.passed_filter && (it.total_score ?? 0) >= cutoff ? 1 : 0),
+    [cutoff],
+  );
+  // 波段軌：主清單=至少一個標籤，標籤多者在前（穩定排序保留次要排序鍵）；
+  // 觀察區=0標籤（未達橫桿又無風格）；長線軌/回看沿用原邏輯
   const main = useMemo(
     () =>
       isLookback
-        ? sorted
+        ? [...sorted].sort((a, b) => tagCountOf(b) - tagCountOf(a))
         : track === "wave"
-        ? sorted.filter((it) => (it.total_score ?? 0) >= cutoff)
+        ? sorted.filter((it) => tagCountOf(it) > 0).sort((a, b) => tagCountOf(b) - tagCountOf(a))
         : sorted,
-    [isLookback, track, sorted, cutoff],
+    [isLookback, track, sorted, tagCountOf],
   );
   const extra = useMemo(
     () =>
       isLookback
         ? []
         : track === "wave"
-        ? sorted.filter((it) => (it.total_score ?? 0) < cutoff)
+        ? sorted.filter((it) => tagCountOf(it) === 0)
         : sortItems(data?.near ?? [], sort).filter(matchPrice),
-    [isLookback, track, sorted, cutoff, data, sort, matchPrice],
+    [isLookback, track, sorted, tagCountOf, data, sort, matchPrice],
   );
   const extraLabel = track === "wave" ? `未達前 ${topPct}% 觀察區` : "接近門檻觀察區";
 
@@ -158,7 +173,7 @@ export default function RecommendationsPage() {
               <>
                 盤後資料：{data?.date ?? "—"}
                 {track === "wave"
-                  ? `　會噴前 ${topPct}%（分數 ≥ ${cutoff}）`
+                  ? `　會噴前 ${topPct}%＋風格標籤（標籤越多排越前）`
                   : `　門檻 ≥ ${data?.threshold ?? 70} 分`}
               </>
             )}
@@ -250,7 +265,7 @@ export default function RecommendationsPage() {
         </div>
       )}
 
-      {/* 會噴門檻橫桿（僅波段軌）*/}
+      {/* 會噴門檻橫桿（僅波段軌）：只影響「會噴」標籤的門檻，不影響風格標籤 */}
       {track === "wave" && !gateClosed && (
         <div className="mb-3 flex flex-wrap items-center gap-3">
           <span className="text-sm text-muted">嚴格度</span>
@@ -263,7 +278,9 @@ export default function RecommendationsPage() {
             className="h-1.5 w-56 cursor-pointer accent-sky-500"
           />
           <span className="text-sm font-medium text-sky-300">前 {topPct}%</span>
-          <span className="text-xs text-muted">分數 ≥ {cutoff}　·　{main.length} 檔</span>
+          <span className="text-xs text-muted">
+            分數 ≥ {cutoff} 得「會噴」標籤　·　共 {main.length} 檔　·　標籤越多排越前
+          </span>
         </div>
       )}
 
@@ -291,7 +308,8 @@ export default function RecommendationsPage() {
       {/* 會噴誠實話術：分數=會噴機率(回測實證)，非漲跌保證；高波動雙面刃。回看模式改顯示回看摘要 */}
       {track === "wave" && !isLookback && !gateClosed && (
         <div className="mb-4 rounded-lg border border-amber-700/50 bg-amber-950/30 px-3.5 py-2.5 text-xs leading-relaxed text-amber-200/90">
-          分數＝<b>「會噴機率」</b>——當天全市場 <b>2×波動度＋均線多排</b> 的百分位。
+          分數＝<b>當天全市場的「會噴排名」百分位</b>（2×波動度＋均線多排＋52週位階＋PB 四因子）——
+          是<b>相對排名不是機率</b>；機率看標籤旁的同條件五年實證命中率。
           {effHitClose != null && effPct != null
             ? <>回測：前 {effPct}% 清單，<b>隔天開盤進場後 {effDays} 個交易日內碰到 +10%</b> 的機率約 <b>{effHitClose}%</b>
                 {effHit != null ? <>（追高到隔天最高則約 {effHit}%）</> : null}。</>
@@ -394,14 +412,20 @@ export default function RecommendationsPage() {
             ? `今日無符合條件的${TRACK_LABELS[track]}軌標的`
             : posFilter === "低位盤整"
             ? "目前會噴清單中沒有「低位盤整打底」的標的。會噴股多在上揚趨勢、波動偏大，少見低檔盤整收斂——此篩選多數時候為空屬正常，可切回「全部」。"
-            : `目前無進入前 ${topPct}% 的標的，可放寬橫桿`}
+            : `目前沒有掛任何標籤（會噴/爆發/強勢延伸/故事股/深跌反攻）的標的，可放寬橫桿`}
         </div>
       )}
 
       {!gateClosed && (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {main.map((it) => (
-          <RecommendationCard key={it.stock_id} item={it} sparkDays={sparkDays} />
+          <RecommendationCard
+            key={it.stock_id}
+            item={it}
+            sparkDays={sparkDays}
+            popQualified={Boolean(it.passed_filter) && (it.total_score ?? 0) >= cutoff}
+            tagStats={tagStats?.stats}
+          />
         ))}
       </div>
       )}
@@ -418,7 +442,7 @@ export default function RecommendationsPage() {
           {showExtra && (
             <div className="grid grid-cols-1 gap-4 opacity-90 sm:grid-cols-2 lg:grid-cols-3">
               {extra.map((it) => (
-                <RecommendationCard key={it.stock_id} item={it} sparkDays={sparkDays} />
+                <RecommendationCard key={it.stock_id} item={it} sparkDays={sparkDays} tagStats={tagStats?.stats} />
               ))}
             </div>
           )}

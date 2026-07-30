@@ -27,7 +27,10 @@ from .base import BaseEngine
 from .calibration import _INST_COLS, _MIN_BARS, _iter_stock_groups
 from .context import StockContext
 from .rules.common import COMMON_FILTERS
-from .rules.wave import WAVE_FILTERS, ConsolidationScore, pop_atr_pct, pop_ma_align
+from .rules.wave import (
+    WAVE_FILTERS, ConsolidationScore, explosive_ok, pop_atr_pct, pop_ma_align,
+    pop_pos_52w,
+)
 from .scoring import _DEFAULT_TOP_PCT, _pct_ranks
 from .tracks import WaveTrack
 
@@ -121,6 +124,28 @@ class PoppabilityEfficacyEngine(BaseEngine):
         stock_ids = sorted(stock_map)
         date_lo = min(targets) - timedelta(days=_WARMUP_DAYS)
 
+        # PB（rank 第四因子）：PIT=當日最近一筆 ≤ T（與線上 _load_latest 語意一致）
+        from bisect import bisect_right as _br
+        val_by_sid: dict[str, tuple[list, list]] = {}
+        for vsid, vd, vpb in session.execute(
+            select(models.Valuation.stock_id, models.Valuation.date, models.Valuation.pb)
+            .where(models.Valuation.date >= date_lo)
+            .order_by(models.Valuation.stock_id, models.Valuation.date)
+        ):
+            val_by_sid.setdefault(vsid, ([], []))
+            val_by_sid[vsid][0].append(vd)
+            val_by_sid[vsid][1].append(vpb)
+
+        def _pb_at(sid_: str, T_: date):
+            v = val_by_sid.get(sid_)
+            if not v:
+                return None
+            i = _br(v[0], T_) - 1
+            if i < 0:
+                return None
+            pb = v[1][i]
+            return float(pb) if pb is not None and pb > 0 else None
+
         # per-date 累積候選（含 rank 原始值 + 實際結果）；排名在收齊全市場後逐日算。
         agg: dict[date, list] = {t: [] for t in targets}
         for sid, pdf, ind_g, inst_g, margin_g in _iter_stock_groups(session, stock_ids, date_lo):
@@ -145,7 +170,12 @@ class PoppabilityEfficacyEngine(BaseEngine):
                 atr_pct, ma_align = pop_atr_pct(ctx), pop_ma_align(ctx)
                 if atr_pct is None or ma_align is None:  # 不可排名 → 不進當日宇宙
                     continue
-                passed_filter = all(f.passes(ctx) for f in _EFF_FILTERS)
+                pos_52w = pop_pos_52w(ctx)
+                pb = _pb_at(sid, T)
+                common_ok = all(f.passes(ctx) for f in COMMON_FILTERS)
+                passed_filter = common_ok and all(f.passes(ctx) for f in WAVE_FILTERS)
+                # 爆發風格：極高波動+上揚月線、不看季線乖離（與線上 tracks.py 同規則）
+                explosive = common_ok and explosive_ok(ctx)
                 cons = _EFF_CONS.score(ctx)  # 低位盤整擇時濾網（point-in-time，與線上同算）
                 # 實務：盤後看到推薦→隔天才能進。保守錨=隔天最高(最壞情況追高)；一般錨=隔天開盤。
                 c0 = highs[p + 1] if p + 1 < len(highs) else None
@@ -166,8 +196,10 @@ class PoppabilityEfficacyEngine(BaseEngine):
                 agg[T].append({
                     "stock_id": sid, "name": stock.name,
                     "atr_pct": atr_pct, "ma_align": ma_align,
+                    "pos_52w": pos_52w, "pb": pb,
                     "pos": None, "cons": cons,
                     "passed_filter": passed_filter,
+                    "explosive": explosive,
                     "has_out": has_out, "mfe": mfe, "dd": dd, "cret": cret,
                     "hit": hit, "hit_close": hit_close,
                 })
@@ -175,13 +207,25 @@ class PoppabilityEfficacyEngine(BaseEngine):
         by_date = []
         tot_n = tot_hit = tot_hit_close = 0
         tot_coil_n = tot_coil_hit = 0
+        tot_exp_n = tot_exp_hit = tot_exp_hit_close = 0
         list_by_t: dict[date, list] = {}
         for t in targets:
             cands = agg[t]
             ar = _pct_ranks([c["atr_pct"] for c in cands])
             lr = _pct_ranks([c["ma_align"] for c in cands])
-            for c, ra, rl in zip(cands, ar, lr):  # 當天全市場橫截面 rank → 會噴分數
-                c["pop"] = round((2.0 * ra + rl) / 3.0 * 100.0, 1) if (ra is not None and rl is not None) else None
+            pr = _pct_ranks([c["pos_52w"] for c in cands])
+            br = _pct_ranks([c["pb"] for c in cands])
+            comps = []
+            for ra, rl, rp, rb in zip(ar, lr, pr, br):
+                # 與線上 finalize_wave_pop 同式（四因子+重排名定版）：pos/pb 缺值中性 0.5
+                if ra is None or rl is None:
+                    comps.append(None)
+                    continue
+                rp = 0.5 if rp is None else rp
+                rb = 0.5 if rb is None else rb
+                comps.append((2.0 * ra + rl + rp + rb) / 5.0)
+            for c, tr in zip(cands, _pct_ranks(comps)):  # 合成再重排名 → 真百分位
+                c["pop"] = round(tr * 100.0, 1) if tr is not None else None
             uni = [c for c in cands if c["passed_filter"] and c["has_out"]]  # 過會噴硬篩宇宙(基準)
             uni_n = len(uni)
             uni_hit = sum(1 for c in uni if c["hit"])
@@ -193,11 +237,18 @@ class PoppabilityEfficacyEngine(BaseEngine):
             coil = [c for c in lst if _is_coil(c)]  # 清單中再過「低位盤整」擇時濾網
             coil_n = len(coil)
             coil_hit = sum(1 for c in coil if c["hit"])
+            exp = [c for c in cands if c["explosive"] and c["has_out"]]  # 爆發風格（獨立於會噴硬篩）
+            exp_n = len(exp)
+            exp_hit = sum(1 for c in exp if c["hit"])
+            exp_hit_close = sum(1 for c in exp if c["hit_close"])
             tot_n += n
             tot_hit += hit
             tot_hit_close += hit_close
             tot_coil_n += coil_n
             tot_coil_hit += coil_hit
+            tot_exp_n += exp_n
+            tot_exp_hit += exp_hit
+            tot_exp_hit_close += exp_hit_close
             list_by_t[t] = lst
             by_date.append({
                 "date": t.isoformat(), "n": n,
@@ -208,6 +259,8 @@ class PoppabilityEfficacyEngine(BaseEngine):
                 "avg_dd": round(sum(c["dd"] for c in lst) / n * 100, 1) if n else None,
                 "coil_n": coil_n,
                 "coil_hit_rate": round(coil_hit / coil_n, 3) if coil_n else None,
+                "exp_n": exp_n,
+                "exp_hit_rate": round(exp_hit / exp_n, 3) if exp_n else None,
             })
 
         latest = targets[-1]
@@ -232,6 +285,10 @@ class PoppabilityEfficacyEngine(BaseEngine):
             "total_list": tot_n,
             "coil_total": tot_coil_n,
             "coil_overall_hit_rate": round(tot_coil_hit / tot_coil_n, 3) if tot_coil_n else None,
+            # 爆發風格（atr>7%+上揚月線、無乖離帽）：同錨點/同窗口的碰到率，供風格對比
+            "explosive_total": tot_exp_n,
+            "overall_explosive_hit_rate": round(tot_exp_hit / tot_exp_n, 3) if tot_exp_n else None,
+            "overall_explosive_hit_rate_close": round(tot_exp_hit_close / tot_exp_n, 3) if tot_exp_n else None,
             "detail_date": latest.isoformat(),
             "detail": detail,
             "note": (

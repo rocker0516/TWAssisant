@@ -2,7 +2,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { components } from "./types";
 
 export type RecommendationList = components["schemas"]["RecommendationList"];
-export type RecommendationItem = components["schemas"]["RecommendationItem"];
+// openapi 型別未重跑，手補標籤制新欄（後端 schemas.RecommendationItem 已回）
+export type RecommendationItem = components["schemas"]["RecommendationItem"] & {
+  passed_styles?: string[] | null; // 通過的純門檻風格（explosive/strong/story/crash）
+  passed_filter?: boolean | null; // 會噴硬篩(含遲滯)是否通過
+};
 export type RecommendationDetail = components["schemas"]["RecommendationDetail"];
 export type RecommendationLookbackResponse = components["schemas"]["RecommendationLookbackResponse"];
 export type LookbackReview = components["schemas"]["LookbackReview"];
@@ -80,36 +84,57 @@ async function getJson<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export function useRecommendations(track: Track) {
+// 波段風格：pop=會噴(硬篩+前N%)；explosive=爆發(極高波動+上揚月線，純門檻篩)
+export type WaveStyle = "pop" | "explosive" | "strong" | "story" | "crash";
+
+export type TagComboStats = {
+  generated_at?: string;
+  note?: string;
+  stats: Record<string, { n: number; hit: number; avg_mae: number }>;
+};
+
+// 標籤組合五年實證命中（靜態統計，卡片顯示用）
+export function useTagComboStats() {
   return useQuery({
-    queryKey: ["recommendations", track],
-    queryFn: () => getJson<RecommendationList>(`/recommendations?track=${track}`),
+    queryKey: ["tag-combo-stats"],
+    queryFn: () => getJson<TagComboStats>(`/recommendations/tag-stats`),
+    staleTime: Infinity,
+  });
+}
+
+export function useRecommendations(track: Track, style: WaveStyle = "pop") {
+  return useQuery({
+    queryKey: ["recommendations", track, style],
+    queryFn: () =>
+      getJson<RecommendationList>(`/recommendations?track=${track}&style=${style}`),
   });
 }
 
 // 回看：指定推薦日（月曆點選）；未給 date 就用 N 個交易日前
 export function useRecommendationsLookback(
-  opts: { date?: string | null; days?: number; topPct?: number },
+  opts: { date?: string | null; days?: number; topPct?: number; style?: WaveStyle },
 ) {
-  const { date, days, topPct } = opts;
+  const { date, days, topPct, style } = opts;
   const params = new URLSearchParams();
   if (date) params.set("date", date);
   else if (days != null && days > 0) params.set("days", String(days));
   if (topPct != null) params.set("top_pct", String(topPct));
+  if (style && style !== "pop") params.set("style", style);
   const enabled = !!date || (days != null && days > 0);
   return useQuery({
-    queryKey: ["recommendations-lookback", date ?? null, days ?? null, topPct ?? null],
+    queryKey: ["recommendations-lookback", date ?? null, days ?? null, topPct ?? null, style ?? "pop"],
     queryFn: () => getJson<RecommendationLookbackResponse>(`/recommendations/lookback?${params}`),
     enabled,
   });
 }
 
 // 月曆：每個過去 Score 日一筆命中率
-export function useRecommendationsLookbackCalendar(topPct?: number) {
+export function useRecommendationsLookbackCalendar(topPct?: number, style: WaveStyle = "pop") {
   const params = new URLSearchParams();
   if (topPct != null) params.set("top_pct", String(topPct));
+  if (style !== "pop") params.set("style", style);
   return useQuery({
-    queryKey: ["recommendations-lookback-calendar", topPct ?? null],
+    queryKey: ["recommendations-lookback-calendar", topPct ?? null, style],
     queryFn: () => getJson<LookbackCalendar>(`/recommendations/lookback/calendar?${params}`),
   });
 }
@@ -135,6 +160,8 @@ export type PoppableEffByDate = {
   avg_dd: number | null;
   coil_n?: number;
   coil_hit_rate?: number | null;
+  exp_n?: number; // 爆發風格（atr>7%+上揚月線）當日檔數
+  exp_hit_rate?: number | null;
 };
 export type PoppableEffDetail = {
   stock_id: string;
@@ -161,6 +188,9 @@ export type PoppableEfficacy = {
   total_list: number;
   coil_total?: number;
   coil_overall_hit_rate?: number | null;
+  explosive_total?: number; // 爆發風格總樣本
+  overall_explosive_hit_rate?: number | null; // 爆發：買在隔天最高
+  overall_explosive_hit_rate_close?: number | null; // 爆發：買在隔天開盤
   detail_date?: string | null;
   detail: PoppableEffDetail[];
   note?: string;

@@ -17,7 +17,10 @@ from .context import StockContext
 from .rules.base import FilterRule, ScoreRule, WeightedScorer, score_confidence
 from .rules.common import COMMON_FILTERS
 from .rules.long import LONG_FILTERS, LONG_SCORERS
-from .rules.wave import WAVE_FILTERS, WAVE_SCORERS, hyst_inputs, pop_atr_pct, pop_ma_align
+from .rules.wave import (
+    WAVE_FILTERS, WAVE_SCORERS, crash_cand_ok, explosive_ok, hyst_inputs,
+    pop_atr_pct, pop_ma_align, pop_pb, pop_pos_52w, story_ok, strong_ok,
+)
 from .stoploss import StopLossCalculator
 
 _DEFAULT_THRESHOLD = 70.0
@@ -96,6 +99,7 @@ class Track(ABC):
             "track": self.track_key,
             "passed_filter": passed_filter,
             "strict_filter": passed_filter,  # 長線無遲滯，與原始硬篩相同（批次 upsert 欄位鍵需一致）
+            "passed_styles": [],  # 風格只在波段軌有意義（批次 upsert 欄位鍵需一致）
             "passed": passed,
             "total_score": total,
             "sub_scores": sub_scores,
@@ -146,10 +150,19 @@ class WaveTrack(Track):
             # passed_filter 先放當日原始硬篩；ScoringEngine 再用昨日狀態套遲滯改寫
             "passed_filter": strict,
             "strict_filter": strict,
+            # 爆發風格：極高波動+上揚月線、不看季線乖離（與會噴硬篩獨立，無遲滯）
+            # 各風格純門檻互相獨立；crash_cand 為深跌反攻的個股端，市場端由引擎補判
+            "passed_styles": ([] if not common_ok else [
+                st for st, ok in (
+                    ("explosive", explosive_ok(ctx)), ("strong", strong_ok(ctx)),
+                    ("story", story_ok(ctx)), ("crash_cand", crash_cand_ok(ctx)),
+                ) if ok
+            ]),
             "hyst_inputs": hyst_inputs(ctx, strict),  # transient，引擎用完即拔
             "passed": False,        # 引擎橫截面 rank 後再定
             "total_score": None,    # 引擎填（會噴 rank 分數）
-            "pop_inputs": {"atr_pct": pop_atr_pct(ctx), "ma_align": pop_ma_align(ctx)},
+            "pop_inputs": {"atr_pct": pop_atr_pct(ctx), "ma_align": pop_ma_align(ctx),
+                           "pos_52w": pop_pos_52w(ctx), "pb": pop_pb(ctx)},
             "sub_scores": sub_scores,
             "sector_adjust": 0.0,   # 會噴分數＝純 rank，不加類股修正（與回測一致）
             "coverage": None,       # 引擎填

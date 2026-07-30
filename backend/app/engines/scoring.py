@@ -60,19 +60,39 @@ def finalize_wave_pop(rows: list[dict], top_pct: float = _DEFAULT_TOP_PCT) -> No
         return
     atr_rank = _pct_ranks([(r.get("pop_inputs") or {}).get("atr_pct") for r in wave])
     align_rank = _pct_ranks([(r.get("pop_inputs") or {}).get("ma_align") for r in wave])
+    # 2026-07 答案反推定版：+pos_52w/pb（清單內 IC 挖掘窗+holdout 雙活），缺值中性 0.5。
+    # 混合 (2atr+align+pos+pb)/5 挖掘窗 46.9% vs 舊二因子 43.8%，三段全贏、MAE 不變。
+    pos_rank = _pct_ranks([(r.get("pop_inputs") or {}).get("pos_52w") for r in wave])
+    pb_rank = _pct_ranks([(r.get("pop_inputs") or {}).get("pb") for r in wave])
     cutoff = 100.0 - float(top_pct)
-    for r, ra, rl in zip(wave, atr_rank, align_rank):
-        r.pop("pop_inputs", None)
+    # 合成 → 再做一次全市場百分位重排名：平均式合成會向中間集中（分數≥80 實切僅前
+    # ~6%，橫桿「前N%」名不符實=漏標的）；重排名後 分數≥100−N ⟺ 真·前N%，
+    # 且回測嚴格度單調（前20% 43.1% → 前3% 47.6%，三段皆穩）。
+    comps: list[float | None] = []
+    presents: list[int] = []
+    for ra, rl, rp, rb in zip(atr_rank, align_rank, pos_rank, pb_rank):
         if ra is None or rl is None:
+            comps.append(None)
+            presents.append(0)
+            continue
+        presents.append(2 + int(rp is not None) + int(rb is not None))
+        rp = 0.5 if rp is None else rp
+        rb = 0.5 if rb is None else rb
+        comps.append((2.0 * ra + rl + rp + rb) / 5.0)
+    total_rank = _pct_ranks(comps)
+    for r, tr, n_present in zip(wave, total_rank, presents):
+        r.pop("pop_inputs", None)
+        if tr is None:
             r["total_score"] = None
             r["passed"] = False
             r["coverage"] = 0.0
             r["confidence"] = 0.0
             continue
-        total = round((2.0 * ra + rl) / 3.0 * 100.0, 2)
+        total = round(tr * 100.0, 2)
         r["total_score"] = total
-        r["coverage"] = 1.0
-        r["confidence"] = 100.0  # 兩個 rank 輸入皆在；穩定度於 _apply_stability 折入
+        # 完整度：4 個 rank 因子缺幾個扣幾個（pos/pb 缺值中性補但誠實降 confidence）
+        r["coverage"] = round(n_present / 4.0, 2)
+        r["confidence"] = round(100.0 * n_present / 4.0, 1)  # 完整度；穩定度於 _apply_stability 再折入
         r["passed"] = bool(r.get("passed_filter")) and total >= cutoff
 
 
@@ -318,6 +338,7 @@ class ScoringEngine(BaseEngine):
         self._apply_wave_hysteresis(session, td, rows)
         top_pct = float((config.get("wave") or {}).get("top_pct", _DEFAULT_TOP_PCT))
         finalize_wave_pop(rows, top_pct)
+        self._apply_crash_style(session, td, rows)
 
         self._apply_stability(session, td, rows)
 
@@ -360,6 +381,33 @@ class ScoringEngine(BaseEngine):
             else:
                 soft_break = not strict_t and not strict_y
                 r["passed_filter"] = not (h["hard_break"] or soft_break)
+
+    def _apply_crash_style(self, session: Session, td: date, rows: list[dict]) -> None:
+        """深跌反攻風格的市場端閘（wave.CRASH_MKT_BIAS60）：
+
+        大盤收盤距 MA60 ≤ −2.3% 時，crash_cand（個股端已過）轉正式 crash 風格；
+        其餘日子拔掉 crash_cand（不落 DB、清單為空=誠實）。
+        """
+        from .rules.wave import CRASH_MKT_BIAS60
+        closes = session.execute(
+            select(models.MarketIndex.close)
+            .where(models.MarketIndex.date <= td)
+            .order_by(models.MarketIndex.date.desc())
+            .limit(60)
+        ).scalars().all()
+        deep = False
+        if len(closes) == 60:
+            ma60 = sum(float(c) for c in closes) / 60.0
+            deep = ma60 > 0 and (float(closes[0]) / ma60 - 1.0) * 100.0 <= CRASH_MKT_BIAS60
+        for r in rows:
+            if r.get("track") != "wave":
+                continue
+            styles = r.get("passed_styles") or []
+            if "crash_cand" in styles:
+                styles = [st for st in styles if st != "crash_cand"]
+                if deep:
+                    styles.append("crash")
+                r["passed_styles"] = styles
 
     def _apply_stability(self, session: Session, td: date, rows: list[dict]) -> None:
         """L3：用近期歷史總分算穩定度，折進 confidence（confidence = 完整度×共識度×穩定度）。
