@@ -30,6 +30,7 @@ _engine = FlowEngine()
 _SORTS = {
     "total_cum20", "foreign_cum20", "trust_cum20", "dealer_cum20",
     "total_cum60", "consec_days", "big_trend", "holders_change",
+    "sbl_chg20", "dt_ratio5",
 }
 
 

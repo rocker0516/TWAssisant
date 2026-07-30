@@ -37,6 +37,8 @@ const SORTS: { key: string; label: string }[] = [
   { key: "consec_days", label: "連買天數" },
   { key: "big_trend", label: "大戶增持" },
   { key: "holders_change", label: "股東減少" },
+  { key: "sbl_chg20", label: "借券增加" },
+  { key: "dt_ratio5", label: "當沖比" },
 ];
 
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
@@ -148,6 +150,38 @@ export default function FlowPage() {
             )}
           </div>
         )}
+        {/* 期貨籌碼儀表（TAIFEX） */}
+        {market.data?.derivatives && (
+          <div className="mt-3 rounded-lg bg-panel2 px-3 py-2 text-sm text-gray-300">
+            <span className="mr-2 text-xs text-muted">期貨籌碼</span>
+            外資台指期淨部位{" "}
+            <b className={changeColor(market.data.derivatives.foreign_oi_latest ?? 0)}>
+              {fmtNum(market.data.derivatives.foreign_oi_latest, 0)}
+            </b>{" "}
+            口
+            {market.data.derivatives.foreign_oi_chg20 != null && (
+              <>
+                （近20日{" "}
+                <b className={changeColor(market.data.derivatives.foreign_oi_chg20)}>
+                  {market.data.derivatives.foreign_oi_chg20 > 0 ? "+" : ""}
+                  {fmtNum(market.data.derivatives.foreign_oi_chg20, 0)}
+                </b>{" "}
+                口）
+              </>
+            )}
+            {market.data.derivatives.pc_oi_ratio.length > 0 && (
+              <>
+                {" "}· 選擇權 P/C（未平倉）{" "}
+                <b>{fmtNum(market.data.derivatives.pc_oi_ratio[market.data.derivatives.pc_oi_ratio.length - 1], 1)}%</b>
+              </>
+            )}
+            {market.data.derivatives.divergence && (
+              <div className="mt-1 text-xs text-muted">
+                {market.data.derivatives.divergence}。期現對照為觀察儀表（未經回測驗證，非進出訊號）。
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       {/* ── 中段：類股法人資金流向（輪動象限圖 + 精確排名）── */}
@@ -197,6 +231,8 @@ export default function FlowPage() {
                 <th className="px-3 py-2 text-right">大戶趨勢</th>
                 <th className="px-3 py-2 text-right">散戶趨勢</th>
                 <th className="px-3 py-2 text-right">股東增減</th>
+                <th className="px-3 py-2 text-right">借券20日</th>
+                <th className="px-3 py-2 text-right">當沖%</th>
                 <th className="px-3 py-2 text-right">漲跌</th>
               </tr>
             </thead>
@@ -221,6 +257,8 @@ export default function FlowPage() {
                   <td className={`px-3 py-2 text-right tabular-nums ${changeColor(s.big_trend)}`}>{s.big_trend == null ? "—" : fmtPct(s.big_trend)}</td>
                   <td className={`px-3 py-2 text-right tabular-nums ${changeColor(s.small_trend != null ? -s.small_trend : null)}`}>{s.small_trend == null ? "—" : fmtPct(s.small_trend)}</td>
                   <td className={`px-3 py-2 text-right tabular-nums ${changeColor(s.holders_change != null ? -s.holders_change : null)}`}>{s.holders_change == null ? "—" : fmtPct(s.holders_change)}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums ${changeColor(s.sbl_chg20 != null ? -s.sbl_chg20 : null)}`}>{s.sbl_chg20 == null ? "—" : fmtNum(s.sbl_chg20, 0)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-gray-300">{s.dt_ratio5 == null ? "—" : `${s.dt_ratio5}%`}</td>
                   <td className={`px-3 py-2 text-right tabular-nums ${changeColor(s.change_pct)}`}>{fmtPct(s.change_pct)}</td>
                 </tr>
               ))}
@@ -231,7 +269,7 @@ export default function FlowPage() {
           )}
         </div>
         <p className="mt-2 text-xs text-muted">
-          數字＝近 N 日法人淨買超累計（張，紅買綠賣）；大戶/散戶趨勢＝集保占比近 ~8 週變化（個百分點），散戶/股東以「減少」為偏多上色。點列看個股詳情。
+          數字＝近 N 日法人淨買超累計（張，紅買綠賣）；大戶/散戶趨勢＝集保占比近 ~8 週變化（個百分點），散戶/股東以「減少」為偏多上色。借券20日＝借券賣出餘額近20日增減（張，減少＝空方回補偏多上色）；當沖%＝近5日當沖占成交量比（上市限定，高=浮額多）。點列看個股詳情。
         </p>
       </section>
     </div>

@@ -19,6 +19,7 @@ from .interfaces import (
     UniverseProvider,
 )
 from .combined import CombinedMarketSource, CombinedNewsSource
+from .taifex import TaifexSource
 from .tdcc import TdccSource
 from .tpex import TpexSource
 from .twse import TwseSource
@@ -30,6 +31,7 @@ _SOURCE_CLASSES: dict[str, type[BaseSource]] = {
     "twse": TwseSource,
     "tpex": TpexSource,
     "tdcc": TdccSource,
+    "taifex": TaifexSource,
     "twmarket": CombinedMarketSource,
     "twnews": CombinedNewsSource,
 }

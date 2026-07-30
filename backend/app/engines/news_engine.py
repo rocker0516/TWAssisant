@@ -108,9 +108,11 @@ class NewsEngine(BaseEngine):
             if sid not in known:
                 continue
             title = rec["title"]
-            # 來源已標利空（處置）則沿用，否則關鍵字分類
+            # 來源已標利空（處置）或已標分類（內部人轉讓）則沿用，否則關鍵字分類
             if rec.get("is_risk"):
                 category, is_risk = rec.get("category") or "利空", True
+            elif rec.get("category"):
+                category, is_risk = rec["category"], False
             else:
                 category, is_risk = classify(title, rec.get("summary"))
             rows.append({

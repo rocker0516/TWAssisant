@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/recommendations/tag-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recommendation Tag Stats
+         * @description 標籤組合五年實證命中統計（scripts/build_tag_combo_stats.py 產出，靜態檔）。
+         */
+        get: operations["recommendation_tag_stats_recommendations_tag_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/recommendations": {
         parameters: {
             query?: never;
@@ -14,6 +34,7 @@ export interface paths {
         /**
          * Recommendations
          * @description 波段軌＝會噴：回傳全部過硬篩股(依會噴分數高→低)，前端橫桿就地切『前 N%』。
+         *     style=explosive：爆發風格＝atr>7%+上揚月線(不看季線乖離)，純門檻篩全回、無前N%概念。
          *     長線軌：沿用門檻切 items / near。
          */
         get: operations["recommendations_recommendations_get"];
@@ -35,8 +56,34 @@ export interface paths {
         /**
          * Recommendations Lookback
          * @description 波段(會噴)軌「回看」：那天推薦清單到今天的實況（已噴 / 至今報酬 / 期間 MFE/MAE）。
+         *
+         *     優先用 `date` 直接指定推薦日（月曆點選）；否則以 DailyPrice 交易日曆定位 `days` 個交易日前，
+         *     Score 表可能有空隙，退到目標日 ≤ 的最近可用快照。
          */
         get: operations["recommendations_lookback_recommendations_lookback_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/recommendations/lookback/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recommendations Lookback Calendar
+         * @description 回看月曆：每個過去的 Score 日一筆命中率（過硬篩且分數≥cutoff、期間 high ≥ entry×1.10）。
+         *
+         *     進場錨＝隔天最高價（實務：盤後看到推薦、隔日追高的最壞情況）；MFE 只看隔天之後的 high。
+         *     路徑無關（與 `_lookback_review` 一致）。
+         */
+        get: operations["recommendations_lookback_calendar_recommendations_lookback_calendar_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -906,6 +953,16 @@ export interface components {
             holders?: number | null;
             /** Big Trend */
             big_trend?: number | null;
+            /** Sbl Balance */
+            sbl_balance?: number | null;
+            /** Sbl Chg20 */
+            sbl_chg20?: number | null;
+            /** Dt Ratio5 */
+            dt_ratio5?: number | null;
+            /** Insider Pct Chg */
+            insider_pct_chg?: number | null;
+            /** Insider Pledge Pct */
+            insider_pledge_pct?: number | null;
         };
         /**
          * EtfInfo
@@ -1002,6 +1059,12 @@ export interface components {
             small_trend?: number | null;
             /** Holders Change */
             holders_change?: number | null;
+            /** Sbl Balance */
+            sbl_balance?: number | null;
+            /** Sbl Chg20 */
+            sbl_chg20?: number | null;
+            /** Dt Ratio5 */
+            dt_ratio5?: number | null;
             /** Close */
             close?: number | null;
             /** Change Pct */
@@ -1272,6 +1335,37 @@ export interface components {
             resistances: components["schemas"]["LevelDTO"][];
         };
         /**
+         * LookbackCalendar
+         * @description 回看月曆：每個過去的 Score 日一筆命中率。
+         */
+        LookbackCalendar: {
+            /** Today Date */
+            today_date: string | null;
+            /** Top Pct */
+            top_pct: number;
+            /** Cutoff */
+            cutoff: number;
+            /** Dates */
+            dates: components["schemas"]["LookbackDatePoint"][];
+        };
+        /**
+         * LookbackDatePoint
+         * @description 月曆單日：那天的會噴清單至今命中率。
+         */
+        LookbackDatePoint: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** N */
+            n: number;
+            /** Hit Count */
+            hit_count: number;
+            /** Hit Rate */
+            hit_rate: number | null;
+        };
+        /**
          * LookbackReview
          * @description 回看：那天推薦至今的實際表現。買在當日收盤（與 PoppableEfficacy 同錨點）。
          */
@@ -1320,6 +1414,35 @@ export interface components {
             avg_mae_pct: number | null;
         };
         /**
+         * MarketDerivativesBlock
+         * @description 期貨籌碼（TAIFEX）：台指期法人未平倉淨口數曲線 + P/C ratio。觀察儀表定位。
+         *
+         *     divergence：外資「現貨 20 日累計買賣超」與「期貨淨未平倉 20 日變化」方向相反時
+         *     標記（現貨買+期貨空單增＝對沖非看多；反向亦然）。純描述現況、無方向宣稱。
+         */
+        MarketDerivativesBlock: {
+            /** Dates */
+            dates: string[];
+            /** Tx Foreign Oi Net */
+            tx_foreign_oi_net: (number | null)[];
+            /** Tx Trust Oi Net */
+            tx_trust_oi_net: (number | null)[];
+            /** Tx Dealer Oi Net */
+            tx_dealer_oi_net: (number | null)[];
+            /** Pc Oi Ratio */
+            pc_oi_ratio: (number | null)[];
+            /** Latest Pc Vol Ratio */
+            latest_pc_vol_ratio?: number | null;
+            /** Foreign Oi Latest */
+            foreign_oi_latest?: number | null;
+            /** Foreign Oi Chg20 */
+            foreign_oi_chg20?: number | null;
+            /** Spot Foreign Cum20 */
+            spot_foreign_cum20?: number | null;
+            /** Divergence */
+            divergence?: string | null;
+        };
+        /**
          * MarketFlowActor
          * @description 單一 actor（合計/外資/投信/自營）的市場資金流向（億元）。
          */
@@ -1357,6 +1480,35 @@ export interface components {
             actors: {
                 [key: string]: components["schemas"]["MarketFlowActor"];
             };
+            derivatives?: components["schemas"]["MarketDerivativesBlock"] | null;
+        };
+        /**
+         * MarketRegime
+         * @description 大盤 regime 燈（MA60 遲滯）：defense 期會噴命中率實證較低，前端預設收起清單。
+         */
+        MarketRegime: {
+            /** State */
+            state: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Since
+             * Format: date
+             */
+            since: string;
+            /** Close */
+            close: number;
+            /** Ma60 */
+            ma60: number;
+            /** Gap Pct */
+            gap_pct: number;
+            /** Hold Hit Rate */
+            hold_hit_rate: number;
+            /** Defense Hit Rate */
+            defense_hit_rate: number;
         };
         /** MarketSummary */
         MarketSummary: {
@@ -1480,33 +1632,20 @@ export interface components {
             /** Spark */
             spark?: number[] | null;
             review?: components["schemas"]["LookbackReview"] | null;
-        };
-        /**
-         * MarketRegime
-         * @description 大盤 regime 燈（MA60 遲滯）：defense 期會噴命中率實證較低，前端預設收起清單。
-         */
-        MarketRegime: {
-            /** State — hold=持有 | defense=防禦(收盤跌破季線MA60逾2%、尚未站回) */
-            state: string;
-            /** Date */
-            date: string;
-            /** Since */
-            since: string;
-            /** Close */
-            close: number;
-            /** Ma60 */
-            ma60: number;
-            /** Gap Pct */
-            gap_pct: number;
-            /** Hold Hit Rate */
-            hold_hit_rate: number;
-            /** Defense Hit Rate */
-            defense_hit_rate: number;
+            /** Passed Styles */
+            passed_styles?: string[] | null;
+            /** Passed Filter */
+            passed_filter?: boolean | null;
         };
         /** RecommendationList */
         RecommendationList: {
             /** Track */
             track: string;
+            /**
+             * Style
+             * @default pop
+             */
+            style: string;
             /** Top Pct */
             top_pct?: number | null;
             /** Date */
@@ -1929,10 +2068,34 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    recommendation_tag_stats_recommendations_tag_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     recommendations_recommendations_get: {
         parameters: {
             query?: {
                 track?: string;
+                /** @description 波段風格：pop=會噴(硬篩+前N%)；explosive=爆發(極高波動+上揚月線，純門檻篩) */
+                style?: string;
             };
             header?: never;
             path?: never;
@@ -1963,10 +2126,14 @@ export interface operations {
     recommendations_lookback_recommendations_lookback_get: {
         parameters: {
             query?: {
-                /** @description 回看幾個交易日前的波段推薦 */
+                /** @description 直接指定推薦日；不傳=用 days 算 */
+                date?: string | null;
+                /** @description N 個交易日前（date 未指定時用） */
                 days?: number;
                 /** @description 覆寫嚴格度（前 N%）；不傳用設定值 */
                 top_pct?: number | null;
+                /** @description 波段風格（爆發=純門檻篩，不看 top_pct） */
+                style?: string;
             };
             header?: never;
             path?: never;
@@ -1981,6 +2148,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecommendationLookbackResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recommendations_lookback_calendar_recommendations_lookback_calendar_get: {
+        parameters: {
+            query?: {
+                /** @description 起始日；不傳=全部歷史 */
+                since?: string | null;
+                /** @description 覆寫嚴格度（前 N%） */
+                top_pct?: number | null;
+                /** @description 波段風格（爆發=純門檻篩，不看 top_pct） */
+                style?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LookbackCalendar"];
                 };
             };
             /** @description Validation Error */

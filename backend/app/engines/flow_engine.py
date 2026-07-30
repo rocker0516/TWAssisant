@@ -141,6 +141,59 @@ class FlowEngine:
             "dates": [d.isoformat() for d in dates],
             "index": index,
             "actors": actors,
+            "derivatives": self._derivatives_block(
+                session, dates[0], actors.get("foreign", {}).get("cum20")
+            ),
+        }
+
+    def _derivatives_block(
+        self, session: Session, date_lo: date, spot_foreign_cum20: float | None
+    ) -> dict | None:
+        """期貨籌碼儀表：台指期法人淨 OI 曲線 + P/C ratio + 外資現貨期貨背離描述。"""
+        rows = session.execute(
+            select(
+                models.MarketDerivatives.date,
+                models.MarketDerivatives.tx_foreign_oi_net,
+                models.MarketDerivatives.tx_trust_oi_net,
+                models.MarketDerivatives.tx_dealer_oi_net,
+                models.MarketDerivatives.pc_oi_ratio,
+                models.MarketDerivatives.pc_vol_ratio,
+            )
+            .where(models.MarketDerivatives.date >= date_lo)
+            .order_by(models.MarketDerivatives.date)
+        ).all()
+        if not rows:
+            return None
+        f_series = [int(r[1]) if r[1] is not None else None for r in rows]
+        f_valid = [v for v in f_series if v is not None]
+        latest = f_valid[-1] if f_valid else None
+        ref = f_valid[-21] if len(f_valid) > 20 else (f_valid[0] if f_valid else None)
+        chg20 = latest - ref if latest is not None and ref is not None else None
+
+        divergence = None
+        if spot_foreign_cum20 is not None and chg20 is not None:
+            spot_buy = spot_foreign_cum20 > 0
+            fut_add = chg20 > 0
+            if spot_buy and not fut_add:
+                divergence = "背離：外資現貨買超但期貨淨部位減碼（偏對沖，非全面看多）"
+            elif not spot_buy and fut_add:
+                divergence = "背離：外資現貨賣超但期貨淨部位加碼（現貨調節、期貨偏多）"
+            elif spot_buy and fut_add:
+                divergence = "同向：外資現貨買超且期貨淨部位加碼"
+            else:
+                divergence = "同向：外資現貨賣超且期貨淨部位減碼"
+
+        return {
+            "dates": [r[0].isoformat() for r in rows],
+            "tx_foreign_oi_net": f_series,
+            "tx_trust_oi_net": [int(r[2]) if r[2] is not None else None for r in rows],
+            "tx_dealer_oi_net": [int(r[3]) if r[3] is not None else None for r in rows],
+            "pc_oi_ratio": [_f(r[4]) for r in rows],
+            "latest_pc_vol_ratio": _f(rows[-1][5]),
+            "foreign_oi_latest": latest,
+            "foreign_oi_chg20": chg20,
+            "spot_foreign_cum20": spot_foreign_cum20,
+            "divergence": divergence,
         }
 
     @staticmethod
@@ -369,6 +422,8 @@ class FlowEngine:
         )
         hold = self._holding_trends(session)
         closes = self._latest_changes(session, latest)
+        sbl = self._sbl_stats(session, d20)
+        dtr = self._daytrade_ratio(session, axis[-5:] if len(axis) >= 5 else axis)
 
         items: list[dict] = []
         for sid, g in inst.groupby("stock_id", sort=False):
@@ -386,6 +441,10 @@ class FlowEngine:
             row["small_trend"] = h.get("small_trend")
             row["holders_change"] = h.get("holders_change")
             row["big_pct"] = h.get("big_pct")
+            s = sbl.get(sid, {})
+            row["sbl_balance"] = s.get("balance")
+            row["sbl_chg20"] = s.get("chg20")
+            row["dt_ratio5"] = dtr.get(sid)
             c = closes.get(sid, {})
             row["close"] = c.get("close")
             row["change_pct"] = c.get("change_pct")
@@ -393,6 +452,52 @@ class FlowEngine:
 
         items.sort(key=lambda r: (r.get(sort) if r.get(sort) is not None else -1e18), reverse=True)
         return {"date": latest.isoformat(), "sort": sort, "items": items[:limit]}
+
+    def _sbl_stats(self, session: Session, d20: date) -> dict[str, dict]:
+        """每檔借券賣出餘額：最新值 + 近 20 交易日增減（張）。"""
+        rows = session.execute(
+            select(
+                models.ShortLending.stock_id,
+                models.ShortLending.date,
+                models.ShortLending.sbl_balance,
+            )
+            .where(models.ShortLending.date >= d20)
+            .order_by(models.ShortLending.stock_id, models.ShortLending.date)
+        ).all()
+        out: dict[str, dict] = {}
+        for sid, _, bal in rows:
+            if bal is None:
+                continue
+            rec = out.setdefault(sid, {"first": int(bal), "balance": int(bal)})
+            rec["balance"] = int(bal)  # 升冪掃過，最後一筆即最新
+        for rec in out.values():
+            rec["chg20"] = rec["balance"] - rec.pop("first")
+        return out
+
+    def _daytrade_ratio(self, session: Session, days: list[date]) -> dict[str, float]:
+        """每檔近 N 日當沖占成交量比 %（Σ當沖張 / Σ成交張；上市限定，無資料不入列）。"""
+        if not days:
+            return {}
+        lo = days[0]
+        dt_rows = session.execute(
+            select(models.DayTrading.stock_id, func.sum(models.DayTrading.dt_volume))
+            .where(models.DayTrading.date >= lo)
+            .group_by(models.DayTrading.stock_id)
+        ).all()
+        if not dt_rows:
+            return {}
+        vol_rows = session.execute(
+            select(models.DailyPrice.stock_id, func.sum(models.DailyPrice.volume))
+            .where(models.DailyPrice.date >= lo)
+            .group_by(models.DailyPrice.stock_id)
+        ).all()
+        vol = {sid: v for sid, v in vol_rows if v}
+        out: dict[str, float] = {}
+        for sid, dt_sum in dt_rows:
+            v = vol.get(sid)
+            if dt_sum and v:
+                out[sid] = round(float(dt_sum) / (float(v) / 1000.0) * 100, 1)
+        return out
 
     def _holding_trends(self, session: Session) -> dict[str, dict]:
         """每檔集保大戶/散戶/股東近 ~8 週變化（最新 − 約 8 週前）。"""

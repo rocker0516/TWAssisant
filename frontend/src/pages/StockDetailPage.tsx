@@ -389,6 +389,30 @@ export default function StockDetailPage() {
             <div className="my-2 border-t border-edge" />
             <Row label="融資餘額（張）" value={fmtNum(d.chip?.margin_balance, 0)} />
             <Row label="融券餘額（張）" value={fmtNum(d.chip?.short_balance, 0)} />
+            {d.chip?.sbl_balance != null && (
+              <Row
+                label="借券賣出餘額（張）"
+                value={`${fmtNum(d.chip.sbl_balance, 0)}${d.chip.sbl_chg20 != null ? `（20日 ${d.chip.sbl_chg20 > 0 ? "+" : ""}${fmtNum(d.chip.sbl_chg20, 0)}）` : ""}`}
+                color={d.chip.sbl_chg20 != null ? changeColor(-d.chip.sbl_chg20) : undefined}
+              />
+            )}
+            {d.chip?.dt_ratio5 != null && <Row label="當沖占比（近5日）" value={`${d.chip.dt_ratio5}%`} />}
+            {(d.chip?.insider_pct_chg != null || d.chip?.insider_pledge_pct != null) && (
+              <>
+                <div className="my-2 border-t border-edge" />
+                <div className="mb-1 text-xs text-muted">董監持股（月）</div>
+                {d.chip.insider_pct_chg != null && (
+                  <Row
+                    label="董監持股月變化"
+                    value={`${d.chip.insider_pct_chg > 0 ? "+" : ""}${fmtNum(d.chip.insider_pct_chg, 2)}%`}
+                    color={changeColor(d.chip.insider_pct_chg)}
+                  />
+                )}
+                {d.chip.insider_pledge_pct != null && (
+                  <Row label="董監設質比率" value={`${fmtNum(d.chip.insider_pledge_pct, 1)}%`} />
+                )}
+              </>
+            )}
             {d.chip?.big_pct != null && (
               <>
                 <div className="my-2 border-t border-edge" />

@@ -46,6 +46,8 @@ class FetchStep(PipelineStep):
         ("price", "price", "DailyPriceRepository", "fetch_prices", 150),
         ("institutional", "chip", "InstitutionalRepository", "fetch_institutional", 90),
         ("margin", "chip", "MarginRepository", "fetch_margin", 90),
+        ("short_lending", "chip", "ShortLendingRepository", "fetch_short_lending", 90),
+        ("day_trading", "chip", "DayTradingRepository", "fetch_day_trading", 90),
         ("valuation", "fundamental", "ValuationRepository", "fetch_valuation", 90),
     ]
     # 快照來源（回最新期，日期參數忽略，靠 upsert 去重）
@@ -56,12 +58,15 @@ class FetchStep(PipelineStep):
         ("revenue", "fundamental", "RevenueMonthlyRepository", "fetch_revenue_monthly", 1),
         ("financials", "fundamental", "FinancialQuarterRepository", "fetch_financials", 1),
         ("holding", "holding", "ShareholdingRepository", "fetch_holding_distribution", 1),
+        # insider：董監持股月快照（t187ap11），PK=(stock_id,year,month) 靠 upsert 累積
+        ("insider", "fundamental", "InsiderHoldingRepository", "fetch_insider_holdings", 1),
     ]
     # 市場級資料（無 stock_id，PK=date，不過濾股號）：全市場三大法人總表 + 加權指數。
     # (key, source_name, repo_cls, method, lookback)
     _MARKET = [
         ("inst_market", "twse", "InstitutionalMarketTotalRepository", "fetch_institutional_market_total", 90),
         ("market_index", "twse", "MarketIndexRepository", "fetch_index", 150),
+        ("derivatives", "taifex", "MarketDerivativesRepository", "fetch_market_derivatives", 90),
     ]
 
     def run(self, ctx: PipelineContext) -> dict:

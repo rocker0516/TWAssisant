@@ -155,6 +155,55 @@ class ShareholdingDistribution(Base):
     avg_lots: Mapped[float | None] = mapped_column(Float)       # 平均每人持股（張）
 
 
+class ShortLending(Base):
+    """借券賣出餘額（TWSE TWT93U / TPEX margin/sbl，信用額度總量管制餘額表借券欄）。
+
+    PK = (stock_id, date)。單位＝張（原始為股，/1000）。融券已在 margin 表；
+    此表補外資主要放空管道「借券賣出」，軋空軸（券資比）才完整。
+    """
+
+    __tablename__ = "short_lending"
+
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    date: Mapped[date_] = mapped_column(Date, primary_key=True)
+    sbl_balance: Mapped[int | None] = mapped_column(Integer)  # 借券賣出當日餘額（張）
+    sbl_change: Mapped[int | None] = mapped_column(Integer)   # 當日增減（張）
+    sbl_sell: Mapped[int | None] = mapped_column(Integer)     # 當日借券賣出（張）
+
+
+class DayTrading(Base):
+    """個股現股當沖統計（TWSE TWTB4U，上市限定；上櫃無個股級開放端點）。
+
+    PK = (stock_id, date)。當沖占比（dt_volume / 當日成交量）由查詢端 join
+    daily_prices 計算，不落欄位。
+    """
+
+    __tablename__ = "day_trading"
+
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    date: Mapped[date_] = mapped_column(Date, primary_key=True)
+    dt_volume: Mapped[int | None] = mapped_column(Integer)    # 當沖成交股數→張
+    dt_buy_value: Mapped[float | None] = mapped_column(Float)  # 當沖買進金額（元）
+    dt_sell_value: Mapped[float | None] = mapped_column(Float)  # 當沖賣出金額（元）
+
+
+class InsiderHolding(Base):
+    """董監事持股彙總（TWSE/TPEX OpenAPI t187ap11 月快照，逐公司加總）。
+
+    PK = (stock_id, year, month)。看趨勢用（董監持股月變化、設質比率變化），
+    絕對值受發行股數影響不跨股比較。
+    """
+
+    __tablename__ = "insider_holding"
+
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    year: Mapped[int] = mapped_column(Integer, primary_key=True)
+    month: Mapped[int] = mapped_column(Integer, primary_key=True)
+    director_shares: Mapped[float | None] = mapped_column(Float)  # 董監目前持股合計（股）
+    pledge_pct: Mapped[float | None] = mapped_column(Float)       # 設質占董監持股 %
+    positions: Mapped[int | None] = mapped_column(Integer)        # 申報席次數
+
+
 class RevenueMonthly(Base):
     """月營收。PK = (stock_id, year, month)。"""
 
@@ -228,6 +277,24 @@ class InstitutionalMarketTotal(Base):
     trust_net: Mapped[float | None] = mapped_column(Float)    # 投信，億元
     dealer_net: Mapped[float | None] = mapped_column(Float)   # 自營商（自行+避險），億元
     total_net: Mapped[float | None] = mapped_column(Float)    # 三大法人合計，億元
+
+
+class MarketDerivatives(Base):
+    """期貨籌碼市場級（TAIFEX 期交所）。PK = date。
+
+    台指期三大法人未平倉淨口數 + 選擇權 P/C ratio。與現貨 institutional_market_total
+    對照看「外資現貨期貨背離」（現貨買超但期貨空單增＝對沖非看多）。
+    定位＝觀察儀表；要折進 regime 閘門或評分需先過回測。
+    """
+
+    __tablename__ = "market_derivatives"
+
+    date: Mapped[date_] = mapped_column(Date, primary_key=True)
+    tx_foreign_oi_net: Mapped[int | None] = mapped_column(Integer)  # 外資台指期未平倉淨口數
+    tx_trust_oi_net: Mapped[int | None] = mapped_column(Integer)    # 投信
+    tx_dealer_oi_net: Mapped[int | None] = mapped_column(Integer)   # 自營商
+    pc_vol_ratio: Mapped[float | None] = mapped_column(Float)       # 買賣權成交量比率 %
+    pc_oi_ratio: Mapped[float | None] = mapped_column(Float)        # 買賣權未平倉量比率 %
 
 
 class MarketIndex(Base):

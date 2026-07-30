@@ -68,6 +68,8 @@ class RecommendationItem(BaseModel):
     details: list[RecommendationDetail] | None = None  # 展開區：各面向分數+證據
     spark: list[float] | None = None  # 近期收盤序列（約近 20 個交易日，由舊到新）
     review: LookbackReview | None = None  # 回看模式才有：那天到今天的實際表現
+    passed_styles: list[str] | None = None  # 通過的純門檻風格（explosive/strong/story/crash）
+    passed_filter: bool | None = None  # 會噴硬篩(含遲滯)是否通過（前端判「會噴」標籤用）
 
 
 class MarketRegime(BaseModel):
@@ -85,7 +87,8 @@ class MarketRegime(BaseModel):
 
 class RecommendationList(BaseModel):
     track: str
-    top_pct: float | None = None  # 波段(會噴)軌：前 N% 為推薦（長線軌為 None）
+    style: str = "pop"  # 波段風格：pop=會噴；explosive=爆發（長線軌恆為 pop）
+    top_pct: float | None = None  # 波段(會噴)軌：前 N% 為推薦（長線軌/爆發風格為 None）
     date: date | None
     threshold: float  # 門檻分數（波段軌 = 100 − top_pct）
     items: list[RecommendationItem]  # 波段軌=全部過硬篩(前端橫桿切)；長線軌=達門檻
@@ -150,6 +153,12 @@ class ChipSummary(BaseModel):
     small_pct: float | None = None      # 散戶（<10 張）占比
     holders: int | None = None          # 總股東人數
     big_trend: float | None = None      # 大戶占比近月變化（個百分點，+=集中）
+    # 借券賣出 / 當沖 / 董監持股
+    sbl_balance: int | None = None      # 借券賣出餘額（張，最新）
+    sbl_chg20: int | None = None        # 借券餘額近 20 個資料日增減（張）
+    dt_ratio5: float | None = None      # 近 5 日當沖占成交量比 %（上市限定）
+    insider_pct_chg: float | None = None  # 董監持股股數最近一月 vs 前月變化 %
+    insider_pledge_pct: float | None = None  # 董監設質比率 %（最新月）
 
 
 class ChipPoint(BaseModel):
@@ -437,12 +446,32 @@ class MarketFlowActor(BaseModel):
     relation: ActorRelation | None = None
 
 
+class MarketDerivativesBlock(BaseModel):
+    """期貨籌碼（TAIFEX）：台指期法人未平倉淨口數曲線 + P/C ratio。觀察儀表定位。
+
+    divergence：外資「現貨 20 日累計買賣超」與「期貨淨未平倉 20 日變化」方向相反時
+    標記（現貨買+期貨空單增＝對沖非看多；反向亦然）。純描述現況、無方向宣稱。
+    """
+
+    dates: list[str]
+    tx_foreign_oi_net: list[int | None]   # 外資台指期未平倉淨口數（日）
+    tx_trust_oi_net: list[int | None]
+    tx_dealer_oi_net: list[int | None]
+    pc_oi_ratio: list[float | None]       # 選擇權未平倉 P/C %
+    latest_pc_vol_ratio: float | None = None
+    foreign_oi_latest: int | None = None
+    foreign_oi_chg20: int | None = None   # 外資淨 OI 近 20 日變化（口）
+    spot_foreign_cum20: float | None = None  # 外資現貨近 20 日累計（億元，對照）
+    divergence: str | None = None         # 同向/背離的白話描述
+
+
 class MarketFlowResponse(BaseModel):
     from_date: str | None
     to_date: str | None
     dates: list[str]
     index: list[float | None]          # 加權指數收盤（疊圖對照）
     actors: dict[str, MarketFlowActor]  # total / foreign / trust / dealer
+    derivatives: MarketDerivativesBlock | None = None  # 期貨籌碼（無資料時 None）
 
 
 class SectorFlowItem(BaseModel):
@@ -501,6 +530,9 @@ class FlowStockItem(BaseModel):
     big_trend: float | None = None     # 大戶占比近 ~8 週變化（個百分點）
     small_trend: float | None = None   # 散戶占比近 ~8 週變化
     holders_change: float | None = None  # 股東人數近 ~8 週變化 %
+    sbl_balance: int | None = None       # 借券賣出餘額（張，最新）
+    sbl_chg20: int | None = None         # 借券餘額近 20 日增減（張）
+    dt_ratio5: float | None = None       # 近 5 日當沖占成交量比 %（上市限定）
     close: float | None = None
     change_pct: float | None = None
 

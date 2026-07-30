@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, or_, select
+from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.orm import Session
 
 from ..engines.market_regime import wave_market_regime
@@ -135,27 +135,45 @@ def _to_item(
         reasons=sc.reasons,
         details=sc.details,
         spark=spark,
+        passed_styles=sc.passed_styles or [],
+        passed_filter=bool(sc.passed_filter),
     )
+
+
+@router.get("/recommendations/tag-stats")
+def recommendation_tag_stats() -> dict:
+    """標籤組合五年實證命中統計（scripts/build_tag_combo_stats.py 產出，靜態檔）。"""
+    import json as _json
+    from pathlib import Path as _Path
+    fp = _Path(__file__).resolve().parents[2] / "data" / "tag_combo_stats.json"
+    if not fp.exists():
+        return {"stats": {}}
+    return _json.loads(fp.read_text())
 
 
 @router.get("/recommendations", response_model=RecommendationList)
 def recommendations(
     track: str = Query("wave", pattern="^(wave|long)$"),
+    style: str = Query("pop", pattern="^(pop|explosive|strong|story|crash)$",
+                       description="波段風格：pop=會噴(硬篩+前N%)；explosive=爆發(極高波動+上揚月線，純門檻篩)"),
     session: Session = Depends(get_session),
 ) -> RecommendationList:
     """波段軌＝會噴：回傳全部過硬篩股(依會噴分數高→低)，前端橫桿就地切『前 N%』。
+    style=explosive：爆發風格＝atr>7%+上揚月線(不看季線乖離)，純門檻篩全回、無前N%概念。
     長線軌：沿用門檻切 items / near。"""
     d = _latest_score_date(session)
+    styled = track == "wave" and style != "pop"   # 純門檻風格（explosive/strong/story/crash）
     if track == "wave":
-        top_pct = _wave_top_pct(session)
-        cutoff = round(100.0 - top_pct, 2)
+        top_pct = None if styled else _wave_top_pct(session)
+        cutoff = 0.0 if styled else round(100.0 - _wave_top_pct(session), 2)
     else:
         top_pct = None
         cutoff = _threshold(session, track)
     regime = wave_market_regime(session) if track == "wave" else None
     if d is None:
         return RecommendationList(
-            track=track, date=None, threshold=cutoff, top_pct=top_pct, items=[], near=[],
+            track=track, style=style if styled else "pop",
+            date=None, threshold=cutoff, top_pct=top_pct, items=[], near=[],
             regime=regime,
         )
 
@@ -168,11 +186,20 @@ def recommendations(
 
     items, near = [], []
     for sc, name, sector_name in session.execute(base).all():
-        if not sc.passed_filter or sc.total_score is None:
+        if styled:
+            if not sc.passed_styles or style not in sc.passed_styles:
+                continue
+            items.append(_to_item(session, sc, name, sector_name, d))
             continue
         if track == "wave":
-            items.append(_to_item(session, sc, name, sector_name, d))  # 全清單，前端橫桿切
-        elif sc.total_score >= cutoff:
+            # 標籤化清單：過硬篩(會噴候選) 或 任一純門檻風格 都回（前端標籤+排序）
+            if not sc.passed_filter and not sc.passed_styles:
+                continue
+            items.append(_to_item(session, sc, name, sector_name, d))
+            continue
+        if not sc.passed_filter or sc.total_score is None:
+            continue
+        if sc.total_score >= cutoff:
             items.append(_to_item(session, sc, name, sector_name, d))
         elif sc.total_score >= cutoff - _NEAR_BAND:
             near.append(_to_item(session, sc, name, sector_name, d))
@@ -180,7 +207,8 @@ def recommendations(
     items.sort(key=lambda it: it.total_score or 0, reverse=True)
     near.sort(key=lambda it: it.total_score or 0, reverse=True)
     return RecommendationList(
-        track=track, date=d, threshold=cutoff, top_pct=top_pct, items=items, near=near,
+        track=track, style=style if styled else "pop",
+        date=d, threshold=cutoff, top_pct=top_pct, items=items, near=near,
         regime=regime,
     )
 
@@ -256,8 +284,12 @@ def _lookback_review(
 def _build_lookback_response(
     session: Session, lookback_d: date, today_d: date,
     eff_top_pct: float, cutoff: float, days_back: int,
+    style: str = "pop",
 ) -> RecommendationLookbackResponse:
-    """給定推薦日與今日，組出該日回看清單（含每檔 review、整批摘要）。"""
+    """給定推薦日與今日，組出該日回看清單（含每檔 review、整批摘要）。
+
+    style="explosive"：成員=當日 passed_styles 含 explosive（純門檻篩，不看 cutoff）。
+    """
     base = (
         select(models.Score, models.Stock.name, models.Sector.name)
         .join(models.Stock, models.Score.stock_id == models.Stock.id)
@@ -270,9 +302,12 @@ def _build_lookback_response(
     mfes: list[float] = []
     maes: list[float] = []
     for sc, name, sector_name in session.execute(base).all():
-        if not sc.passed_filter or sc.total_score is None:
+        if style != "pop":
+            if not sc.passed_styles or style not in sc.passed_styles:
+                continue
+        elif not sc.passed_filter or sc.total_score is None:
             continue
-        if sc.total_score < cutoff:
+        elif sc.total_score < cutoff:
             continue
         base_item = _to_item(session, sc, name, sector_name, lookback_d)
         review = _lookback_review(session, sc.stock_id, lookback_d, today_d)
@@ -312,6 +347,7 @@ def recommendations_lookback(
     date_: date | None = Query(None, alias="date", description="直接指定推薦日；不傳=用 days 算"),
     days: int = Query(3, ge=1, le=60, description="N 個交易日前（date 未指定時用）"),
     top_pct: float | None = Query(None, ge=1.0, le=50.0, description="覆寫嚴格度（前 N%）；不傳用設定值"),
+    style: str = Query("pop", pattern="^(pop|explosive|strong|story|crash)$", description="波段風格（爆發=純門檻篩，不看 top_pct）"),
     session: Session = Depends(get_session),
 ) -> RecommendationLookbackResponse:
     """波段(會噴)軌「回看」：那天推薦清單到今天的實況（已噴 / 至今報酬 / 期間 MFE/MAE）。
@@ -345,7 +381,7 @@ def recommendations_lookback(
         if not has_score or date_ >= today_d:
             return _empty(None, today_d)
         return _build_lookback_response(
-            session, date_, today_d, eff_top_pct, cutoff, 0,
+            session, date_, today_d, eff_top_pct, cutoff, 0, style=style,
         )
 
     # 沒指定 date：以 days 為主，退到最近可用快照
@@ -369,7 +405,7 @@ def recommendations_lookback(
     if lookback_d is None or lookback_d >= today_d:
         return _empty(None, today_d)
     return _build_lookback_response(
-        session, lookback_d, today_d, eff_top_pct, cutoff, days,
+        session, lookback_d, today_d, eff_top_pct, cutoff, days, style=style,
     )
 
 
@@ -377,6 +413,7 @@ def recommendations_lookback(
 def recommendations_lookback_calendar(
     since: date | None = Query(None, description="起始日；不傳=全部歷史"),
     top_pct: float | None = Query(None, ge=1.0, le=50.0, description="覆寫嚴格度（前 N%）"),
+    style: str = Query("pop", pattern="^(pop|explosive|strong|story|crash)$", description="波段風格（爆發=純門檻篩，不看 top_pct）"),
     session: Session = Depends(get_session),
 ) -> LookbackCalendar:
     """回看月曆：每個過去的 Score 日一筆命中率（過硬篩且分數≥cutoff、期間 high ≥ entry×1.10）。
@@ -402,15 +439,26 @@ def recommendations_lookback_calendar(
 
     pop_ratio = 1.0 + _POP_TARGET
     points: list[LookbackDatePoint] = []
+    styled = style != "pop"
     for lb_d in score_dates:
-        sids = session.execute(
-            select(models.Score.stock_id).where(
-                models.Score.track == "wave",
-                models.Score.date == lb_d,
-                models.Score.passed_filter == True,  # noqa: E712
-                models.Score.total_score >= cutoff,
-            )
-        ).scalars().all()
+        if styled:
+            # SQLite JSON 存 TEXT，LIKE 足夠精準（值為風格名陣列，名稱互不為子字串）
+            sids = session.execute(
+                select(models.Score.stock_id).where(
+                    models.Score.track == "wave",
+                    models.Score.date == lb_d,
+                    cast(models.Score.passed_styles, String).like(f'%"{style}"%'),
+                )
+            ).scalars().all()
+        else:
+            sids = session.execute(
+                select(models.Score.stock_id).where(
+                    models.Score.track == "wave",
+                    models.Score.date == lb_d,
+                    models.Score.passed_filter == True,  # noqa: E712
+                    models.Score.total_score >= cutoff,
+                )
+            ).scalars().all()
         n = len(sids)
         if n == 0:
             points.append(LookbackDatePoint(date=lb_d, n=0, hit_count=0, hit_rate=None))
@@ -569,6 +617,43 @@ def stock_detail(stock_id: str, session: Session = Depends(get_session)) -> Stoc
         bigs = [r.big_pct for r in hold_rows if r.big_pct is not None]
         if len(bigs) >= 2:
             big_trend = round(bigs[-1] - bigs[0], 2)
+    # 借券賣出餘額：最新 + 近 20 個資料日增減
+    sbl_rows = list(reversed(session.execute(
+        select(models.ShortLending.sbl_balance)
+        .where(models.ShortLending.stock_id == stock_id, models.ShortLending.sbl_balance.is_not(None))
+        .order_by(models.ShortLending.date.desc()).limit(20)
+    ).scalars().all()))
+    sbl_balance = sbl_rows[-1] if sbl_rows else None
+    sbl_chg20 = (sbl_rows[-1] - sbl_rows[0]) if len(sbl_rows) >= 2 else None
+    # 近 5 日當沖占成交量比（上市限定；無資料 None）
+    dt_rows = session.execute(
+        select(models.DayTrading.date, models.DayTrading.dt_volume)
+        .where(models.DayTrading.stock_id == stock_id)
+        .order_by(models.DayTrading.date.desc()).limit(5)
+    ).all()
+    dt_ratio5 = None
+    if dt_rows:
+        d_lo = min(r[0] for r in dt_rows)
+        vol_sum = session.execute(
+            select(func.sum(models.DailyPrice.volume))
+            .where(models.DailyPrice.stock_id == stock_id, models.DailyPrice.date >= d_lo)
+        ).scalar()
+        dt_sum = sum(r[1] or 0 for r in dt_rows)
+        if vol_sum:
+            dt_ratio5 = round(dt_sum / (vol_sum / 1000.0) * 100, 1)
+    # 董監持股：最近兩個月比變化 + 設質比率
+    ins_rows = session.execute(
+        select(models.InsiderHolding)
+        .where(models.InsiderHolding.stock_id == stock_id)
+        .order_by(models.InsiderHolding.year.desc(), models.InsiderHolding.month.desc()).limit(2)
+    ).scalars().all()
+    insider_pct_chg = None
+    insider_pledge_pct = ins_rows[0].pledge_pct if ins_rows else None
+    if len(ins_rows) == 2 and ins_rows[1].director_shares and ins_rows[0].director_shares is not None:
+        insider_pct_chg = round(
+            (ins_rows[0].director_shares - ins_rows[1].director_shares)
+            / ins_rows[1].director_shares * 100, 2,
+        )
     chip = ChipSummary(
         date=inst.date if inst else (mg.date if mg else None),
         foreign_net=inst.foreign_net if inst else None,
@@ -583,6 +668,11 @@ def stock_detail(stock_id: str, session: Session = Depends(get_session)) -> Stoc
         small_pct=hold.small_pct if hold else None,
         holders=hold.holders if hold else None,
         big_trend=big_trend,
+        sbl_balance=sbl_balance,
+        sbl_chg20=sbl_chg20,
+        dt_ratio5=dt_ratio5,
+        insider_pct_chg=insider_pct_chg,
+        insider_pledge_pct=insider_pledge_pct,
     )
 
     val = session.execute(
