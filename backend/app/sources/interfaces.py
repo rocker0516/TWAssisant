@@ -40,6 +40,22 @@ class ChipProvider(ABC):
     ) -> pd.DataFrame:
         """融資融券。欄位見 schemas.MARGIN_COLS。"""
 
+    def fetch_short_lending(
+        self, start: date, end: date, stock_ids: list[str] | None = None
+    ) -> pd.DataFrame:
+        """借券賣出餘額（選用能力，預設無）。欄位見 schemas.SHORT_LENDING_COLS。"""
+        from . import schemas
+
+        return pd.DataFrame(columns=schemas.SHORT_LENDING_COLS)
+
+    def fetch_day_trading(
+        self, start: date, end: date, stock_ids: list[str] | None = None
+    ) -> pd.DataFrame:
+        """個股現股當沖統計（選用能力，預設無）。欄位見 schemas.DAY_TRADING_COLS。"""
+        from . import schemas
+
+        return pd.DataFrame(columns=schemas.DAY_TRADING_COLS)
+
 
 class HoldingProvider(ABC):
     @abstractmethod
@@ -81,6 +97,14 @@ class FundamentalProvider(ABC):
         self, start: date, end: date, stock_ids: list[str] | None = None
     ) -> pd.DataFrame:
         """估值（PE/PB/殖利率）。欄位見 schemas.VALUATION_COLS。"""
+
+    def fetch_insider_holdings(
+        self, start: date, end: date, stock_ids: list[str] | None = None
+    ) -> pd.DataFrame:
+        """董監持股彙總月快照（選用能力，預設無）。欄位見 schemas.INSIDER_COLS。"""
+        from . import schemas
+
+        return pd.DataFrame(columns=schemas.INSIDER_COLS)
 
 
 class NewsProvider(ABC):

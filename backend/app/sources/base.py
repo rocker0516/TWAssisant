@@ -91,7 +91,10 @@ class BaseSource:
 
     # ── 請求核心（限流 + 退避重試）──
 
-    def _request(self, path_or_url: str, params: dict | None = None) -> httpx.Response:
+    def _request(
+        self, path_or_url: str, params: dict | None = None, *, data: dict | None = None
+    ) -> httpx.Response:
+        """GET 請求；帶 data 時改用 POST（form），限流/重試行為相同。"""
         url = path_or_url if path_or_url.startswith("http") else f"{self.base_url}{path_or_url}"
         merged = {**self._auth_params(), **(params or {})}
         headers = self._auth_headers()
@@ -100,7 +103,10 @@ class BaseSource:
         for attempt in range(settings.max_retries):
             self._bucket.acquire()
             try:
-                resp = self._client.get(url, params=merged, headers=headers)
+                if data is not None:
+                    resp = self._client.post(url, params=merged, data=data, headers=headers)
+                else:
+                    resp = self._client.get(url, params=merged, headers=headers)
                 if resp.status_code == 429:  # 額度 / 限流，退避重試
                     raise SourceError("rate limited (429)", status=429)
                 resp.raise_for_status()

@@ -13,7 +13,32 @@ PRICE_COLS = ["stock_id", "date", "open", "high", "low", "close", "volume", "tur
 
 INSTITUTIONAL_COLS = ["stock_id", "date", "foreign_net", "trust_net", "dealer_net", "total_net"]
 
+# 全市場三大法人買賣超總表（TWSE BFI82U，買賣差額）。單位＝億元（由原始「元」換算）。
+#   foreign_net = 外資及陸資(不含外資自營商) + 外資自營商
+#   trust_net   = 投信
+#   dealer_net  = 自營商(自行買賣) + 自營商(避險)
+#   total_net   = 合計（三大法人）
+INSTITUTIONAL_MARKET_COLS = ["date", "foreign_net", "trust_net", "dealer_net", "total_net"]
+
+# 加權指數日線（TWSE MI_INDEX「發行量加權股價指數」收盤）。疊圖/量化關係對照用。
+MARKET_INDEX_COLS = ["date", "close"]
+
 MARGIN_COLS = ["stock_id", "date", "margin_balance", "margin_change", "short_balance", "short_change"]
+
+# 借券賣出餘額（信用額度總量管制餘額表借券欄，TWSE TWT93U / TPEX margin/sbl）。單位＝張。
+SHORT_LENDING_COLS = ["stock_id", "date", "sbl_balance", "sbl_change", "sbl_sell"]
+
+# 個股現股當沖統計（TWSE TWTB4U；上櫃無個股級開放端點）。dt_volume 單位＝張。
+DAY_TRADING_COLS = ["stock_id", "date", "dt_volume", "dt_buy_value", "dt_sell_value"]
+
+# 董監事持股彙總（t187ap11 月快照逐公司加總）。director_shares 單位＝股。
+INSIDER_COLS = ["stock_id", "year", "month", "director_shares", "pledge_pct", "positions"]
+
+# 期貨籌碼市場級（TAIFEX）：台指期三大法人未平倉淨口數 + 選擇權 P/C ratio。PK=date。
+MARKET_DERIVATIVES_COLS = [
+    "date", "tx_foreign_oi_net", "tx_trust_oi_net", "tx_dealer_oi_net",
+    "pc_vol_ratio", "pc_oi_ratio",
+]
 
 REVENUE_COLS = ["stock_id", "year", "month", "revenue", "yoy", "mom"]
 

@@ -66,14 +66,26 @@ class WeightedScorer:
         return round(num / den, 2) if den else 0.0
 
 
-def score_confidence(sub_scores: dict[str, float], total_categories: int) -> tuple[float, float]:
+def score_confidence(
+    sub_scores: dict[str, float],
+    total_categories: int,
+    weights: dict[str, float] | None = None,
+) -> tuple[float, float]:
     """分數可信度 = 資料完整度 × 共識度，回 (coverage 0~1, confidence 0~100)。
 
     coverage = 有資料的維度 / 應有維度（缺料的 scorer 回 None 已被剔除）。
     consensus = 1 − 子分數母體標準差/40（夾 0~1）：各面向越一致越可信，
     單一維度灌爆則離散度大、可信度低。衡量「這個分數可不可信」，非看多程度
     ——全面偏弱但有料且一致，仍是高可信（可信地說它弱）。
+
+    weights：某風格的配分。給了就**只看權重>0的維度**算完整度與共識度——因為
+    風格刻意不押的維度（如「會噴」零權的籌碼/位階）本就無關，不該污染可信度。
+    不給（None）= 看全部維度（向後相容，breakout/pullback 全維度有權即等價）。
     """
+    if weights is not None:
+        active = {c for c, w in weights.items() if w > 0}
+        sub_scores = {c: v for c, v in sub_scores.items() if c in active}
+        total_categories = len(active)
     present = len(sub_scores)
     if total_categories <= 0 or present == 0:
         return 0.0, 0.0

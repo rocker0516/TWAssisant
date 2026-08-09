@@ -107,6 +107,30 @@ class ShareholdingRepository(BaseRepository[models.ShareholdingDistribution]):
     model = models.ShareholdingDistribution
 
 
+class ShortLendingRepository(BaseRepository[models.ShortLending]):
+    model = models.ShortLending
+
+
+class DayTradingRepository(BaseRepository[models.DayTrading]):
+    model = models.DayTrading
+
+
+class InsiderHoldingRepository(BaseRepository[models.InsiderHolding]):
+    model = models.InsiderHolding
+
+
+class MarketDerivativesRepository(BaseRepository[models.MarketDerivatives]):
+    model = models.MarketDerivatives
+
+
+class InstitutionalMarketTotalRepository(BaseRepository[models.InstitutionalMarketTotal]):
+    model = models.InstitutionalMarketTotal
+
+
+class MarketIndexRepository(BaseRepository[models.MarketIndex]):
+    model = models.MarketIndex
+
+
 class RevenueMonthlyRepository(BaseRepository[models.RevenueMonthly]):
     model = models.RevenueMonthly
 

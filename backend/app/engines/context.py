@@ -24,10 +24,13 @@ class StockContext:
     holding: pd.DataFrame | None = None  # 升冪，集保股權分散週資料（可能空/None）
     # 長線軌資料（P1 fundamentals 之後填；先給空/None）
     valuation: pd.Series | None = None
-    revenue: pd.DataFrame | None = None
-    financials: pd.DataFrame | None = None
+    revenue: pd.DataFrame | None = None  # 月營收「歷史」升冪（欄 year/month/revenue/yoy/mom），已依公布日切到 ≤date
+    financials: pd.DataFrame | None = None  # 季財報「歷史」升冪（欄 year/quarter/eps/三率），單季值，已依申報期限切到 ≤date
     sector: models.SectorDaily | None = None  # P3
     events: list[models.Event] | None = None  # P4（近期利空，給 NewsRiskSignal）
+    # 長線軌（釣大魚）補充：類股相對量尺 + 近 60 日展望/利空事件
+    fund_rel: dict | None = None  # {"yoy3m_rank": 0~1|None（近3月均YoY類股內百分位）, "pe_sector_median": float|None}
+    events_60d: list[models.Event] | None = None  # 近 60 日「展望」「利空」事件（OutlookScore 用）
 
     # ── 行情 / 指標 ──
 
@@ -63,6 +66,58 @@ class StockContext:
         if self.inst is None or self.inst.empty or col not in self.inst:
             return 0.0
         return float(self.inst[col].iloc[-days:].fillna(0).sum())
+
+    def inst_consecutive_buy(self, col: str = "trust_net") -> int:
+        """某法人欄位「連續買超天數」（由最新日往回數，>0 才算）。無資料回 0。
+
+        投信連續買超＝主力認養的時序訊號（進場時機分數用）。
+        """
+        if self.inst is None or self.inst.empty or col not in self.inst:
+            return 0
+        n = 0
+        for v in reversed(self.inst[col].fillna(0).tolist()):
+            if v > 0:
+                n += 1
+            else:
+                break
+        return n
+
+    def inst_cum_flip_recency(
+        self,
+        window: int = 20,
+        lookback: int = 20,
+        cols: tuple[str, ...] = ("foreign_net", "trust_net"),
+    ) -> float | None:
+        """法人「翻買近期性」：window 日累計淨額由負轉正(翻買)發生得多近，衰減成 0~1。
+
+        進場時機分數的核心訊號——研究實證『法人 20 日累計由賣轉正當天進場』摸+10% 率
+        最高。連續取最新一次翻買點、days_since 線性衰減（剛翻買≈1、滿 lookback≈0）。
+        目前累計仍為負(法人非淨買)→ 0；窗內找不到翻買點(更早就翻買、非剛進場)→ 0；
+        史料不足(< window+1 筆)→ None(整個分數缺料剔除，避免把『沒料』當『時機差』)。
+        point-in-time：只用 self.inst（已切到 date ≤ 評分日）。
+        """
+        if self.inst is None or self.inst.empty:
+            return None
+        have = [c for c in cols if c in self.inst]
+        if not have:
+            return None
+        ft = self.inst[have].fillna(0).sum(axis=1)
+        if len(ft) < window + 1:
+            return None
+        cum = ft.rolling(window).sum()
+        last = cum.iloc[-1]
+        if pd.isna(last) or last <= 0:
+            return 0.0
+        cvals = cum.tolist()
+        end = len(cvals) - 1
+        start = max(window, end - lookback + 1)  # 只看 lookback 窗、且 cum 有效(需 ≥window)
+        for i in range(end, start - 1, -1):
+            prev = cvals[i - 1]
+            if pd.isna(prev):
+                continue
+            if cvals[i] > 0 and prev <= 0:  # 由 ≤0 翻為 >0
+                return max(0.0, 1.0 - (end - i) / lookback)
+        return 0.0
 
     # ── 融資融券 ──
 
@@ -112,3 +167,73 @@ class StockContext:
             return None
         ref = v.iloc[-(weeks + 1)] if len(v) > weeks else v.iloc[0]
         return float(v.iloc[-1] - ref)
+
+    # ── 基本面（長線軌「釣大魚」，月營收/季財報歷史，engine 已依公布時點切片）──
+
+    def rev_yoy_tail(self, n: int) -> list[float]:
+        """最近 n 個月的營收 YoY（升冪，略過 None）。史料不足回較短 list。"""
+        if self.revenue is None or self.revenue.empty or "yoy" not in self.revenue:
+            return []
+        return [float(v) for v in self.revenue["yoy"].iloc[-n:] if pd.notna(v)]
+
+    def rev_consec_growth_months(self) -> int | None:
+        """由最新月往回數「連續 YoY>0」月數（月份必須連續，缺月即斷）。無史料回 None。"""
+        if self.revenue is None or self.revenue.empty:
+            return None
+        rows = self.revenue[["year", "month", "yoy"]].dropna(subset=["yoy"]).values.tolist()
+        if not rows:
+            return None
+        n = 0
+        prev_ym: tuple[int, int] | None = None
+        for y, m, yoy in reversed(rows):
+            ym = (int(y), int(m))
+            if prev_ym is not None:
+                expect = (prev_ym[0] - 1, 12) if prev_ym[1] == 1 else (prev_ym[0], prev_ym[1] - 1)
+                if ym != expect:
+                    break
+            if yoy <= 0:
+                break
+            n += 1
+            prev_ym = ym
+        return n
+
+    def rev_cum_yoy(self) -> float | None:
+        """當年累計營收 YoY（%）：今年至最新月 vs 去年同期間。lumpy 認列產業的替代量尺。"""
+        if self.revenue is None or self.revenue.empty:
+            return None
+        df = self.revenue
+        last = df.iloc[-1]
+        y, m = int(last["year"]), int(last["month"])
+        cur = df[(df["year"] == y) & (df["month"] <= m)]["revenue"].dropna()
+        prev = df[(df["year"] == y - 1) & (df["month"] <= m)]["revenue"].dropna()
+        if len(cur) == 0 or len(prev) < len(cur) or prev.sum() <= 0:
+            return None
+        return float((cur.sum() - prev.sum()) / prev.sum() * 100.0)
+
+    def rev_new_high_months(self, window: int = 12) -> bool | None:
+        """最新月營收是否為近 window 月新高。史料不足 window 回 None。"""
+        if self.revenue is None or self.revenue.empty:
+            return None
+        s = self.revenue["revenue"].dropna()
+        if len(s) < window:
+            return None
+        return bool(s.iloc[-1] >= s.iloc[-window:].max())
+
+    def fin_tail(self, col: str, n: int) -> list[float]:
+        """季財報某欄最近 n 季（升冪，略過 None）。"""
+        if self.financials is None or self.financials.empty or col not in self.financials:
+            return []
+        return [float(v) for v in self.financials[col].iloc[-n:] if pd.notna(v)]
+
+    def eps_ttm(self, quarters_ago: int = 0) -> float | None:
+        """近 4 季 EPS 合計（trailing）。quarters_ago=4 → 一年前的 TTM。不足 4 季回 None。"""
+        if self.financials is None or self.financials.empty or "eps" not in self.financials:
+            return None
+        s = self.financials["eps"]
+        end = len(s) - quarters_ago
+        if end < 4:
+            return None
+        window = s.iloc[end - 4 : end]
+        if window.isna().any():
+            return None
+        return float(window.sum())

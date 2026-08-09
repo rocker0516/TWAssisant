@@ -59,6 +59,11 @@ class DailyPipeline:
             session.flush()
             ctx = PipelineContext(trading_date=trading_date, session=session)
 
+            # 每個 step 結束後 commit：釋放 SQLite writer 鎖，讓使用者「買進/賣出」
+            # 等其他寫入能在 step 之間擠進來；step 本身就是冪等 upsert/增量補缺，
+            # 中途失敗也不會壞資料（檔頭設計目標明示「整條可重跑」）。
+            session.flush()  # 先把 PipelineRun(running) 落地
+            session.commit()
             for step in self.steps:
                 t0 = time.time()
                 try:
@@ -83,11 +88,16 @@ class DailyPipeline:
                         }
                     )
                     traceback.print_exc()
+                    session.rollback()  # 把失敗 step 的部份寫入退掉，避免半成品
                     if step.required:
                         overall_status = "failed"
                         error = f"required step '{step.name}' 失敗：{msg}"
                         break  # required 失敗 → 中斷
+                else:
+                    session.commit()  # 釋放 writer 鎖，使用者交易能擠入
 
+            # session_scope 的 sessionmaker 設 expire_on_commit=False，
+            # commit 後 ORM 屬性仍可賦值；最後一次 commit 由 session_scope 收尾。
             run_row.steps = step_results
             run_row.status = overall_status
             run_row.error = error

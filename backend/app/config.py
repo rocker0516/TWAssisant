@@ -66,6 +66,7 @@ class Settings(BaseSettings):
             "twse": {"rate": 1.0, "capacity": 3, "timeout": 20.0},
             "tpex": {"rate": 1.0, "capacity": 3, "timeout": 25.0},
             "tdcc": {"rate": 0.5, "capacity": 2, "timeout": 40.0},  # 單一大 CSV，慢一點寬一點
+            "taifex": {"rate": 0.15, "capacity": 1, "timeout": 30.0},  # CSV 下載端點限流嚴（實測 1req/s 會 429），~7 秒一請求
         }
     )
 

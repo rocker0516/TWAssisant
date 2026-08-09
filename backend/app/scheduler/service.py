@@ -11,18 +11,19 @@
 from __future__ import annotations
 
 import threading
-from datetime import date, datetime, time as dtime
+from datetime import date, datetime, time as dtime, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from ..storage import models
 from ..storage.database import session_scope
-from .run import build_pipeline
+from .run import build_backfill_pipeline, build_pipeline
 from .trading_calendar import is_trading_day, previous_trading_day, resolve_trading_date
 
 _JOB_ID = "daily_pipeline"
 _lock = threading.Lock()
+_BACKFILL_CAP = 15  # 一次補洞最多回溯交易日數（安全上限，避免久未開機一次暴衝）
 
 
 def is_running() -> bool:
@@ -43,6 +44,75 @@ def run_pipeline_guarded(target: date | None = None, *, trigger: str = "manual")
         result = build_pipeline().run(tgt)
         print(f"[scheduler] pipeline 結束（{trigger}）status={result['status']}")
         return result
+    finally:
+        _lock.release()
+
+
+def _current_sched_time() -> dtime:
+    """讀目前排程時間（決定 _expected_ready_date 是否把『今天』算進可抓範圍）。"""
+    from ..services.settings_service import SettingsService
+
+    with session_scope() as s:
+        g = SettingsService().get(s, "general")
+    return _parse_time(((g or {}).get("schedule") or {}).get("time", "21:30"))
+
+
+def _last_score_date() -> date | None:
+    with session_scope() as s:
+        return s.execute(select(func.max(models.Score.date))).scalar()
+
+
+def _missing_trading_days(target: date, last_done: date | None) -> list[date]:
+    """(last_done, target] 之間的所有交易日，升冪；冷啟動(last_done=None)只回最新一天。
+
+    取最近 _BACKFILL_CAP 天為安全上限。target 本身一定是交易日（_expected_ready_date 保證）。
+    """
+    if last_done is None:
+        return [target]
+    days: list[date] = []
+    d = last_done + timedelta(days=1)
+    while d <= target:
+        if is_trading_day(d):
+            days.append(d)
+        d += timedelta(days=1)
+    return days[-_BACKFILL_CAP:]
+
+
+def backfill_to_latest(*, trigger: str = "manual") -> dict:
+    """補齊「所有缺的交易日（含分數）」到最新——設定頁「立即載入」用。
+
+    - target = 目前理應已完成的最近交易日（盤前/未到排程時間 → 上一交易日，不抓還沒齊的當天）。
+    - 逐日（升冪）跑 pipeline：最新那天跑完整（含通知/回測），其餘天跑精簡版（到 Exit、
+      不重複通知）。每天各寫一筆 PipelineRun（設定頁可見各步驟燈號）。
+    - 沒有缺口時 → 仍重跑 target 一次當刷新。fetch 為增量、indicator 全量重算，故整段冪等可重跑。
+    - 全程持鎖一次，與排程/補跑互斥。
+    """
+    if not _lock.acquire(blocking=False):
+        return {"status": "skipped", "reason": "already_running"}
+    try:
+        target = _expected_ready_date(datetime.now(), _current_sched_time())
+        last = _last_score_date()
+        days = _missing_trading_days(target, last) if (last is None or last < target) else []
+        # 沒缺口 → 仍重跑 target 一次當「刷新」，但走精簡版（不重發通知）。
+        refresh_only = not days
+        if refresh_only:
+            days = [target]
+        print(
+            f"[scheduler] backfill（{trigger}）target={target} "
+            f"{'刷新' if refresh_only else '待補'}={[d.isoformat() for d in days]}"
+        )
+        per_day: list[dict] = []
+        for i, d in enumerate(days):
+            # 只有「真的新補進來的最新交易日」才跑完整版（含通知/回測）；
+            # 其餘日與純刷新走精簡版，避免補多天/重按時轟 Discord。
+            full = (i == len(days) - 1) and not refresh_only
+            r = (build_pipeline() if full else build_backfill_pipeline()).run(d)
+            per_day.append({"date": d.isoformat(), "status": r["status"], "seconds": r["seconds"]})
+        ok = sum(1 for r in per_day if r["status"] == "success")
+        return {
+            "status": "ok", "trigger": trigger, "target": target.isoformat(),
+            "refresh_only": refresh_only, "days": per_day, "count": len(days), "succeeded": ok,
+        }
     finally:
         _lock.release()
 

@@ -155,6 +155,55 @@ class ShareholdingDistribution(Base):
     avg_lots: Mapped[float | None] = mapped_column(Float)       # 平均每人持股（張）
 
 
+class ShortLending(Base):
+    """借券賣出餘額（TWSE TWT93U / TPEX margin/sbl，信用額度總量管制餘額表借券欄）。
+
+    PK = (stock_id, date)。單位＝張（原始為股，/1000）。融券已在 margin 表；
+    此表補外資主要放空管道「借券賣出」，軋空軸（券資比）才完整。
+    """
+
+    __tablename__ = "short_lending"
+
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    date: Mapped[date_] = mapped_column(Date, primary_key=True)
+    sbl_balance: Mapped[int | None] = mapped_column(Integer)  # 借券賣出當日餘額（張）
+    sbl_change: Mapped[int | None] = mapped_column(Integer)   # 當日增減（張）
+    sbl_sell: Mapped[int | None] = mapped_column(Integer)     # 當日借券賣出（張）
+
+
+class DayTrading(Base):
+    """個股現股當沖統計（TWSE TWTB4U，上市限定；上櫃無個股級開放端點）。
+
+    PK = (stock_id, date)。當沖占比（dt_volume / 當日成交量）由查詢端 join
+    daily_prices 計算，不落欄位。
+    """
+
+    __tablename__ = "day_trading"
+
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    date: Mapped[date_] = mapped_column(Date, primary_key=True)
+    dt_volume: Mapped[int | None] = mapped_column(Integer)    # 當沖成交股數→張
+    dt_buy_value: Mapped[float | None] = mapped_column(Float)  # 當沖買進金額（元）
+    dt_sell_value: Mapped[float | None] = mapped_column(Float)  # 當沖賣出金額（元）
+
+
+class InsiderHolding(Base):
+    """董監事持股彙總（TWSE/TPEX OpenAPI t187ap11 月快照，逐公司加總）。
+
+    PK = (stock_id, year, month)。看趨勢用（董監持股月變化、設質比率變化），
+    絕對值受發行股數影響不跨股比較。
+    """
+
+    __tablename__ = "insider_holding"
+
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    year: Mapped[int] = mapped_column(Integer, primary_key=True)
+    month: Mapped[int] = mapped_column(Integer, primary_key=True)
+    director_shares: Mapped[float | None] = mapped_column(Float)  # 董監目前持股合計（股）
+    pledge_pct: Mapped[float | None] = mapped_column(Float)       # 設質占董監持股 %
+    positions: Mapped[int | None] = mapped_column(Integer)        # 申報席次數
+
+
 class RevenueMonthly(Base):
     """月營收。PK = (stock_id, year, month)。"""
 
@@ -214,6 +263,49 @@ class EtfProfile(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class InstitutionalMarketTotal(Base):
+    """全市場三大法人買賣超總表（TWSE BFI82U）。PK = date。單位＝億元。
+
+    與個股 institutional（張）不同口徑：這是整個市場的法人資金流向，用來看大盤方向、
+    法人買超循環處於哪一段。foreign/trust/dealer 三欄可個別看（外資/投信/自營常分歧）。
+    """
+
+    __tablename__ = "institutional_market_total"
+
+    date: Mapped[date_] = mapped_column(Date, primary_key=True)
+    foreign_net: Mapped[float | None] = mapped_column(Float)  # 外資（含外資自營商），億元
+    trust_net: Mapped[float | None] = mapped_column(Float)    # 投信，億元
+    dealer_net: Mapped[float | None] = mapped_column(Float)   # 自營商（自行+避險），億元
+    total_net: Mapped[float | None] = mapped_column(Float)    # 三大法人合計，億元
+
+
+class MarketDerivatives(Base):
+    """期貨籌碼市場級（TAIFEX 期交所）。PK = date。
+
+    台指期三大法人未平倉淨口數 + 選擇權 P/C ratio。與現貨 institutional_market_total
+    對照看「外資現貨期貨背離」（現貨買超但期貨空單增＝對沖非看多）。
+    定位＝觀察儀表；要折進 regime 閘門或評分需先過回測。
+    """
+
+    __tablename__ = "market_derivatives"
+
+    date: Mapped[date_] = mapped_column(Date, primary_key=True)
+    tx_foreign_oi_net: Mapped[int | None] = mapped_column(Integer)  # 外資台指期未平倉淨口數
+    tx_trust_oi_net: Mapped[int | None] = mapped_column(Integer)    # 投信
+    tx_dealer_oi_net: Mapped[int | None] = mapped_column(Integer)   # 自營商
+    pc_vol_ratio: Mapped[float | None] = mapped_column(Float)       # 買賣權成交量比率 %
+    pc_oi_ratio: Mapped[float | None] = mapped_column(Float)        # 買賣權未平倉量比率 %
+
+
+class MarketIndex(Base):
+    """加權指數日線（TWSE 發行量加權股價指數收盤）。PK = date。疊圖/量化關係對照用。"""
+
+    __tablename__ = "market_index"
+
+    date: Mapped[date_] = mapped_column(Date, primary_key=True)
+    close: Mapped[float | None] = mapped_column(Float)
+
+
 # ─────────────────────────── D 類股 ───────────────────────────
 
 
@@ -252,11 +344,15 @@ class Score(Base):
     date: Mapped[date_] = mapped_column(Date, primary_key=True)
     track: Mapped[str] = mapped_column(String(10), primary_key=True)  # wave / long
 
-    passed_filter: Mapped[bool] = mapped_column(Boolean, default=False)  # 過任一風格硬篩
+    passed_filter: Mapped[bool] = mapped_column(Boolean, default=False)  # 過任一風格硬篩（波段=遲滯後狀態）
+    strict_filter: Mapped[bool | None] = mapped_column(Boolean)  # 當日原始硬篩（無遲滯；狀態機隔日回看用）
     passed: Mapped[bool] = mapped_column(Boolean, default=False)  # 過硬篩 + 門檻
     passed_styles: Mapped[list | None] = mapped_column(JSON)  # 通過哪些進場風格硬篩 ["breakout","pullback"]
     total_score: Mapped[float | None] = mapped_column(Float)  # 主風格(波段=breakout)總分
     style_totals: Mapped[dict | None] = mapped_column(JSON)  # 各風格加權總分 {"breakout":..,"pullback":..}
+    style_coverage: Mapped[dict | None] = mapped_column(JSON)  # 各風格完整度（只看該風格押注維度）
+    style_confidence: Mapped[dict | None] = mapped_column(JSON)  # 各風格可信度（只看該風格押注維度）
+    style_stability: Mapped[dict | None] = mapped_column(JSON)  # 各風格穩定度（各用自己風格總分歷史）
     sub_scores: Mapped[dict | None] = mapped_column(JSON)  # 5 大類細項（缺料維度不入列）
     sector_adjust: Mapped[float | None] = mapped_column(Float)  # 類股修正分
     coverage: Mapped[float | None] = mapped_column(Float)  # 有資料維度占比 0~1（缺料偵測）
@@ -388,6 +484,21 @@ class LlmCache(Base):
     content: Mapped[str | None] = mapped_column(Text)
     model: Mapped[str | None] = mapped_column(String(40))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class CornerSignal(Base):
+    """高確信角落影子軌訊號（實驗）。角落定義=data/corners.json（挖掘凍結產物）。
+
+    純標籤層：不影響排序/推薦；累積 forward 驗證用（30 日後可對照 daily_prices
+    算「隔日高錨摸 +10%」實際命中 vs 各角落歷史帶）。
+    """
+
+    __tablename__ = "corner_signals"
+
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    date: Mapped[date_] = mapped_column(Date, primary_key=True, index=True)
+    corner_id: Mapped[str] = mapped_column(String(8), primary_key=True)  # C01~C30
+    close: Mapped[float | None] = mapped_column(Float)  # 訊號日收盤（回顧展示用）
 
 
 # ─────────────────────────── 排程 log ───────────────────────────

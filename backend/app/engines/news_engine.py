@@ -27,15 +27,24 @@ _RISK_KW = [
 ]
 _THEME_KW = [
     "擴廠", "擴產", "得標", "新訂單", "併購", "收購", "認證", "投資", "調高", "上修",
-    "接單", "量產", "簽約", "合作", "新產品", "取得", "中標", "增資擴產", "法說",
+    "接單", "量產", "簽約", "合作", "新產品", "取得", "中標", "增資擴產",
+]
+# 展望：前瞻性消息（財測/法說/評等/後市看法），與「已發生事實」的題材區隔。
+# 注意：負向前瞻（如「財測下修」）已在 _RISK_KW，利空優先權保留供 ExitEngine。
+_OUTLOOK_KW = [
+    "展望", "財測", "法說", "法人說明會", "目標價", "調升評等", "調降評等",
+    "調升目標", "調降目標", "看好", "看淡", "樂觀", "保守", "全年目標", "下半年",
+    "營運展望", "後市", "上看", "旺季", "急單", "拉貨", "預估營收",
 ]
 
 
 def classify(title: str, summary: str | None) -> tuple[str, bool]:
-    """回 (category, is_risk)。"""
+    """回 (category, is_risk)。優先序：利空 → 展望 → 題材 → 中性。"""
     text = f"{title} {summary or ''}"
     if any(k in text for k in _RISK_KW):
         return "利空", True
+    if any(k in text for k in _OUTLOOK_KW):
+        return "展望", False
     if any(k in text for k in _THEME_KW):
         return "題材", False
     return "中性", False
@@ -99,9 +108,11 @@ class NewsEngine(BaseEngine):
             if sid not in known:
                 continue
             title = rec["title"]
-            # 來源已標利空（處置）則沿用，否則關鍵字分類
+            # 來源已標利空（處置）或已標分類（內部人轉讓）則沿用，否則關鍵字分類
             if rec.get("is_risk"):
                 category, is_risk = rec.get("category") or "利空", True
+            elif rec.get("category"):
+                category, is_risk = rec["category"], False
             else:
                 category, is_risk = classify(title, rec.get("summary"))
             rows.append({

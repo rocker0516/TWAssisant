@@ -65,6 +65,69 @@ def _cell(row: list, i: int | None):
     return row[i]
 
 
+def _digest_insider(raw: list[dict]) -> pd.DataFrame:
+    """t187ap11_L/_O 董監持股明細（每列一席）→ 逐公司加總月快照。
+
+    上市/上櫃欄位同名，共用此消化：director_shares=目前持股合計（股）、
+    pledge_pct=設質股數合計占持股 %、positions=申報席次數。
+    """
+    agg: dict[tuple[str, int, int], dict] = {}
+    for r in raw:
+        sid = str(r.get("公司代號", "")).strip()
+        year, month = _roc_ym(r.get("資料年月", ""))
+        if not sid or year is None:
+            continue
+        held = _num(r.get("目前持股")) or 0.0
+        pledged = _num(r.get("設質股數")) or 0.0
+        key = (sid, year, month)
+        a = agg.setdefault(key, {"held": 0.0, "pledged": 0.0, "n": 0})
+        a["held"] += held
+        a["pledged"] += pledged
+        a["n"] += 1
+    rows = [
+        {
+            "stock_id": sid,
+            "year": y,
+            "month": m,
+            "director_shares": a["held"],
+            "pledge_pct": round(a["pledged"] / a["held"] * 100, 2) if a["held"] > 0 else None,
+            "positions": a["n"],
+        }
+        for (sid, y, m), a in agg.items()
+    ]
+    if not rows:
+        return pd.DataFrame(columns=schemas.INSIDER_COLS)
+    return pd.DataFrame(rows)[schemas.INSIDER_COLS]
+
+
+def _insider_transfer_events(raw: list[dict]) -> list[dict]:
+    """t187ap12_L/_O 內部人持股轉讓事前申報（日報）→ 事件列。
+
+    上市/上櫃欄位同名，共用此消化。中性資訊（轉讓多為贈與/信託/一般交易），
+    不標利空；分類「內部人轉讓」供前端徽章篩選。
+    """
+    out: list[dict] = []
+    for r in raw:
+        sid = str(r.get("公司代號", "")).strip()
+        if not sid:
+            continue
+        who = f"{(r.get('申報人身分') or '').strip()}{(r.get('姓名') or '').strip()}"
+        way = (r.get("預定轉讓方式及股數-轉讓方式") or "").strip()
+        shares = _num(r.get("預定轉讓方式及股數-轉讓股數"))
+        shares_txt = f"{int(shares):,} 股" if shares else "股數未載明"
+        out.append({
+            "stock_id": sid,
+            "date": _roc_date(r.get("出表日期") or ""),
+            "category": "內部人轉讓",
+            "title": f"內部人申報轉讓：{who} 預定轉讓 {shares_txt}（{way or '方式未載明'}）",
+            "summary": (f"受讓人：{r.get('受讓人')}" if r.get("受讓人") else None),
+            "is_risk": False,
+            "source": "內部人",
+            "url": None,
+        })
+    return out
+
+
 class TwseSource(BaseSource, PriceProvider, ChipProvider, FundamentalProvider, NewsProvider):
     name = "twse"
     base_url = "https://www.twse.com.tw"
@@ -219,6 +282,146 @@ class TwseSource(BaseSource, PriceProvider, ChipProvider, FundamentalProvider, N
             df[c] = df[c].astype("Int64")
         return df[schemas.MARGIN_COLS]
 
+    def fetch_short_lending(
+        self, start: date, end: date, stock_ids: list[str] | None = None
+    ) -> pd.DataFrame:
+        # TWT93U 信用額度總量管制餘額表。欄位重名（融券/借券各有前日餘額等），用位置：
+        # 0代號 1名稱 | 2前餘 3賣出 4買進 5現券 6今餘 7限額(融券) |
+        # 8前餘 9當日賣出 10當日還券 11當日調整 12當日餘額 13次日限額(借券) 14備註
+        # 單位＝股 → 張。
+        rows: list[dict] = []
+        for d in self._iter_days(start, end):
+            body = self._day_json("/exchangeReport/TWT93U", d, {})
+            if not body or not body.get("data"):
+                continue
+            for r in body["data"]:
+                sid = _cell(r, 0)
+                if sid is None:
+                    continue
+                bal, prev = _num(_cell(r, 12)), _num(_cell(r, 8))
+                sell = _num(_cell(r, 9))
+                rows.append(
+                    {
+                        "stock_id": str(sid).strip(),
+                        "date": d,
+                        "sbl_balance": round(bal / 1000) if bal is not None else None,
+                        "sbl_change": round((bal - prev) / 1000)
+                        if bal is not None and prev is not None
+                        else None,
+                        "sbl_sell": round(sell / 1000) if sell is not None else None,
+                    }
+                )
+        if not rows:
+            return pd.DataFrame(columns=schemas.SHORT_LENDING_COLS)
+        df = pd.DataFrame(rows)
+        for c in ("sbl_balance", "sbl_change", "sbl_sell"):
+            df[c] = df[c].astype("Int64")
+        return df[schemas.SHORT_LENDING_COLS]
+
+    def fetch_day_trading(
+        self, start: date, end: date, stock_ids: list[str] | None = None
+    ) -> pd.DataFrame:
+        # TWTB4U 當日沖銷交易標的及成交量值（上市個股級）。注意此端點僅 /exchangeReport
+        # 舊路徑可用（rwd 路徑 302）。位置：0代號 1名稱 2暫停註記 3成交股數 4買進金額 5賣出金額。
+        rows: list[dict] = []
+        for d in self._iter_days(start, end):
+            body = self._day_json(
+                "/exchangeReport/TWTB4U", d, {"selectType": "All"}
+            )
+            if not body:
+                continue
+            table = self._pick_table(body, "當日沖銷交易標的")
+            if not table:
+                continue
+            for r in table["data"]:
+                sid = _cell(r, 0)
+                if sid is None:
+                    continue
+                vol = _num(_cell(r, 3))
+                rows.append(
+                    {
+                        "stock_id": str(sid).strip(),
+                        "date": d,
+                        "dt_volume": round(vol / 1000) if vol is not None else None,
+                        "dt_buy_value": _num(_cell(r, 4)),
+                        "dt_sell_value": _num(_cell(r, 5)),
+                    }
+                )
+        if not rows:
+            return pd.DataFrame(columns=schemas.DAY_TRADING_COLS)
+        df = pd.DataFrame(rows)
+        df["dt_volume"] = df["dt_volume"].astype("Int64")
+        return df[schemas.DAY_TRADING_COLS]
+
+    # ── 市場級彙總（全市場三大法人總表 + 加權指數，皆 by date 逐日，無 stock_id）──
+
+    def fetch_institutional_market_total(
+        self, start: date, end: date, stock_ids: list[str] | None = None
+    ) -> pd.DataFrame:
+        """全市場三大法人買賣超總表（BFI82U，買賣差額）。單位元→億元（float）。
+
+        欄位見 schemas.INSTITUTIONAL_MARKET_COLS。無 stock_id（PK=date）。
+        歷史早期自營商可能未拆「自行買賣/避險」，缺欄時回退合計「自營商」。
+        """
+        e8 = 1e8
+        rows: list[dict] = []
+        for d in self._iter_days(start, end):
+            params = {"response": "json", "dayDate": d.strftime("%Y%m%d"), "type": "day"}
+            body = self._request("/fund/BFI82U", params=params).json()
+            if body.get("stat") != "OK" or not body.get("data"):
+                continue
+            vals: dict[str, float] = {}
+            for r in body["data"]:
+                name = str(_cell(r, 0) or "").strip()
+                vals[name] = _num(_cell(r, 3)) or 0.0  # 買賣差額
+            foreign = vals.get("外資及陸資(不含外資自營商)", 0.0) + vals.get("外資自營商", 0.0)
+            if "外資及陸資(不含外資自營商)" not in vals:
+                foreign = vals.get("外資及陸資", 0.0) + vals.get("外資自營商", 0.0)
+            trust = vals.get("投信", 0.0)
+            if "自營商(自行買賣)" in vals or "自營商(避險)" in vals:
+                dealer = vals.get("自營商(自行買賣)", 0.0) + vals.get("自營商(避險)", 0.0)
+            else:
+                dealer = vals.get("自營商", 0.0)
+            total = vals.get("合計")
+            if total is None:
+                total = foreign + trust + dealer
+            rows.append({
+                "date": d,
+                "foreign_net": round(foreign / e8, 2),
+                "trust_net": round(trust / e8, 2),
+                "dealer_net": round(dealer / e8, 2),
+                "total_net": round(total / e8, 2),
+            })
+        if not rows:
+            return pd.DataFrame(columns=schemas.INSTITUTIONAL_MARKET_COLS)
+        return pd.DataFrame(rows)[schemas.INSTITUTIONAL_MARKET_COLS]
+
+    def fetch_index(
+        self, start: date, end: date, stock_ids: list[str] | None = None
+    ) -> pd.DataFrame:
+        """加權指數日線（MI_INDEX「價格指數(臺灣證券交易所)」表中『發行量加權股價指數』收盤）。
+
+        欄位見 schemas.MARKET_INDEX_COLS。無 stock_id（PK=date）。
+        """
+        rows: list[dict] = []
+        for d in self._iter_days(start, end):
+            body = self._day_json("/exchangeReport/MI_INDEX", d, {"type": "ALLBUT0999"})
+            if not body:
+                continue
+            table = self._pick_table(body, "價格指數(臺灣證券交易所)")
+            if not table:
+                continue
+            idx = {name: i for i, name in enumerate(table["fields"])}
+            for r in table["data"]:
+                if str(_cell(r, idx.get("指數")) or "").strip() == "發行量加權股價指數":
+                    close = _num(_cell(r, idx.get("收盤指數")))
+                    if close is not None:
+                        rows.append({"date": d, "close": close})
+                    break
+        if not rows:
+            return pd.DataFrame(columns=schemas.MARKET_INDEX_COLS)
+        return pd.DataFrame(rows)[schemas.MARKET_INDEX_COLS]
+
     # ── FundamentalProvider（TWSE 全市場免費）──
 
     def fetch_valuation(
@@ -276,32 +479,20 @@ class TwseSource(BaseSource, PriceProvider, ChipProvider, FundamentalProvider, N
     def fetch_financials(
         self, start: date, end: date, stock_ids: list[str] | None = None
     ) -> pd.DataFrame:
-        """營益分析（openapi 最新季快照）：毛利率/營業利益率/稅後純益率。EPS 由估值推導。"""
-        resp = self._request(f"{_OPENAPI}/opendata/t187ap17_L")
-        data = resp.json()
-        rows: list[dict] = []
-        for r in data:
-            year = _num(r.get("年度"))
-            q = _num(r.get("季別"))
-            if year is None or q is None:
-                continue
-            rev_m = _num(r.get("營業收入(百萬元)"))
-            rows.append(
-                {
-                    "stock_id": str(r.get("公司代號", "")).strip(),
-                    "year": int(year) + 1911,
-                    "quarter": int(q),
-                    "eps": None,
-                    "revenue": rev_m * 1000 if rev_m is not None else None,  # 百萬→千元
-                    "gross_margin": _num(r.get("毛利率(%)(營業毛利)/(營業收入)")),
-                    "op_margin": _num(r.get("營業利益率(%)(營業利益)/(營業收入)")),
-                    "net_margin": _num(r.get("稅後純益率(%)(稅後純益)/(營業收入)")),
-                    "roe": None,
-                }
-            )
-        if not rows:
-            return pd.DataFrame(columns=schemas.FINANCIAL_COLS)
-        return pd.DataFrame(rows)[schemas.FINANCIAL_COLS]
+        """季財報（MOPS 累計制→單季，含 EPS）。
+
+        原 openapi t187ap17_L 為「累計」快照：Q2 起會把上半年累計率當單季寫庫，
+        污染長線軌的單季成長/利潤率趨勢因子 → 改走 MOPS 彙總表差分還原單季。
+        """
+        from . import mops  # 延遲匯入避免循環
+
+        return mops.fetch_recent_financials(markets=("sii",), today=end)
+
+    def fetch_insider_holdings(
+        self, start: date, end: date, stock_ids: list[str] | None = None
+    ) -> pd.DataFrame:
+        """董監事持股餘額明細（t187ap11_L 月快照）→ 逐公司加總。日期參數忽略。"""
+        return _digest_insider(self._openapi_list("/opendata/t187ap11_L"))
 
     # ── ETF 身分資料（基金基本資料彙總表 t187ap47_L，openapi 全快照）──
 
@@ -339,6 +530,7 @@ class TwseSource(BaseSource, PriceProvider, ChipProvider, FundamentalProvider, N
         rows: list[dict] = []
         rows.extend(self._fetch_material())
         rows.extend(self._fetch_punish())
+        rows.extend(_insider_transfer_events(self._openapi_list("/opendata/t187ap12_L")))
         if not rows:
             return pd.DataFrame(columns=schemas.EVENT_COLS)
         return pd.DataFrame(rows)[schemas.EVENT_COLS]

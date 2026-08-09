@@ -1,7 +1,7 @@
-"""情報頁端點：近期消息總結（讀盤後批次快取 + events 表，請求時不打 LLM）。
+"""情報頁端點：近期消息總結（llm_cache 首讀懶生成 + events 表）。
 
 四視角：全市場 digest / 依題材（類股）digest / 持股+觀察焦點 digest / 近期事件列表。
-digest 來自 LLMBatchStep 夜間生成的 llm_cache（news_market / news_theme / news_focus）；
+digest 走 news_digest.intel_digests：當日已快取直接讀、缺的平行生成一次回寫；
 事件列表直查 events 表，可依天數 / 類別 / 是否利空篩選。
 """
 
@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..llm.store import cache_key, get_cached
+from ..llm.news_digest import intel_digests
 from ..storage import models
 from .deps import get_session
 from .schemas import IntelEvent, IntelResponse, ThemeDigest
@@ -34,10 +34,11 @@ def intel(
     if td is None:
         return IntelResponse(date=None, themes=[], events=[], total=0, risk_count=0, has_digest=False)
 
-    market_digest = get_cached(session, cache_key("news_market", "tw", td))
-    focus_digest = get_cached(session, cache_key("news_focus", "me", td))
+    digests = intel_digests(session, td)
+    market_digest = digests["market"]
+    focus_digest = digests["focus"]
 
-    # 題材 digest：找批次當天已快取的 news_theme，補上窗口內事件統計
+    # 題材 digest：補上窗口內事件統計
     theme_start = td - timedelta(days=_DIGEST_DAYS)
     sector_counts = dict(session.execute(
         select(
@@ -55,19 +56,12 @@ def intel(
         .group_by(models.Stock.sector_id)
     ).all())
     themes: list[ThemeDigest] = []
-    cached = session.execute(
-        select(models.LlmCache).where(models.LlmCache.kind == "news_theme", models.LlmCache.date == td)
-    ).scalars().all()
     sect_names = dict(session.execute(select(models.Sector.id, models.Sector.name)).all())
-    for c in cached:
-        try:
-            sec_id = int(c.ref_id)
-        except (TypeError, ValueError):
-            continue
+    for sec_id, text in digests["themes"]:
         themes.append(ThemeDigest(
             sector_id=sec_id,
             sector_name=sect_names.get(sec_id, str(sec_id)),
-            digest=c.content or "",
+            digest=text,
             event_count=sector_counts.get(sec_id, 0),
             risk_count=sector_risk.get(sec_id, 0),
         ))

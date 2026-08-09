@@ -55,6 +55,19 @@ class CombinedMarketSource(BaseSource, PriceProvider, ChipProvider, FundamentalP
         from . import schemas
         return self._merge("fetch_margin", start, end, schemas.MARGIN_COLS)
 
+    def fetch_short_lending(self, start, end, stock_ids=None):
+        from . import schemas
+        return self._merge("fetch_short_lending", start, end, schemas.SHORT_LENDING_COLS)
+
+    def fetch_day_trading(self, start, end, stock_ids=None):
+        # 個股級當沖僅上市有開放端點；TPEX 回預設空表，合併後即上市資料
+        from . import schemas
+        return self._merge("fetch_day_trading", start, end, schemas.DAY_TRADING_COLS)
+
+    def fetch_insider_holdings(self, start, end, stock_ids=None):
+        from . import schemas
+        return self._merge("fetch_insider_holdings", start, end, schemas.INSIDER_COLS)
+
     def fetch_valuation(self, start, end, stock_ids=None):
         from . import schemas
         return self._merge("fetch_valuation", start, end, schemas.VALUATION_COLS)
@@ -85,6 +98,7 @@ class CombinedNewsSource(BaseSource, NewsProvider):
     def __init__(self, token: str | None = None) -> None:
         super().__init__(token)
         self._twse = TwseSource()
+        self._tpex = TpexSource()  # 上櫃內部人轉讓申報
         self._finmind = FinMindSource()
 
     def _probe(self) -> None:
@@ -93,7 +107,7 @@ class CombinedNewsSource(BaseSource, NewsProvider):
     def fetch_events(self, start: date, end: date) -> pd.DataFrame:
         from . import schemas
 
-        subsources: list[NewsProvider] = [self._twse, self._finmind]
+        subsources: list[NewsProvider] = [self._twse, self._tpex, self._finmind]
         if settings.research_enabled:
             from .research import ResearchSource
 

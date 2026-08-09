@@ -13,10 +13,10 @@ from datetime import date, datetime
 from ..storage.database import init_db
 from .pipeline import DailyPipeline
 from .steps import (
+    CornerStep,
     ExitStep,
     FetchStep,
     IndicatorStep,
-    LLMBatchStep,
     NewsStep,
     NotifyStep,
     PoppableEfficacyStep,
@@ -27,13 +27,29 @@ from .trading_calendar import is_trading_day, resolve_trading_date
 
 
 def build_pipeline() -> DailyPipeline:
-    # 依賴順序：Fetch→Indicator→Sector→News→Scoring→Exit→LLM→Notify→PoppableEfficacy。
+    # 依賴順序：Fetch→Indicator→Sector→News→Scoring→Exit→Notify→PoppableEfficacy。
+    # LLM 翻白話不在 pipeline：改端點首讀懶生成（llm/lazy.py），只為看的內容花呼叫。
     # 會噴成效回測放最後：純歷史回測、非必要，掛了不影響當日推薦/通知。
     return DailyPipeline(
         steps=[
             FetchStep(), IndicatorStep(), SectorStep(), NewsStep(),
-            ScoringStep(), ExitStep(), LLMBatchStep(), NotifyStep(),
+            ScoringStep(), CornerStep(), ExitStep(), NotifyStep(),
             PoppableEfficacyStep(),
+        ]
+    )
+
+
+def build_backfill_pipeline() -> DailyPipeline:
+    """多日補洞用：跑到 Exit 為止，不含通知/回測。
+
+    補一段缺口時，每個「非最新」交易日都跑這條（資料+指標+類股+消息+評分+出場齊全、
+    推薦可用），但**不發 Discord 通知、不跑成效回測**——避免一次補 N 天就轟 N 則通知。
+    最新那天才跑完整 build_pipeline()。
+    """
+    return DailyPipeline(
+        steps=[
+            FetchStep(), IndicatorStep(), SectorStep(), NewsStep(),
+            ScoringStep(), CornerStep(), ExitStep(),
         ]
     )
 

@@ -1,16 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  useApplyFactorIc,
-  useCalibration,
-  useExpectancy,
-  useFactorIc,
-  useParamSweep,
   usePoppableEfficacy,
   useRecompute,
-  useRecomputeCalibration,
-  useRecomputeExpectancy,
-  useRecomputeFactorIc,
-  useRecomputeParamSweep,
   useRecomputePoppableEfficacy,
   useResetSettings,
   useSettings,
@@ -31,10 +22,6 @@ const SECTIONS = [
   { key: "exit", label: "出場提醒" },
   { key: "sources", label: "資料來源" },
   { key: "poppable_efficacy", label: "會噴成效" },
-  { key: "calibration", label: "分數校準" },
-  { key: "factor_ic", label: "因子權重(IC)" },
-  { key: "expectancy", label: "逐筆期望值" },
-  { key: "param_sweep", label: "參數掃描" },
   { key: "general", label: "一般" },
 ] as const;
 
@@ -112,32 +99,34 @@ export default function SettingsPage() {
           <div className="flex flex-col gap-5">
             {(["wave", "long"] as const).map((tk) => (
               <div key={tk} className="rounded-xl border border-edge bg-panel p-4">
-                <div className="mb-3 font-semibold">{tk === "wave" ? "波段軌" : "長線軌"}</div>
-                {tk === "wave" && (
-                  <div className="mb-4">
-                    <div className="mb-1.5 text-xs text-muted">進場風格</div>
-                    <div className="flex gap-2">
-                      {([["poppable", "會噴", "波動+趨勢、回測實證的會噴機率"], ["breakout", "突破追強", "站上量增、買在突破/近高"], ["pullback", "回檔低接", "已回檔到區間下緣、不要求量增"]] as const).map(([val, label, hint]) => (
-                        <button key={val} type="button"
-                          onClick={() => setDraft({ ...draft, wave: { ...draft.wave, style: val } })}
-                          className={`flex-1 rounded-lg border px-3 py-2 text-left text-sm ${(draft.wave.style ?? "poppable") === val ? "border-sky-600 bg-sky-900/40 text-sky-200" : "border-edge bg-panel2 text-gray-300 hover:bg-edge"}`}>
-                          <div className="font-medium">{label}</div>
-                          <div className="text-[11px] text-muted">{hint}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                <div className="mb-3 font-semibold">{tk === "wave" ? "波段軌（會噴）" : "長線軌"}</div>
+                {tk === "wave" ? (
+                  <>
+                    <p className="mb-3 text-xs leading-relaxed text-muted">
+                      進場推薦＝<b>會噴</b>：分數為當天全市場橫截面 <b>2×波動度 + 均線多排</b> 的百分位
+                      （回測實證的會噴機率，無配分可調）。下方設定進推薦的「前 N%」；推薦頁也有橫桿可即時調整。
+                    </p>
+                    <label className="block w-40">
+                      <span className="mb-1 block text-xs text-muted">推薦前 N%</span>
+                      <input type="number" min={1} max={100} className={inputCls}
+                        value={draft.wave?.top_pct ?? 20}
+                        onChange={(e) => setDraft({ ...draft, wave: { ...draft.wave, top_pct: Number(e.target.value) } })} />
+                    </label>
+                  </>
+                ) : (
+                  <>
+                    <NumGrid obj={draft[tk].weights} labels={CATEGORY_LABELS}
+                      onChange={(k, v) => setDraft({ ...draft, [tk]: { ...draft[tk], weights: { ...draft[tk].weights, [k]: v } } })} />
+                    <label className="mt-3 block w-40">
+                      <span className="mb-1 block text-xs text-muted">推薦門檻</span>
+                      <input type="number" className={inputCls} value={draft[tk].threshold}
+                        onChange={(e) => setDraft({ ...draft, [tk]: { ...draft[tk], threshold: Number(e.target.value) } })} />
+                    </label>
+                  </>
                 )}
-                <NumGrid obj={draft[tk].weights} labels={CATEGORY_LABELS}
-                  onChange={(k, v) => setDraft({ ...draft, [tk]: { ...draft[tk], weights: { ...draft[tk].weights, [k]: v } } })} />
-                <label className="mt-3 block w-40">
-                  <span className="mb-1 block text-xs text-muted">推薦門檻</span>
-                  <input type="number" className={inputCls} value={draft[tk].threshold}
-                    onChange={(e) => setDraft({ ...draft, [tk]: { ...draft[tk], threshold: Number(e.target.value) } })} />
-                </label>
               </div>
             ))}
-            <p className="text-xs text-muted">配分自由給分、系統自動換算比例（不需加總 100）。儲存後當日重算、即時生效。</p>
+            <p className="text-xs text-muted">長線軌配分自由給分、系統自動換算比例（不需加總 100）。儲存後當日重算、即時生效。</p>
           </div>
         )}
 
@@ -179,22 +168,10 @@ export default function SettingsPage() {
         {/* 會噴清單成效回測 */}
         {section === "poppable_efficacy" && <PoppableEfficacyPanel />}
 
-        {/* 分數校準（L4 回測）*/}
-        {section === "calibration" && <CalibrationPanel />}
-
-        {/* 因子權重（單因子 IC）*/}
-        {section === "factor_ic" && <FactorICPanel />}
-
-        {/* 逐筆期望值回測 */}
-        {section === "expectancy" && <ExpectancyPanel />}
-
-        {/* 出場參數掃描 + walk-forward */}
-        {section === "param_sweep" && <SweepPanel />}
-
         {/* 一般（主題）*/}
         {section === "general" && <GeneralPanel />}
 
-        {section !== "data" && section !== "sources" && section !== "general" && section !== "calibration" && section !== "factor_ic" && section !== "expectancy" && section !== "param_sweep" && section !== "poppable_efficacy" && (
+        {section !== "data" && section !== "sources" && section !== "general" && section !== "poppable_efficacy" && (
           <div className="mt-5 flex items-center gap-3">
             <button onClick={save} disabled={update.isPending || recompute.isPending}
               className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium disabled:opacity-50">
@@ -263,10 +240,11 @@ function DataPanel() {
     <div className="flex flex-col gap-4">
       {/* 手動載入 */}
       <div className="rounded-xl border border-edge bg-panel p-4">
-        <div className="mb-1 font-semibold">立即載入</div>
+        <div className="mb-1 font-semibold">立即載入（補齊到最新）</div>
         <p className="text-sm text-muted">
-          手動執行一次盤後 pipeline（抓行情/籌碼 → 算指標 → 類股 → 消息 → 評分 → 出場 → AI → 通知）。
-          冪等可重跑，台股盤後資料約 21:00 後才齊。
+          補齊「所有缺的交易日（含分數/推薦）」到最新——逐日跑盤後 pipeline（抓行情/籌碼 → 算指標 →
+          類股 → 消息 → 評分 → 出場），最新那天才發通知/跑 AI（補多天不會重複通知）。冪等可重跑，
+          台股盤後資料約 21:00 後才齊；缺多天會逐日跑、較久。
         </p>
         <div className="mt-3 flex items-center gap-3">
           <button
@@ -274,7 +252,7 @@ function DataPanel() {
             disabled={running || trigger.isPending}
             className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
-            {running ? "載入中…" : trigger.isPending ? "啟動中…" : "立即載入"}
+            {running ? "載入中…" : trigger.isPending ? "啟動中…" : "補齊到最新"}
           </button>
           {running && <span className="text-sm text-amber-400">資料更新中，請稍候（每 3 秒自動刷新進度）</span>}
           {!running && trigger.data?.accepted === false && (
@@ -396,25 +374,52 @@ function PoppableEfficacyPanel() {
         <div className="mb-1 font-semibold">會噴清單成效（波段軌 · 會噴風格）</div>
         <p className="text-sm text-muted">
           會噴清單到底準不準？取最近幾個「已有完整未來」的歷史進場日，用<b className="text-gray-200">真引擎</b>
-          重跑當時的會噴清單，看那些股票後來 {eff?.horizon ?? 20} 個交易日<b className="text-gray-200">有沒有摸到 +10%</b>，
+          重跑當時的會噴清單，看那些股票後來 {eff?.horizon ?? 30} 個交易日<b className="text-gray-200">有沒有碰到 +10%</b>，
           對比全市場基準。
         </p>
         <div className="mt-2 rounded-lg border border-amber-700/50 bg-amber-950/30 px-3 py-2 text-xs leading-relaxed text-amber-200/90">
-          清單的職責是<b>「給你一個停利點」</b>，不是「會自動賺」。所以同時看<b>最深回撤 / 20 日收盤</b>
+          清單的職責是<b>「給你一個停利點」</b>，不是「會自動賺」。所以同時看<b>最深回撤 / {eff?.horizon ?? 30} 日收盤</b>
           ——噴完不賣可能吐回去，能不能入袋全看出場紀律。
         </div>
         {has && (
           <p className="mt-2 text-xs text-muted">
             {eff!.window.from} ~ {eff!.window.to}・{eff!.window.entry_dates} 個進場日・清單共 {eff!.total_list} 檔
-            　|　整體摸+10% <b className="text-gray-200">{pct(eff!.overall_hit_rate)}</b>　|　計算於 {eff!.generated_at}
+            　|　碰到+10% 隔天開 <b className="text-gray-200">{pct(eff!.overall_hit_rate_close)}</b>
+            ／隔天高 <b className="text-gray-200">{pct(eff!.overall_hit_rate)}</b>　|　計算於 {eff!.generated_at}
           </p>
+        )}
+        {has && (
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-emerald-800/50 bg-emerald-950/20 px-3 py-2 text-xs">
+            <span className="font-medium text-emerald-300">低位盤整擇時濾網</span>
+            <span className="text-muted">
+              全清單 <b className="text-gray-200">{pct(eff!.overall_hit_rate)}</b>（{eff!.total_list} 檔）
+              {" → "}低位盤整子集 <b className="text-emerald-300">{pct(eff!.coil_overall_hit_rate)}</b>（{eff!.coil_total ?? 0} 檔）
+            </span>
+            <span className="text-muted">
+              {eff!.coil_overall_hit_rate != null && eff!.overall_hit_rate
+                ? `lift ${(eff!.coil_overall_hit_rate / eff!.overall_hit_rate).toFixed(2)}x`
+                : "子集樣本不足"}
+            </span>
+          </div>
+        )}
+        {has && eff!.explosive_total != null && eff!.explosive_total > 0 && (
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-orange-800/50 bg-orange-950/20 px-3 py-2 text-xs">
+            <span className="font-medium text-orange-300">爆發風格（波幅&gt;7%＋上揚月線）</span>
+            <span className="text-muted">
+              碰到+10% 隔天開 <b className="text-orange-300">{pct(eff!.overall_explosive_hit_rate_close)}</b>
+              ／隔天高 <b className="text-gray-200">{pct(eff!.overall_explosive_hit_rate)}</b>（{eff!.explosive_total} 檔）
+            </span>
+            <span className="text-muted">
+              vs 會噴清單 隔天開 {pct(eff!.overall_hit_rate_close)}／隔天高 {pct(eff!.overall_hit_rate)}
+            </span>
+          </div>
         )}
         <button
           onClick={() => recompute.mutate()}
           disabled={recompute.isPending}
           className="mt-3 rounded-md bg-sky-600 px-4 py-2 text-sm font-medium disabled:opacity-50"
         >
-          {recompute.isPending ? "回測中…（約 1 分鐘）" : "重新計算"}
+          {recompute.isPending ? "背景回測中…（約 3–4 分鐘，可離開本頁）" : "重新計算"}
         </button>
         {recompute.isError && <span className="ml-3 text-sm text-down">失敗，請重試</span>}
       </div>
@@ -434,6 +439,10 @@ function PoppableEfficacyPanel() {
                 <th className="py-1 text-right font-normal">lift</th>
                 <th className="py-1 text-right font-normal">平均最高</th>
                 <th className="py-1 text-right font-normal">平均回撤</th>
+                <th className="py-1 text-right font-normal text-emerald-400/80">盤整檔</th>
+                <th className="py-1 text-right font-normal text-emerald-400/80">盤整摸+10%</th>
+                <th className="py-1 text-right font-normal text-orange-400/80">爆發檔</th>
+                <th className="py-1 text-right font-normal text-orange-400/80">爆發摸+10%</th>
               </tr>
             </thead>
             <tbody>
@@ -446,6 +455,10 @@ function PoppableEfficacyPanel() {
                   <td className="py-1.5 text-right tabular-nums">{r.lift === null ? "—" : `${r.lift.toFixed(2)}x`}</td>
                   <td className="py-1.5 text-right tabular-nums text-up">{sign(r.avg_mfe)}</td>
                   <td className="py-1.5 text-right tabular-nums text-down">{sign(r.avg_dd)}</td>
+                  <td className="py-1.5 text-right tabular-nums text-muted">{r.coil_n ?? 0}</td>
+                  <td className="py-1.5 text-right tabular-nums font-medium text-emerald-300">{pct(r.coil_hit_rate)}</td>
+                  <td className="py-1.5 text-right tabular-nums text-muted">{r.exp_n ?? 0}</td>
+                  <td className="py-1.5 text-right tabular-nums font-medium text-orange-300">{pct(r.exp_hit_rate)}</td>
                 </tr>
               ))}
             </tbody>
@@ -457,14 +470,14 @@ function PoppableEfficacyPanel() {
         <div className="rounded-xl border border-edge bg-panel p-4">
           <div className="mb-2 flex items-baseline justify-between">
             <span className="font-semibold">{eff!.detail_date} 會噴清單明細</span>
-            <span className="text-xs text-muted">後來 {eff!.horizon ?? 20} 交易日實際</span>
+            <span className="text-xs text-muted">後來 {eff!.horizon ?? 30} 交易日實際</span>
           </div>
           <table className="w-full text-sm">
             <thead>
               <tr className="text-xs text-muted">
                 <th className="py-1 text-left font-normal">股票</th>
                 <th className="py-1 text-right font-normal">會噴分</th>
-                <th className="py-1 text-right font-normal">波動</th>
+                <th className="py-1 text-right font-normal">波幅%</th>
                 <th className="py-1 text-right font-normal">最高漲</th>
                 <th className="py-1 text-right font-normal">最深回撤</th>
                 <th className="py-1 text-right font-normal">20日收盤</th>
@@ -474,9 +487,12 @@ function PoppableEfficacyPanel() {
             <tbody>
               {eff!.detail.map((r) => (
                 <tr key={r.stock_id} className="border-t border-edge/60">
-                  <td className="py-1.5"><span className="tabular-nums text-muted">{r.stock_id}</span> {r.name}</td>
+                  <td className="py-1.5">
+                    <span className="tabular-nums text-muted">{r.stock_id}</span> {r.name}
+                    {r.coil && <span className="ml-1.5 rounded bg-emerald-950/50 px-1 py-0.5 text-[10px] text-emerald-400">盤整</span>}
+                  </td>
                   <td className="py-1.5 text-right tabular-nums">{r.pop}</td>
-                  <td className="py-1.5 text-right tabular-nums text-muted">{r.vol}</td>
+                  <td className="py-1.5 text-right tabular-nums text-muted">{r.atr}</td>
                   <td className="py-1.5 text-right tabular-nums text-up">{sign(r.mfe)}</td>
                   <td className="py-1.5 text-right tabular-nums text-down">{sign(r.dd)}</td>
                   <td className={`py-1.5 text-right tabular-nums ${changeColor(r.cret)}`}>{sign(r.cret)}</td>
@@ -489,491 +505,6 @@ function PoppableEfficacyPanel() {
       )}
 
       {has && eff!.note && <p className="text-xs leading-relaxed text-muted">{eff!.note}</p>}
-    </div>
-  );
-}
-
-function CalibrationPanel() {
-  const { data: cal, isLoading } = useCalibration();
-  const recompute = useRecomputeCalibration();
-  const fmtRet = (v: number | null) => (v === null || v === undefined ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(2)}%`);
-
-  if (isLoading) return <div className="text-muted">載入中…</div>;
-  const has = cal && cal.samples > 0 && cal.horizons.length > 0;
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="rounded-xl border border-edge bg-panel p-4">
-        <div className="mb-1 font-semibold">分數校準回測（波段軌）</div>
-        <p className="text-sm text-muted">
-          分數高的，未來真的比較會漲嗎？把歷史每一天的波段分數分桶，量未來 N 日漲跌幅的
-          <b className="text-gray-200"> 中位數 </b>與<b className="text-gray-200"> 命中率（上漲比例）</b>。
-        </p>
-        {has && (
-          <p className="mt-2 text-xs text-muted">
-            回測視窗 {cal!.window.from} ~ {cal!.window.to}・{cal!.window.score_dates} 個交易日・
-            樣本 {cal!.samples.toLocaleString()}　|　計算於 {cal!.generated_at}
-          </p>
-        )}
-        <button
-          onClick={() => recompute.mutate()}
-          disabled={recompute.isPending}
-          className="mt-3 rounded-md bg-sky-600 px-4 py-2 text-sm font-medium disabled:opacity-50"
-        >
-          {recompute.isPending ? "回測中…（約 1 分鐘）" : "重新計算"}
-        </button>
-        {recompute.isError && <span className="ml-3 text-sm text-down">失敗，請重試</span>}
-      </div>
-
-      {!has && <p className="text-sm text-muted">尚無校準資料，按「重新計算」產生。</p>}
-
-      {has &&
-        cal!.horizons.map((h) => {
-          const rows = cal!.buckets[String(h)] ?? [];
-          const base = cal!.baseline[String(h)] ?? null;
-          return (
-            <div key={h} className="rounded-xl border border-edge bg-panel p-4">
-              <div className="mb-2 flex items-baseline justify-between">
-                <span className="font-semibold">未來 {h} 交易日</span>
-                <span className="text-xs text-muted">整體基準中位 {fmtRet(base)}</span>
-              </div>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-xs text-muted">
-                    <th className="py-1 text-left font-normal">分數區間</th>
-                    <th className="py-1 text-right font-normal">樣本</th>
-                    <th className="py-1 text-right font-normal">命中率</th>
-                    <th className="py-1 text-right font-normal">中位報酬</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((b) => (
-                    <tr key={b.lo} className="border-t border-edge/60">
-                      <td className="py-1.5 tabular-nums">{b.lo}–{b.hi}</td>
-                      <td className="py-1.5 text-right tabular-nums text-muted">{b.n}</td>
-                      <td className="py-1.5 text-right tabular-nums">
-                        {b.hit_rate === null ? "—" : `${Math.round(b.hit_rate * 100)}%`}
-                      </td>
-                      <td className={`py-1.5 text-right tabular-nums ${changeColor(b.median_ret)}`}>
-                        {fmtRet(b.median_ret)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          );
-        })}
-
-      {has && cal!.by_confidence && Object.keys(cal!.by_confidence).length > 0 && (
-        <div className="rounded-xl border border-sky-900/60 bg-panel p-4">
-          <div className="mb-1 font-semibold">可信度能再提升命中率嗎？</div>
-          <p className="mb-3 text-xs text-muted">
-            在可操作分數帶（≥{cal!.actionable_score ?? 70} 分）內，再依「可信度」分層比命中率。
-            若高信心一層明顯較高，代表可信度是獨立有效的第二道篩。
-          </p>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-xs text-muted">
-                <th className="py-1 text-left font-normal">可信度</th>
-                {cal!.horizons.map((h) => (
-                  <th key={h} className="py-1 text-right font-normal">{h}日命中率</th>
-                ))}
-                <th className="py-1 text-right font-normal">樣本</th>
-              </tr>
-            </thead>
-            <tbody>
-              {["高", "中", "低"].map((tier) => {
-                const cell = (h: number) => (cal!.by_confidence![String(h)] ?? []).find((t) => t.tier === tier);
-                const nMax = Math.max(...cal!.horizons.map((h) => cell(h)?.n ?? 0));
-                return (
-                  <tr key={tier} className="border-t border-edge/60">
-                    <td className="py-1.5">信心{tier}</td>
-                    {cal!.horizons.map((h) => {
-                      const c = cell(h);
-                      return (
-                        <td key={h} className="py-1.5 text-right tabular-nums">
-                          {c?.hit_rate == null ? "—" : `${Math.round(c.hit_rate * 100)}%`}
-                        </td>
-                      );
-                    })}
-                    <td className="py-1.5 text-right tabular-nums text-muted">{nMax}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {has && <p className="text-xs text-muted/80">{cal!.note}</p>}
-    </div>
-  );
-}
-
-function FactorICPanel() {
-  const { data: ic, isLoading } = useFactorIc();
-  const recompute = useRecomputeFactorIc();
-  const apply = useApplyFactorIc();
-  if (isLoading) return <div className="text-muted">載入中…</div>;
-  const factors = ic?.factors ?? {};
-  const cats = Object.keys(ic?.current_weights ?? {});
-  const has = cats.length > 0 && (ic?.score_dates ?? 0) > 0;
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="rounded-xl border border-edge bg-panel p-4">
-        <div className="mb-1 font-semibold">單因子 IC → 資料驅動權重（波段軌）</div>
-        <p className="text-sm text-muted">
-          每個因子分數與未來 {ic?.horizon ?? 20} 日報酬的<b className="text-gray-200"> 橫截面 rank-IC </b>
-          （跨日平均），由資料決定哪個因子有預測力、該給多少權重——取代手設配分。IR＝IC 均值/標準差（穩定度）。
-        </p>
-        {has && (
-          <p className="mt-2 text-xs text-muted">
-            視窗 {ic!.window?.from} ~ {ic!.window?.to}・{ic!.score_dates} 個交易日　|　計算於 {ic!.generated_at}
-          </p>
-        )}
-        <div className="mt-3 flex items-center gap-3">
-          <button onClick={() => recompute.mutate()} disabled={recompute.isPending}
-            className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium disabled:opacity-50">
-            {recompute.isPending ? "回測中…（約 1-2 分鐘）" : "重新計算"}
-          </button>
-          {has && (
-            <button onClick={() => apply.mutate()} disabled={apply.isPending}
-              className="rounded-md border border-edge px-4 py-2 text-sm font-medium disabled:opacity-50">
-              {apply.isPending ? "套用中…" : "套用建議權重"}
-            </button>
-          )}
-          {recompute.isError && <span className="text-sm text-down">失敗，請重試</span>}
-          {apply.isSuccess && <span className="text-sm text-up">已套用，需重跑評分才生效</span>}
-        </div>
-      </div>
-
-      {!has && <p className="text-sm text-muted">尚無因子 IC 資料，按「重新計算」產生（約 1-2 分鐘）。</p>}
-
-      {has && (
-        <div className="rounded-xl border border-edge bg-panel p-4">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-muted">
-                <th className="py-1.5">因子</th>
-                <th className="py-1.5 text-right">IC 均值</th>
-                <th className="py-1.5 text-right">IR</th>
-                <th className="py-1.5 text-right">天數</th>
-                <th className="py-1.5 text-right">現行權重</th>
-                <th className="py-1.5 text-right">建議權重</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cats.map((c) => {
-                const f = factors[c] ?? { ic_mean: null, ic_ir: null, n_dates: 0 };
-                const cur = ic!.current_weights[c];
-                const sug = ic!.suggested_weights[c];
-                return (
-                  <tr key={c} className="border-t border-edge/50">
-                    <td className="py-1.5">{CATEGORY_LABELS[c] ?? c}</td>
-                    <td className={`py-1.5 text-right tabular-nums ${changeColor(f.ic_mean)}`}>
-                      {f.ic_mean == null ? "—" : f.ic_mean.toFixed(4)}
-                    </td>
-                    <td className="py-1.5 text-right tabular-nums text-muted">
-                      {f.ic_ir == null ? "—" : f.ic_ir.toFixed(2)}
-                    </td>
-                    <td className="py-1.5 text-right tabular-nums text-muted">{f.n_dates}</td>
-                    <td className="py-1.5 text-right tabular-nums text-muted">{cur?.toFixed(1) ?? "—"}</td>
-                    <td className="py-1.5 text-right tabular-nums font-medium">{sug == null ? "—" : sug.toFixed(1)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {ic!.note && <p className="mt-3 text-xs text-muted">{ic!.note}</p>}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ExpectancyPanel() {
-  const { data: exp, isLoading } = useExpectancy();
-  const recompute = useRecomputeExpectancy();
-  const pct = (v: number | null | undefined, sign = false) =>
-    v === null || v === undefined ? "—" : `${sign && v > 0 ? "+" : ""}${v.toFixed(2)}%`;
-  const rate = (v: number | null | undefined) => (v === null || v === undefined ? "—" : `${Math.round(v * 100)}%`);
-
-  if (isLoading) return <div className="text-muted">載入中…</div>;
-  const has = exp && exp.overall && exp.overall.n > 0;
-
-  const scenarios = has
-    ? [
-        { label: "系統推薦（忠實出場）", s: exp!.overall },
-        { label: "同上，只停損+移停（不含跌破月線）", s: exp!.overall_stop_only },
-        { label: "對照：只過硬篩、不看分數", s: exp!.control },
-      ].filter((x) => x.s)
-    : [];
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="rounded-xl border border-edge bg-panel p-4">
-        <div className="mb-1 font-semibold">逐筆交易期望值回測（波段軌）</div>
-        <p className="text-sm text-muted">
-          照系統真實規則逐筆模擬：分數達門檻隔日開盤買，觸發真實出場訊號（停損/跌破月線/移動停利）
-          隔日開盤賣。問<b className="text-gray-200"> 每筆期望值 </b>是否為正、分數/可信度越高是否越賺。
-        </p>
-        {has && (
-          <p className="mt-2 text-xs text-muted">
-            {exp!.window.from} ~ {exp!.window.to}・進場日 {exp!.window.entry_dates}・
-            含來回成本 {exp!.cost_pct}%・最長持有 {exp!.max_hold} 日・計算於 {exp!.generated_at}
-          </p>
-        )}
-        <button onClick={() => recompute.mutate()} disabled={recompute.isPending}
-          className="mt-3 rounded-md bg-sky-600 px-4 py-2 text-sm font-medium disabled:opacity-50">
-          {recompute.isPending ? "回測中…（數分鐘）" : "重新計算"}
-        </button>
-        {recompute.isError && <span className="ml-3 text-sm text-down">失敗，請重試</span>}
-      </div>
-
-      {!has && <p className="text-sm text-muted">尚無回測資料，按「重新計算」產生。</p>}
-
-      {has && (
-        <div className="rounded-xl border border-edge bg-panel p-4">
-          <div className="mb-2 font-semibold">情境比較</div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-xs text-muted">
-                <th className="py-1 text-left font-normal">策略</th>
-                <th className="py-1 text-right font-normal">筆數</th>
-                <th className="py-1 text-right font-normal">勝率</th>
-                <th className="py-1 text-right font-normal">賺賠比</th>
-                <th className="py-1 text-right font-normal">每筆期望值</th>
-                <th className="py-1 text-right font-normal">持有</th>
-              </tr>
-            </thead>
-            <tbody>
-              {scenarios.map((x, i) => (
-                <tr key={i} className="border-t border-edge/60">
-                  <td className="py-1.5">{x.label}</td>
-                  <td className="py-1.5 text-right tabular-nums text-muted">{x.s!.n}</td>
-                  <td className="py-1.5 text-right tabular-nums">{rate(x.s!.win_rate)}</td>
-                  <td className="py-1.5 text-right tabular-nums">{x.s!.payoff ?? "—"}</td>
-                  <td className={`py-1.5 text-right font-medium tabular-nums ${changeColor(x.s!.expectancy)}`}>
-                    {pct(x.s!.expectancy, true)}
-                  </td>
-                  <td className="py-1.5 text-right tabular-nums text-muted">{x.s!.avg_hold ?? "—"}日</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {has && (
-        <div className="rounded-xl border border-edge bg-panel p-4">
-          <div className="mb-2 font-semibold">分數越高 → 每筆越賺嗎？</div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-xs text-muted">
-                <th className="py-1 text-left font-normal">分數區間</th>
-                <th className="py-1 text-right font-normal">筆數</th>
-                <th className="py-1 text-right font-normal">勝率</th>
-                <th className="py-1 text-right font-normal">賺賠比</th>
-                <th className="py-1 text-right font-normal">期望值</th>
-              </tr>
-            </thead>
-            <tbody>
-              {exp!.by_score.map((b) => (
-                <tr key={b.lo} className="border-t border-edge/60">
-                  <td className="py-1.5 tabular-nums">{b.lo}–{b.hi}</td>
-                  <td className="py-1.5 text-right tabular-nums text-muted">{b.n}</td>
-                  <td className="py-1.5 text-right tabular-nums">{rate(b.win_rate)}</td>
-                  <td className="py-1.5 text-right tabular-nums">{b.payoff ?? "—"}</td>
-                  <td className={`py-1.5 text-right tabular-nums ${changeColor(b.expectancy)}`}>{pct(b.expectancy, true)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {has && exp!.by_confidence.length > 0 && (
-        <div className="rounded-xl border border-sky-900/60 bg-panel p-4">
-          <div className="mb-2 font-semibold">可信度越高 → 每筆越賺嗎？（分數 ≥{exp!.actionable_score ?? 70}）</div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-xs text-muted">
-                <th className="py-1 text-left font-normal">可信度</th>
-                <th className="py-1 text-right font-normal">筆數</th>
-                <th className="py-1 text-right font-normal">勝率</th>
-                <th className="py-1 text-right font-normal">賺賠比</th>
-                <th className="py-1 text-right font-normal">期望值</th>
-              </tr>
-            </thead>
-            <tbody>
-              {exp!.by_confidence.map((t) => (
-                <tr key={t.tier} className="border-t border-edge/60">
-                  <td className="py-1.5">信心{t.tier}</td>
-                  <td className="py-1.5 text-right tabular-nums text-muted">{t.n}</td>
-                  <td className="py-1.5 text-right tabular-nums">{rate(t.win_rate)}</td>
-                  <td className="py-1.5 text-right tabular-nums">{t.payoff ?? "—"}</td>
-                  <td className={`py-1.5 text-right tabular-nums ${changeColor(t.expectancy)}`}>{pct(t.expectancy, true)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {has && <p className="text-xs text-muted/80">{exp!.note}</p>}
-    </div>
-  );
-}
-
-function fmtParams(p: { stop_cap: number; trail_trigger: number; trail_pullback: number; break_ma: boolean }) {
-  return `停損${p.stop_cap} 啟動${p.trail_trigger} 回落${p.trail_pullback} ${p.break_ma ? "月線出" : "不看月線"}`;
-}
-
-function SweepPanel() {
-  const { data: sw, isLoading } = useParamSweep();
-  const recompute = useRecomputeParamSweep();
-  const pct = (v: number | null | undefined) => (v === null || v === undefined ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(2)}%`);
-  const rate = (v: number | null | undefined) => (v === null || v === undefined ? "—" : `${Math.round(v * 100)}%`);
-
-  if (isLoading) return <div className="text-muted">載入中…</div>;
-  const wf = sw?.walkforward;
-  const has = sw && wf && (wf.oos_optimized !== undefined && wf.oos_optimized !== null);
-  const best_full = sw?.best_full;
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="rounded-xl border border-edge bg-panel p-4">
-        <div className="mb-1 font-semibold">出場參數掃描（walk-forward 驗證）</div>
-        <p className="text-sm text-muted">
-          進場規則固定，只掃出場參數（停損／移動停利／含不含跌破月線）。
-          <b className="text-gray-200"> 用前段資料挑最佳參數、套到沒看過的後段</b>，比「最佳化 vs 預設」誰贏——
-          這才看得出調參是真有效還是過擬合。
-        </p>
-        {sw?.window?.from && (
-          <p className="mt-2 text-xs text-muted">
-            {sw.window.from} ~ {sw.window.to}・掃 {sw.grid_size} 組・計算於 {sw.generated_at}
-          </p>
-        )}
-        <button onClick={() => recompute.mutate()} disabled={recompute.isPending}
-          className="mt-3 rounded-md bg-sky-600 px-4 py-2 text-sm font-medium disabled:opacity-50">
-          {recompute.isPending ? "掃描中…（數分鐘）" : "重新計算"}
-        </button>
-        {recompute.isError && <span className="ml-3 text-sm text-down">失敗，請重試</span>}
-      </div>
-
-      {!has && <p className="text-sm text-muted">尚無掃描資料，按「重新計算」產生。</p>}
-
-      {has && (
-        <div className="rounded-xl border border-sky-900/60 bg-panel p-4">
-          <div className="mb-2 font-semibold">樣本外結論</div>
-          <div className="flex gap-6">
-            <div>
-              <div className="text-xs text-muted">最佳化（樣本外）</div>
-              <div className={`text-2xl font-semibold tabular-nums ${changeColor(wf!.oos_optimized)}`}>{pct(wf!.oos_optimized)}</div>
-              <div className="text-xs text-muted">平均最深水下 {pct(wf!.oos_optimized_mae)}</div>
-            </div>
-            <div>
-              <div className="text-xs text-muted">預設（樣本外）</div>
-              <div className={`text-2xl font-semibold tabular-nums ${changeColor(wf!.oos_default)}`}>{pct(wf!.oos_default)}</div>
-              <div className="text-xs text-muted">平均最深水下 {pct(wf!.oos_default_mae)}</div>
-            </div>
-            <div>
-              <div className="text-xs text-muted">差距／筆</div>
-              <div className={`text-2xl font-semibold tabular-nums ${changeColor(wf!.edge)}`}>{pct(wf!.edge)}</div>
-            </div>
-          </div>
-          <p className="mt-3 text-sm text-gray-200">{wf!.verdict}</p>
-        </div>
-      )}
-
-      {has && sw!.boundary && (
-        <div className={`rounded-xl border p-4 ${sw!.boundary.is_runaway ? "border-amber-700/60 bg-amber-950/20" : "border-emerald-800/50 bg-panel"}`}>
-          <div className="mb-1 font-semibold">
-            {sw!.boundary.is_runaway ? "🚩 真甜蜜點 or 行情假象？→ 偏行情假象" : "✅ 真甜蜜點 or 行情假象？→ 偏真甜蜜點"}
-          </div>
-          <p className="text-sm text-gray-200">{sw!.boundary.message}</p>
-          {best_full && (
-            <p className="mt-2 text-xs text-muted">
-              全期最佳：{fmtParams(best_full.params)}（期望值 {pct(best_full.expectancy)}）
-              {sw!.boundary.at_max.length > 0 && `；仍貼最寬端的軸：${sw!.boundary.at_max.join("、")}`}
-            </p>
-          )}
-          {!sw!.boundary.is_runaway && wf!.folds && wf!.folds[0] && (wf!.edge ?? 0) > 0.2 && (
-            <p className="mt-2 text-xs text-sky-300/90">
-              可試跑：到「出場提醒」把波段設成 停損{wf!.folds[0].picked.stop_cap}／啟動{wf!.folds[0].picked.trail_trigger}／回落{wf!.folds[0].picked.trail_pullback}
-              {!wf!.folds[0].picked.break_ma && "、關閉「跌破月線即出場」"}，與預設並行觀察再定奪。
-            </p>
-          )}
-        </div>
-      )}
-
-      {has && wf!.folds && wf!.folds.length > 0 && (
-        <div className="rounded-xl border border-edge bg-panel p-4">
-          <div className="mb-2 font-semibold">各折（前段挑參數 → 後段驗證）</div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-xs text-muted">
-                <th className="py-1 text-left font-normal">測試期</th>
-                <th className="py-1 text-left font-normal">前段挑的參數</th>
-                <th className="py-1 text-right font-normal">訓練</th>
-                <th className="py-1 text-right font-normal">樣本外</th>
-                <th className="py-1 text-right font-normal">預設樣本外</th>
-              </tr>
-            </thead>
-            <tbody>
-              {wf!.folds.map((f, i) => (
-                <tr key={i} className="border-t border-edge/60">
-                  <td className="py-1.5 text-xs tabular-nums">{f.test_from}~{f.test_to}</td>
-                  <td className="py-1.5 text-xs">{fmtParams(f.picked)}</td>
-                  <td className="py-1.5 text-right tabular-nums text-muted">{pct(f.train_expectancy)}</td>
-                  <td className={`py-1.5 text-right tabular-nums ${changeColor(f.oos_expectancy)}`}>{pct(f.oos_expectancy)}</td>
-                  <td className={`py-1.5 text-right tabular-nums ${changeColor(f.default_oos_expectancy)}`}>{pct(f.default_oos_expectancy)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {has && sw!.grid_top.length > 0 && (
-        <div className="rounded-xl border border-edge bg-panel p-4">
-          <div className="mb-1 font-semibold">全期排行</div>
-          <p className="mb-2 text-xs text-amber-400/80">⚠ 樣本內排行，看起來最美的那組通常是過擬合——以上面的樣本外結論為準。</p>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-xs text-muted">
-                <th className="py-1 text-left font-normal">出場參數</th>
-                <th className="py-1 text-right font-normal">筆數</th>
-                <th className="py-1 text-right font-normal">勝率</th>
-                <th className="py-1 text-right font-normal">賺賠比</th>
-                <th className="py-1 text-right font-normal">期望值</th>
-                <th className="py-1 text-right font-normal">最深水下</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sw!.grid_top.map((r, i) => (
-                <tr key={i} className="border-t border-edge/60">
-                  <td className="py-1.5 text-xs">{fmtParams(r.params)}</td>
-                  <td className="py-1.5 text-right tabular-nums text-muted">{r.n}</td>
-                  <td className="py-1.5 text-right tabular-nums">{rate(r.win_rate)}</td>
-                  <td className="py-1.5 text-right tabular-nums">{r.payoff ?? "—"}</td>
-                  <td className={`py-1.5 text-right tabular-nums ${changeColor(r.expectancy)}`}>{pct(r.expectancy)}</td>
-                  <td className="py-1.5 text-right tabular-nums text-down">{pct(r.avg_mae)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {sw!.default && (
-            <p className="mt-2 text-xs text-muted">
-              預設（{fmtParams(sw!.default.params)}）：{sw!.default.n} 筆・期望值 {pct(sw!.default.expectancy)}
-            </p>
-          )}
-        </div>
-      )}
-
-      {has && <p className="text-xs text-muted/80">{sw!.note}</p>}
     </div>
   );
 }

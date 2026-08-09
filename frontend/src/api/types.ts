@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/recommendations/tag-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recommendation Tag Stats
+         * @description 標籤組合五年實證命中統計（scripts/build_tag_combo_stats.py 產出，靜態檔）。
+         */
+        get: operations["recommendation_tag_stats_recommendations_tag_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/recommendations": {
         parameters: {
             query?: never;
@@ -11,8 +31,59 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Recommendations */
+        /**
+         * Recommendations
+         * @description 波段軌＝會噴：回傳全部過硬篩股(依會噴分數高→低)，前端橫桿就地切『前 N%』。
+         *     style=explosive：爆發風格＝atr>7%+上揚月線(不看季線乖離)，純門檻篩全回、無前N%概念。
+         *     長線軌：沿用門檻切 items / near。
+         */
         get: operations["recommendations_recommendations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/recommendations/lookback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recommendations Lookback
+         * @description 波段(會噴)軌「回看」：那天推薦清單到今天的實況（已噴 / 至今報酬 / 期間 MFE/MAE）。
+         *
+         *     優先用 `date` 直接指定推薦日（月曆點選）；否則以 DailyPrice 交易日曆定位 `days` 個交易日前，
+         *     Score 表可能有空隙，退到目標日 ≤ 的最近可用快照。
+         */
+        get: operations["recommendations_lookback_recommendations_lookback_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/recommendations/lookback/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recommendations Lookback Calendar
+         * @description 回看月曆：每個過去的 Score 日一筆命中率（過硬篩且分數≥cutoff、期間 high ≥ entry×1.10）。
+         *
+         *     進場錨＝隔天最高價（實務：盤後看到推薦、隔日追高的最壞情況）；MFE 只看隔天之後的 high。
+         *     路徑無關（與 `_lookback_review` 一致）。
+         */
+        get: operations["recommendations_lookback_calendar_recommendations_lookback_calendar_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -35,146 +106,6 @@ export interface paths {
         get: operations["stock_search_stocks_search_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/calibration": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Calibration
-         * @description 分數校準回測結果（波段軌；L4）。讀快取，無則回空殼。重算用 POST /calibration/recompute。
-         */
-        get: operations["calibration_calibration_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/calibration/recompute": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Calibration Recompute
-         * @description 重跑校準（較重，~分鐘級）。as-of 用最新行情日。
-         */
-        post: operations["calibration_recompute_calibration_recompute_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/factor-ic": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Factor Ic
-         * @description 單因子 IC + 資料驅動建議權重（波段軌）。讀快取，重算用 POST /factor-ic/recompute。
-         */
-        get: operations["factor_ic_factor_ic_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/factor-ic/recompute": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Factor Ic Recompute
-         * @description 重算單因子 IC（較重，~分鐘級）。as-of 用最新行情日。
-         */
-        post: operations["factor_ic_recompute_factor_ic_recompute_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/factor-ic/apply": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Factor Ic Apply
-         * @description 把 IC 建議權重寫進評分設定（scoring.wave.weights）。需另重跑評分才生效。
-         */
-        post: operations["factor_ic_apply_factor_ic_apply_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/expectancy": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Expectancy
-         * @description 逐筆交易期望值回測結果（波段軌）。讀快取，重算用 POST /expectancy/recompute。
-         */
-        get: operations["expectancy_expectancy_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/expectancy/recompute": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Expectancy Recompute
-         * @description 重跑逐筆期望值回測（較重，~分鐘級）。
-         */
-        post: operations["expectancy_recompute_expectancy_recompute_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -212,7 +143,7 @@ export interface paths {
         put?: never;
         /**
          * Poppable Efficacy Recompute
-         * @description 重跑會噴清單成效回測（較重，~分鐘級）。as-of 用最新行情日。
+         * @description 背景重跑會噴清單成效回測（~分鐘級）。立即回傳狀態；前端輪詢 status 端點直到 running=False。
          */
         post: operations["poppable_efficacy_recompute_poppable_efficacy_recompute_post"];
         delete?: never;
@@ -221,7 +152,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/param-sweep": {
+    "/poppable-efficacy/recompute/status": {
         parameters: {
             query?: never;
             header?: never;
@@ -229,32 +160,12 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Param Sweep
-         * @description 出場參數掃描 + walk-forward 結果（波段軌）。讀快取。
+         * Poppable Efficacy Recompute Status
+         * @description 背景重算狀態：{running, started_at, finished_at, error}。
          */
-        get: operations["param_sweep_param_sweep_get"];
+        get: operations["poppable_efficacy_recompute_status_poppable_efficacy_recompute_status_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/param-sweep/recompute": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Param Sweep Recompute
-         * @description 重跑參數掃描（最重，~數分鐘）。
-         */
-        post: operations["param_sweep_recompute_param_sweep_recompute_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -436,6 +347,134 @@ export interface paths {
         get: operations["sector_detail_sectors__sector_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/flow/market": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Market Flow */
+        get: operations["market_flow_flow_market_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/flow/sectors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Sector Flow */
+        get: operations["sector_flow_flow_sectors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/flow/rotation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Sector Rotation */
+        get: operations["sector_rotation_flow_rotation_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/flow/stocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stock Flow */
+        get: operations["stock_flow_flow_stocks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/flow/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Chip Alerts
+         * @description 最新交易日籌碼異動：投信首買/連買、借券暴增、大戶連增（規則式）。
+         */
+        get: operations["chip_alerts_flow_alerts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/flow/relation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Inst Relation
+         * @description 法人累積 → 未來報酬 rank-IC / 勝率（讀快取，無則回空殼，請呼叫 recompute）。
+         */
+        get: operations["inst_relation_flow_relation_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/flow/relation/recompute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Recompute Relation
+         * @description 重算法人累積→未來報酬量化關係並快取（較重，數十秒）。
+         */
+        post: operations["recompute_relation_flow_relation_recompute_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -647,6 +686,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/assistant/brief": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Assistant Brief
+         * @description 進頁今日重點（情境感知）。命中當日該頁快取直接吐、未命中跑 Haiku 串流並回寫快取。
+         */
+        post: operations["assistant_brief_assistant_brief_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/assistant/chat": {
         parameters: {
             query?: never;
@@ -746,7 +805,10 @@ export interface paths {
         put?: never;
         /**
          * Trigger Pipeline
-         * @description 設定頁[立即載入]：背景執行，立即回 accepted。已在跑則回 already_running。
+         * @description 設定頁[立即載入]：背景補齊「所有缺的交易日（含分數）」到最新。
+         *
+         *     立即回 accepted；已在跑則回 already_running。target＝目前理應已完成的最近交易日
+         *     （盤前/未到排程時間 → 上一交易日，不抓還沒齊的當天）。
          */
         post: operations["trigger_pipeline_pipeline_run_post"];
         delete?: never;
@@ -759,6 +821,24 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * ActorRelation
+         * @description 單一 actor：法人 20 日累計 vs 指數未來報酬的量化關係。
+         */
+        ActorRelation: {
+            /** H */
+            h: number;
+            /** Samples */
+            samples: number;
+            /** Avg Ret Pos */
+            avg_ret_pos?: number | null;
+            /** Avg Ret Neg */
+            avg_ret_neg?: number | null;
+            /** Winrate Pos */
+            winrate_pos?: number | null;
+            /** Corr */
+            corr?: number | null;
+        };
         /** AlertBrief */
         AlertBrief: {
             /** Stock Id */
@@ -771,6 +851,16 @@ export interface components {
             return_pct: number | null;
             /** Signals */
             signals: string[];
+        };
+        /** BriefRequest */
+        BriefRequest: {
+            /**
+             * Context
+             * @default {}
+             */
+            context: {
+                [key: string]: unknown;
+            };
         };
         /** Candle */
         Candle: {
@@ -824,6 +914,30 @@ export interface components {
             };
             /** History */
             history: components["schemas"]["ChatMsg"][];
+        };
+        /** ChipAlertItem */
+        ChipAlertItem: {
+            /** Stock Id */
+            stock_id: string;
+            /** Name */
+            name: string;
+            /** Sector Name */
+            sector_name?: string | null;
+            /** Kind */
+            kind: string;
+            /** Kind Label */
+            kind_label: string;
+            /** Detail */
+            detail: string;
+            /** Value */
+            value: number;
+        };
+        /** ChipAlertList */
+        ChipAlertList: {
+            /** Date */
+            date: string | null;
+            /** Items */
+            items: components["schemas"]["ChipAlertItem"][];
         };
         /** ChipHistoryResponse */
         ChipHistoryResponse: {
@@ -883,6 +997,16 @@ export interface components {
             holders?: number | null;
             /** Big Trend */
             big_trend?: number | null;
+            /** Sbl Balance */
+            sbl_balance?: number | null;
+            /** Sbl Chg20 */
+            sbl_chg20?: number | null;
+            /** Dt Ratio5 */
+            dt_ratio5?: number | null;
+            /** Insider Pct Chg */
+            insider_pct_chg?: number | null;
+            /** Insider Pledge Pct */
+            insider_pledge_pct?: number | null;
         };
         /**
          * EtfInfo
@@ -941,6 +1065,63 @@ export interface components {
             source: string | null;
             /** Url */
             url: string | null;
+        };
+        /** FlowStockItem */
+        FlowStockItem: {
+            /** Stock Id */
+            stock_id: string;
+            /** Name */
+            name: string;
+            /** Sector Name */
+            sector_name?: string | null;
+            /** Foreign Cum20 */
+            foreign_cum20?: number | null;
+            /** Trust Cum20 */
+            trust_cum20?: number | null;
+            /** Dealer Cum20 */
+            dealer_cum20?: number | null;
+            /** Total Cum20 */
+            total_cum20?: number | null;
+            /** Foreign Cum60 */
+            foreign_cum60?: number | null;
+            /** Trust Cum60 */
+            trust_cum60?: number | null;
+            /** Dealer Cum60 */
+            dealer_cum60?: number | null;
+            /** Total Cum60 */
+            total_cum60?: number | null;
+            /**
+             * Consec Days
+             * @default 0
+             */
+            consec_days: number;
+            /** Big Pct */
+            big_pct?: number | null;
+            /** Big Trend */
+            big_trend?: number | null;
+            /** Small Trend */
+            small_trend?: number | null;
+            /** Holders Change */
+            holders_change?: number | null;
+            /** Sbl Balance */
+            sbl_balance?: number | null;
+            /** Sbl Chg20 */
+            sbl_chg20?: number | null;
+            /** Dt Ratio5 */
+            dt_ratio5?: number | null;
+            /** Close */
+            close?: number | null;
+            /** Change Pct */
+            change_pct?: number | null;
+        };
+        /** FlowStockList */
+        FlowStockList: {
+            /** Date */
+            date: string | null;
+            /** Sort */
+            sort: string;
+            /** Items */
+            items: components["schemas"]["FlowStockItem"][];
         };
         /** FundamentalSummary */
         FundamentalSummary: {
@@ -1103,6 +1284,35 @@ export interface components {
             /** Total Realized Pnl */
             total_realized_pnl: number;
         };
+        /** InstActorIC */
+        InstActorIC: {
+            /** Ic */
+            ic?: number | null;
+            /** Winrate Pos */
+            winrate_pos?: number | null;
+            /** Avg Ret Pos */
+            avg_ret_pos?: number | null;
+            /**
+             * Samples
+             * @default 0
+             */
+            samples: number;
+        };
+        /** InstPriceRelation */
+        InstPriceRelation: {
+            /** Generated At */
+            generated_at: string | null;
+            /** Horizon */
+            horizon: number;
+            /** Entry Dates */
+            entry_dates: number;
+            /** Actors */
+            actors: {
+                [key: string]: components["schemas"]["InstActorIC"];
+            };
+            /** Note */
+            note?: string | null;
+        };
         /** IntelEvent */
         IntelEvent: {
             /** Stock Id */
@@ -1167,6 +1377,182 @@ export interface components {
             supports: components["schemas"]["LevelDTO"][];
             /** Resistances */
             resistances: components["schemas"]["LevelDTO"][];
+        };
+        /**
+         * LookbackCalendar
+         * @description 回看月曆：每個過去的 Score 日一筆命中率。
+         */
+        LookbackCalendar: {
+            /** Today Date */
+            today_date: string | null;
+            /** Top Pct */
+            top_pct: number;
+            /** Cutoff */
+            cutoff: number;
+            /** Dates */
+            dates: components["schemas"]["LookbackDatePoint"][];
+        };
+        /**
+         * LookbackDatePoint
+         * @description 月曆單日：那天的會噴清單至今命中率。
+         */
+        LookbackDatePoint: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** N */
+            n: number;
+            /** Hit Count */
+            hit_count: number;
+            /** Hit Rate */
+            hit_rate: number | null;
+        };
+        /**
+         * LookbackReview
+         * @description 回看：那天推薦至今的實際表現。買在當日收盤（與 PoppableEfficacy 同錨點）。
+         */
+        LookbackReview: {
+            /** Entry Close */
+            entry_close: number | null;
+            /** Current Close */
+            current_close: number | null;
+            /** Return Pct */
+            return_pct: number | null;
+            /** Mfe Pct */
+            mfe_pct: number | null;
+            /** Mae Pct */
+            mae_pct: number | null;
+            /**
+             * Hit Pop
+             * @default false
+             */
+            hit_pop: boolean;
+            /** Hit Pop Date */
+            hit_pop_date?: string | null;
+            /** Days To Pop */
+            days_to_pop?: number | null;
+            /**
+             * Days Elapsed
+             * @default 0
+             */
+            days_elapsed: number;
+        };
+        /**
+         * LookbackSummary
+         * @description 回看清單摘要（命中率/平均報酬）。
+         */
+        LookbackSummary: {
+            /** N */
+            n: number;
+            /** Hit Count */
+            hit_count: number;
+            /** Hit Rate */
+            hit_rate: number | null;
+            /** Avg Return Pct */
+            avg_return_pct: number | null;
+            /** Avg Mfe Pct */
+            avg_mfe_pct: number | null;
+            /** Avg Mae Pct */
+            avg_mae_pct: number | null;
+        };
+        /**
+         * MarketDerivativesBlock
+         * @description 期貨籌碼（TAIFEX）：台指期法人未平倉淨口數曲線 + P/C ratio。觀察儀表定位。
+         *
+         *     divergence：外資「現貨 20 日累計買賣超」與「期貨淨未平倉 20 日變化」方向相反時
+         *     標記（現貨買+期貨空單增＝對沖非看多；反向亦然）。純描述現況、無方向宣稱。
+         */
+        MarketDerivativesBlock: {
+            /** Dates */
+            dates: string[];
+            /** Tx Foreign Oi Net */
+            tx_foreign_oi_net: (number | null)[];
+            /** Tx Trust Oi Net */
+            tx_trust_oi_net: (number | null)[];
+            /** Tx Dealer Oi Net */
+            tx_dealer_oi_net: (number | null)[];
+            /** Pc Oi Ratio */
+            pc_oi_ratio: (number | null)[];
+            /** Latest Pc Vol Ratio */
+            latest_pc_vol_ratio?: number | null;
+            /** Foreign Oi Latest */
+            foreign_oi_latest?: number | null;
+            /** Foreign Oi Chg20 */
+            foreign_oi_chg20?: number | null;
+            /** Spot Foreign Cum20 */
+            spot_foreign_cum20?: number | null;
+            /** Divergence */
+            divergence?: string | null;
+        };
+        /**
+         * MarketFlowActor
+         * @description 單一 actor（合計/外資/投信/自營）的市場資金流向（億元）。
+         */
+        MarketFlowActor: {
+            /** Daily */
+            daily: (number | null)[];
+            /** Cum */
+            cum: (number | null)[];
+            /** Cum20 */
+            cum20?: number | null;
+            /** Cum60 */
+            cum60?: number | null;
+            /** Cum120 */
+            cum120?: number | null;
+            /**
+             * Consec Days
+             * @default 0
+             */
+            consec_days: number;
+            /** Phase */
+            phase?: string | null;
+            relation?: components["schemas"]["ActorRelation"] | null;
+        };
+        /** MarketFlowResponse */
+        MarketFlowResponse: {
+            /** From Date */
+            from_date: string | null;
+            /** To Date */
+            to_date: string | null;
+            /** Dates */
+            dates: string[];
+            /** Index */
+            index: (number | null)[];
+            /** Actors */
+            actors: {
+                [key: string]: components["schemas"]["MarketFlowActor"];
+            };
+            derivatives?: components["schemas"]["MarketDerivativesBlock"] | null;
+        };
+        /**
+         * MarketRegime
+         * @description 大盤 regime 燈（MA60 遲滯）：defense 期會噴命中率實證較低，前端預設收起清單。
+         */
+        MarketRegime: {
+            /** State */
+            state: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Since
+             * Format: date
+             */
+            since: string;
+            /** Close */
+            close: number;
+            /** Ma60 */
+            ma60: number;
+            /** Gap Pct */
+            gap_pct: number;
+            /** Hold Hit Rate */
+            hold_hit_rate: number;
+            /** Defense Hit Rate */
+            defense_hit_rate: number;
         };
         /** MarketSummary */
         MarketSummary: {
@@ -1289,13 +1675,23 @@ export interface components {
             details?: components["schemas"]["RecommendationDetail"][] | null;
             /** Spark */
             spark?: number[] | null;
+            review?: components["schemas"]["LookbackReview"] | null;
+            /** Passed Styles */
+            passed_styles?: string[] | null;
+            /** Passed Filter */
+            passed_filter?: boolean | null;
         };
         /** RecommendationList */
         RecommendationList: {
             /** Track */
             track: string;
-            /** Style */
-            style?: string | null;
+            /**
+             * Style
+             * @default pop
+             */
+            style: string;
+            /** Top Pct */
+            top_pct?: number | null;
             /** Date */
             date: string | null;
             /** Threshold */
@@ -1304,6 +1700,28 @@ export interface components {
             items: components["schemas"]["RecommendationItem"][];
             /** Near */
             near: components["schemas"]["RecommendationItem"][];
+            regime?: components["schemas"]["MarketRegime"] | null;
+        };
+        /**
+         * RecommendationLookbackResponse
+         * @description 回看：N 個交易日前波段軌推薦的至今實況。
+         */
+        RecommendationLookbackResponse: {
+            /** Track */
+            track: string;
+            /** Lookback Date */
+            lookback_date: string | null;
+            /** Today Date */
+            today_date: string | null;
+            /** Days Back */
+            days_back: number;
+            /** Top Pct */
+            top_pct: number;
+            /** Cutoff */
+            cutoff: number;
+            /** Items */
+            items: components["schemas"]["RecommendationItem"][];
+            summary: components["schemas"]["LookbackSummary"];
         };
         /** ScoreDTO */
         ScoreDTO: {
@@ -1374,6 +1792,32 @@ export interface components {
             /** Interpretation */
             interpretation?: string | null;
         };
+        /** SectorFlowItem */
+        SectorFlowItem: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Foreign Cum */
+            foreign_cum?: number | null;
+            /** Trust Cum */
+            trust_cum?: number | null;
+            /** Dealer Cum */
+            dealer_cum?: number | null;
+            /** Total Cum */
+            total_cum?: number | null;
+            /** Constituents */
+            constituents?: number | null;
+        };
+        /** SectorFlowList */
+        SectorFlowList: {
+            /** Date */
+            date: string | null;
+            /** Lookback */
+            lookback: number;
+            /** Items */
+            items: components["schemas"]["SectorFlowItem"][];
+        };
         /** SectorItem */
         SectorItem: {
             /** Id */
@@ -1413,6 +1857,42 @@ export interface components {
             date: string | null;
             /** Items */
             items: components["schemas"]["SectorItem"][];
+        };
+        /** SectorRotationItem */
+        SectorRotationItem: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Points */
+            points: components["schemas"]["SectorRotationPoint"][];
+        };
+        /**
+         * SectorRotationPoint
+         * @description 類股輪動軌跡單點：原始量，前端依強度/絕對模式各自算 X/Y/size。
+         */
+        SectorRotationPoint: {
+            /** Date */
+            date: string;
+            /** Net20 */
+            net20: number;
+            /** Net5 */
+            net5: number;
+            /** Turnover20 */
+            turnover20: number;
+            /** Turnover5 */
+            turnover5: number;
+        };
+        /** SectorRotationResponse */
+        SectorRotationResponse: {
+            /** Actor */
+            actor: string;
+            /** Weeks */
+            weeks: number;
+            /** Date */
+            date: string | null;
+            /** Sectors */
+            sectors: components["schemas"]["SectorRotationItem"][];
         };
         /** StockDetail */
         StockDetail: {
@@ -1632,11 +2112,34 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    recommendation_tag_stats_recommendations_tag_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     recommendations_recommendations_get: {
         parameters: {
             query?: {
                 track?: string;
-                style?: string | null;
+                /** @description 波段風格：pop=會噴(硬篩+前N%)；explosive=爆發(極高波動+上揚月線，純門檻篩) */
+                style?: string;
             };
             header?: never;
             path?: never;
@@ -1651,6 +2154,80 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecommendationList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recommendations_lookback_recommendations_lookback_get: {
+        parameters: {
+            query?: {
+                /** @description 直接指定推薦日；不傳=用 days 算 */
+                date?: string | null;
+                /** @description N 個交易日前（date 未指定時用） */
+                days?: number;
+                /** @description 覆寫嚴格度（前 N%）；不傳用設定值 */
+                top_pct?: number | null;
+                /** @description 波段風格（爆發=純門檻篩，不看 top_pct） */
+                style?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecommendationLookbackResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recommendations_lookback_calendar_recommendations_lookback_calendar_get: {
+        parameters: {
+            query?: {
+                /** @description 起始日；不傳=全部歷史 */
+                since?: string | null;
+                /** @description 覆寫嚴格度（前 N%） */
+                top_pct?: number | null;
+                /** @description 波段風格（爆發=純門檻篩，不看 top_pct） */
+                style?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LookbackCalendar"];
                 };
             };
             /** @description Validation Error */
@@ -1692,160 +2269,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    calibration_calibration_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
-    calibration_recompute_calibration_recompute_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
-    factor_ic_factor_ic_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
-    factor_ic_recompute_factor_ic_recompute_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
-    factor_ic_apply_factor_ic_apply_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
-    expectancy_expectancy_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
-    expectancy_recompute_expectancy_recompute_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
                 };
             };
         };
@@ -1894,29 +2317,7 @@ export interface operations {
             };
         };
     };
-    param_sweep_param_sweep_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
-    param_sweep_recompute_param_sweep_recompute_post: {
+    poppable_efficacy_recompute_status_poppable_efficacy_recompute_status_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2315,6 +2716,192 @@ export interface operations {
             };
         };
     };
+    market_flow_flow_market_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketFlowResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sector_flow_flow_sectors_get: {
+        parameters: {
+            query?: {
+                lookback?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SectorFlowList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sector_rotation_flow_rotation_get: {
+        parameters: {
+            query?: {
+                actor?: string;
+                weeks?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SectorRotationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stock_flow_flow_stocks_get: {
+        parameters: {
+            query?: {
+                sort?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlowStockList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    chip_alerts_flow_alerts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChipAlertList"];
+                };
+            };
+        };
+    };
+    inst_relation_flow_relation_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstPriceRelation"];
+                };
+            };
+        };
+    };
+    recompute_relation_flow_relation_recompute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstPriceRelation"];
+                };
+            };
+        };
+    };
     overview_overview_get: {
         parameters: {
             query?: never;
@@ -2685,6 +3272,39 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    assistant_brief_assistant_brief_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BriefRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

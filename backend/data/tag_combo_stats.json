@@ -1,0 +1,115 @@
+{
+ "generated_at": "2026-07-30",
+ "window": {
+  "from": "2021-01-04",
+  "to": "2026-06-10"
+ },
+ "note": "五年實證：同標籤組合隔日高錨、30交易日內摸+10%比率；pop=預設前20%口徑(無遲滯)",
+ "stats": {
+  "explosive": {
+   "n": 7839,
+   "hit": 56.9,
+   "avg_mae": -19.3
+  },
+  "explosive+story": {
+   "n": 1538,
+   "hit": 71.7,
+   "avg_mae": -18.4
+  },
+  "explosive+story+crash": {
+   "n": 81,
+   "hit": 60.5,
+   "avg_mae": -16.1
+  },
+  "explosive+strong": {
+   "n": 440,
+   "hit": 61.4,
+   "avg_mae": -22.0
+  },
+  "explosive+strong+crash": {
+   "n": 46,
+   "hit": 47.8,
+   "avg_mae": -22.2
+  },
+  "explosive+strong+story": {
+   "n": 120,
+   "hit": 81.7,
+   "avg_mae": -17.1
+  },
+  "pop": {
+   "n": 91852,
+   "hit": 44.4,
+   "avg_mae": -13.7
+  },
+  "pop+explosive": {
+   "n": 1561,
+   "hit": 60.5,
+   "avg_mae": -13.9
+  },
+  "pop+explosive+story": {
+   "n": 141,
+   "hit": 66.0,
+   "avg_mae": -17.5
+  },
+  "pop+story": {
+   "n": 2381,
+   "hit": 59.1,
+   "avg_mae": -15.3
+  },
+  "pop+story+crash": {
+   "n": 87,
+   "hit": 64.4,
+   "avg_mae": -15.8
+  },
+  "story": {
+   "n": 15656,
+   "hit": 60.8,
+   "avg_mae": -16.3
+  },
+  "story+crash": {
+   "n": 1927,
+   "hit": 71.1,
+   "avg_mae": -14.6
+  },
+  "strong": {
+   "n": 15254,
+   "hit": 59.5,
+   "avg_mae": -20.3
+  },
+  "strong+crash": {
+   "n": 215,
+   "hit": 55.8,
+   "avg_mae": -23.1
+  },
+  "strong+story": {
+   "n": 1668,
+   "hit": 71.2,
+   "avg_mae": -19.2
+  },
+  "any:pop": {
+   "n": 96051,
+   "hit": 45.1,
+   "avg_mae": -13.7
+  },
+  "any:explosive": {
+   "n": 11789,
+   "hit": 59.9,
+   "avg_mae": -18.5
+  },
+  "any:strong": {
+   "n": 17758,
+   "hit": 60.7,
+   "avg_mae": -20.3
+  },
+  "any:story": {
+   "n": 23632,
+   "hit": 63.1,
+   "avg_mae": -16.4
+  },
+  "any:crash": {
+   "n": 2388,
+   "hit": 68.7,
+   "avg_mae": -15.6
+  }
+ }
+}

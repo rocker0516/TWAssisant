@@ -96,7 +96,7 @@ def backfill_one(key: str, start: date, ids: set[str]) -> None:
 def recompute_indicators() -> None:
     _log("重算 indicators（全歷史）…")
     with SessionLocal() as s:
-        res = IndicatorEngine().run(s, date.today())
+        res = IndicatorEngine().run(s, date.today(), full=True)  # 回補了更舊歷史，需全量重算
         s.commit()
     _log(f"indicators 完成：{res}")
 

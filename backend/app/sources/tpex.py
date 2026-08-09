@@ -11,15 +11,15 @@ from datetime import date, timedelta
 import pandas as pd
 
 from .base import BaseSource
-from .interfaces import ChipProvider, FundamentalProvider, PriceProvider
-from .twse import _UA, _cell, _num, _roc_ym
+from .interfaces import ChipProvider, FundamentalProvider, NewsProvider, PriceProvider
+from .twse import _UA, _cell, _digest_insider, _insider_transfer_events, _num, _roc_ym
 from . import schemas
 
 _BASE = "https://www.tpex.org.tw/www/zh-tw"
 _OPENAPI = "https://www.tpex.org.tw/openapi/v1"
 
 
-class TpexSource(BaseSource, PriceProvider, ChipProvider, FundamentalProvider):
+class TpexSource(BaseSource, PriceProvider, ChipProvider, FundamentalProvider, NewsProvider):
     name = "tpex"
     base_url = _BASE
     requires_token = False
@@ -138,25 +138,10 @@ class TpexSource(BaseSource, PriceProvider, ChipProvider, FundamentalProvider):
         return pd.DataFrame(rows)[schemas.REVENUE_COLS] if rows else pd.DataFrame(columns=schemas.REVENUE_COLS)
 
     def fetch_financials(self, start: date, end: date, stock_ids: list[str] | None = None) -> pd.DataFrame:
-        rows: list[dict] = []
-        for r in self._openapi("mopsfin_t187ap14_O"):
-            y = _num(r.get("Year"))
-            q = _num(r.get("季別"))
-            if y is None or q is None:
-                continue
-            year = int(y) + 1911 if y < 1911 else int(y)
-            rev = _num(r.get("營業收入"))
-            op = _num(r.get("營業利益"))
-            net = _num(r.get("稅後淨利"))
-            rows.append({
-                "stock_id": str(r.get("SecuritiesCompanyCode", "")).strip(), "year": year, "quarter": int(q),
-                "eps": _num(r.get("基本每股盈餘")), "revenue": rev,
-                "gross_margin": None,
-                "op_margin": round(op / rev * 100, 2) if rev and op is not None else None,
-                "net_margin": round(net / rev * 100, 2) if rev and net is not None else None,
-                "roe": None,
-            })
-        return pd.DataFrame(rows)[schemas.FINANCIAL_COLS] if rows else pd.DataFrame(columns=schemas.FINANCIAL_COLS)
+        """季財報（MOPS 累計制→單季）。原 openapi 快照為累計制，同 TwseSource 改走差分。"""
+        from . import mops  # 延遲匯入避免循環
+
+        return mops.fetch_recent_financials(markets=("otc",), today=end)
 
     def fetch_margin(self, start: date, end: date, stock_ids: list[str] | None = None) -> pd.DataFrame:
         # 位置：2前資餘 6資餘 10前券餘 14券餘（張）
@@ -185,3 +170,44 @@ class TpexSource(BaseSource, PriceProvider, ChipProvider, FundamentalProvider):
         for c in ("margin_balance", "margin_change", "short_balance", "short_change"):
             df[c] = df[c].astype("Int64")
         return df[schemas.MARGIN_COLS]
+
+    def fetch_short_lending(self, start: date, end: date, stock_ids: list[str] | None = None) -> pd.DataFrame:
+        # /margin/sbl 信用額度總量管制餘額表，欄位佈局與 TWSE TWT93U 相同（單位＝股）：
+        # 0代號 1名稱 | 2~7 融券 | 8前餘 9當日賣出 10當日還券 11當日調整 12當日餘額 13次日限額 14備註
+        rows: list[dict] = []
+        for d in self._iter_days(start, end):
+            body = self._day_json("/margin/sbl", d, {})
+            table = self._big_table(body, "信用額度總量管制") if body else None
+            if not table:
+                continue
+            for r in table["data"]:
+                sid = _cell(r, 0)
+                if sid is None:
+                    continue
+                bal, prev = _num(_cell(r, 12)), _num(_cell(r, 8))
+                sell = _num(_cell(r, 9))
+                rows.append({
+                    "stock_id": str(sid).strip(), "date": d,
+                    "sbl_balance": round(bal / 1000) if bal is not None else None,
+                    "sbl_change": round((bal - prev) / 1000)
+                    if bal is not None and prev is not None else None,
+                    "sbl_sell": round(sell / 1000) if sell is not None else None,
+                })
+        if not rows:
+            return pd.DataFrame(columns=schemas.SHORT_LENDING_COLS)
+        df = pd.DataFrame(rows)
+        for c in ("sbl_balance", "sbl_change", "sbl_sell"):
+            df[c] = df[c].astype("Int64")
+        return df[schemas.SHORT_LENDING_COLS]
+
+    def fetch_insider_holdings(self, start: date, end: date, stock_ids: list[str] | None = None) -> pd.DataFrame:
+        """董監事持股餘額明細（mopsfin_t187ap11_O 月快照）→ 逐公司加總。日期參數忽略。"""
+        return _digest_insider(self._openapi("mopsfin_t187ap11_O"))
+
+    # ── NewsProvider（上櫃內部人轉讓申報；重訊/處置由 TWSE 端點涵蓋上市）──
+
+    def fetch_events(self, start: date, end: date) -> pd.DataFrame:
+        rows = _insider_transfer_events(self._openapi("mopsfin_t187ap12_O"))
+        if not rows:
+            return pd.DataFrame(columns=schemas.EVENT_COLS)
+        return pd.DataFrame(rows)[schemas.EVENT_COLS]

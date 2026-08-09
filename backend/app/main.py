@@ -7,15 +7,20 @@ pipeline。完整 ⑥ API 層（6 頁讀寫端點、SSE 助手）於 P1+ 逐步�
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import datetime
+from pathlib import Path
 
-from fastapi import BackgroundTasks, FastAPI
+from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
 from .api.routes import router as api_router
 from .api.routes_assistant import router as assistant_router
+from .api.routes_corners import router as corners_router
+from .api.routes_flow import router as flow_router
 from .api.routes_holdings import router as holdings_router
 from .api.routes_intel import router as intel_router
 from .api.routes_overview import router as overview_router
@@ -40,11 +45,13 @@ app.add_middleware(
 app.include_router(api_router)
 app.include_router(holdings_router)
 app.include_router(sectors_router)
+app.include_router(flow_router)
 app.include_router(overview_router)
 app.include_router(intel_router)
 app.include_router(watchlists_router)
 app.include_router(settings_router)
 app.include_router(assistant_router)
+app.include_router(corners_router)
 
 
 @app.on_event("startup")
@@ -79,6 +86,8 @@ def system_status() -> dict:
         "shareholding": models.ShareholdingDistribution,
         "revenue_monthly": models.RevenueMonthly,
         "valuation": models.Valuation,
+        "institutional_market_total": models.InstitutionalMarketTotal,
+        "market_index": models.MarketIndex,
     }
     with session_scope() as s:
         counts = {
@@ -134,12 +143,45 @@ def test_source(name: str, body: TokenBody) -> dict:
 
 @app.post("/pipeline/run")
 def trigger_pipeline(background: BackgroundTasks) -> dict:
-    """設定頁[立即載入]：背景執行，立即回 accepted。已在跑則回 already_running。"""
-    from .scheduler.service import is_running, run_pipeline_guarded
-    from .scheduler.trading_calendar import resolve_trading_date
+    """設定頁[立即載入]：背景補齊「所有缺的交易日（含分數）」到最新。
 
-    target = resolve_trading_date(date.today())
+    立即回 accepted；已在跑則回 already_running。target＝目前理應已完成的最近交易日
+    （盤前/未到排程時間 → 上一交易日，不抓還沒齊的當天）。
+    """
+    from .scheduler.service import _current_sched_time, _expected_ready_date, backfill_to_latest, is_running
+
+    target = _expected_ready_date(datetime.now(), _current_sched_time())
     if is_running():
         return {"accepted": False, "reason": "already_running", "trading_date": target.isoformat()}
-    background.add_task(run_pipeline_guarded, target, trigger="manual")
+    background.add_task(backfill_to_latest, trigger="manual")
     return {"accepted": True, "trading_date": target.isoformat()}
+
+
+# --- 單一伺服器模式（一鍵啟動）：後端同時服務打包好的前端 ---
+# dev 時前端跑 Vite(:5173) 用 /api 代理；打包後 dist 存在，這裡就接手，
+# 使用者只需開一個 :8000 就能看整個 App。dist 不存在（純開發）則完全略過。
+_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+
+if _DIST.exists():
+    _INDEX = _DIST / "index.html"
+
+    @app.middleware("http")
+    async def _spa_and_api(request: Request, call_next):
+        path = request.scope["path"]
+        # 前端一律打 /api/*：剝掉前綴再交給上面已註冊的 API 路由，
+        # 等同 Vite dev proxy 的 rewrite，改在同一行程內做。
+        if path == "/api" or path.startswith("/api/"):
+            stripped = path[4:] or "/"
+            request.scope["path"] = stripped
+            request.scope["raw_path"] = stripped.encode()
+            return await call_next(request)
+        # 瀏覽器導覽 / 重新整理子頁（GET text/html）一律回 SPA，
+        # 讓前端 router 接手 — 且避開 client route 撞到同名的 root API 路由
+        # （/holdings、/recommendations、/sectors… 後端也有）。
+        accept = request.headers.get("accept", "")
+        if request.method == "GET" and "text/html" in accept and not path.startswith("/assets/"):
+            return FileResponse(_INDEX)
+        return await call_next(request)
+
+    # 打包後的靜態資源（JS/CSS，index.html 以 /assets/* 引用）。
+    app.mount("/assets", StaticFiles(directory=_DIST / "assets"), name="assets")

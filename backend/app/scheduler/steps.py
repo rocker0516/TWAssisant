@@ -1,7 +1,8 @@
 """Pipeline steps。P0 只有 FetchStep（抓資料落庫）。
 
 後續階段在此新增 IndicatorStep / SectorStep / NewsStep / ScoringStep /
-ExitStep / LLMBatchStep / NotifyStep，再加進 run.py 的 step 清單。
+ExitStep / NotifyStep，再加進 run.py 的 step 清單。
+（LLM 翻白話已改端點首讀懶生成 llm/lazy.py + news_digest.py，不再是 pipeline step。）
 """
 
 from __future__ import annotations
@@ -11,13 +12,13 @@ from datetime import date, timedelta
 import pandas as pd
 from sqlalchemy import select
 
+from ..engines.corners import CornerEngine
 from ..engines.exit_engine import ExitEngine
 from ..engines.indicators import IndicatorEngine
 from ..engines.news_engine import NewsEngine
 from ..engines.poppability import PoppabilityEfficacyEngine
 from ..engines.scoring import ScoringEngine
 from ..engines.sector_engine import SectorEngine
-from ..llm.batch import run_batch
 from ..notify import build_daily_message, send_discord
 from ..sources import registry
 from ..sources.base import SourceError
@@ -46,14 +47,27 @@ class FetchStep(PipelineStep):
         ("price", "price", "DailyPriceRepository", "fetch_prices", 150),
         ("institutional", "chip", "InstitutionalRepository", "fetch_institutional", 90),
         ("margin", "chip", "MarginRepository", "fetch_margin", 90),
+        ("short_lending", "chip", "ShortLendingRepository", "fetch_short_lending", 90),
+        ("day_trading", "chip", "DayTradingRepository", "fetch_day_trading", 90),
         ("valuation", "fundamental", "ValuationRepository", "fetch_valuation", 90),
     ]
-    # 快照來源（openapi 回最新月/季/週，日期參數忽略，靠 upsert 去重）
+    # 快照來源（回最新期，日期參數忽略，靠 upsert 去重）
     # holding：TDCC 集保股權分散僅回最新一週，靠每週 upsert 累積歷史。
+    # financials：已改走 MOPS 累計制差分（回最近 2 個已結束季度的「單季」值），
+    #             歷史由 scripts.backfill_fundamentals 回補。
     _WINDOW = [
         ("revenue", "fundamental", "RevenueMonthlyRepository", "fetch_revenue_monthly", 1),
         ("financials", "fundamental", "FinancialQuarterRepository", "fetch_financials", 1),
         ("holding", "holding", "ShareholdingRepository", "fetch_holding_distribution", 1),
+        # insider：董監持股月快照（t187ap11），PK=(stock_id,year,month) 靠 upsert 累積
+        ("insider", "fundamental", "InsiderHoldingRepository", "fetch_insider_holdings", 1),
+    ]
+    # 市場級資料（無 stock_id，PK=date，不過濾股號）：全市場三大法人總表 + 加權指數。
+    # (key, source_name, repo_cls, method, lookback)
+    _MARKET = [
+        ("inst_market", "twse", "InstitutionalMarketTotalRepository", "fetch_institutional_market_total", 90),
+        ("market_index", "twse", "MarketIndexRepository", "fetch_index", 150),
+        ("derivatives", "taifex", "MarketDerivativesRepository", "fetch_market_derivatives", 90),
     ]
 
     def run(self, ctx: PipelineContext) -> dict:
@@ -82,6 +96,12 @@ class FetchStep(PipelineStep):
             results[key] = self._fetch_dataset(
                 session, key, capability, repo_cls, method, td, known_ids,
                 incremental=False, lookback=lookback,
+            )
+
+        # 4) 市場級增量抓（無 stock_id，不過濾股號）
+        for key, source_name, repo_cls, method, lookback in self._MARKET:
+            results[key] = self._fetch_market_dataset(
+                session, source_name, repo_cls, method, td, lookback,
             )
 
         ok = sum(1 for r in results.values() if r.get("status") == "ok")
@@ -166,6 +186,26 @@ class FetchStep(PipelineStep):
         except SourceError as exc:
             return {"status": "error", "reason": exc.reason}
 
+    def _fetch_market_dataset(
+        self, session, source_name, repo_cls_name, method, td, lookback: int,
+    ) -> dict:
+        """市場級資料集（PK=date，無 stock_id）增量抓。起點＝max_date+1（冷啟回補 lookback）。"""
+        try:
+            src = registry.get_source(source_name)
+            repository = getattr(repo, repo_cls_name)()
+            last = repository.max_date(session)
+            start = (last + timedelta(days=1)) if last else (td - timedelta(days=lookback))
+            if start > td:
+                return {"status": "ok", "rows": 0, "note": "up_to_date"}
+            df = getattr(src, method)(start, td, None)
+            if df.empty:
+                return {"status": "empty", "from": start.isoformat(), "to": td.isoformat()}
+            n = repository.upsert_many(session, _records(df))
+            session.flush()
+            return {"status": "ok", "rows": n, "from": start.isoformat(), "to": td.isoformat()}
+        except SourceError as exc:
+            return {"status": "error", "reason": exc.reason}
+
 
 class IndicatorStep(PipelineStep):
     """daily_prices → indicators（P1）。"""
@@ -217,16 +257,6 @@ class ExitStep(PipelineStep):
         return ExitEngine().run(ctx.session, ctx.trading_date)
 
 
-class LLMBatchStep(PipelineStep):
-    """LLM 批次翻白話 → llm_cache（P5，非必要）。掛了白天讀舊快取。"""
-
-    name = "llm"
-    required = False
-
-    def run(self, ctx: PipelineContext) -> dict:
-        return run_batch(ctx.session, ctx.trading_date)
-
-
 class NotifyStep(PipelineStep):
     """Discord 推播持股提醒 + 推薦檔數（P2，非必要）。"""
 
@@ -239,6 +269,16 @@ class NotifyStep(PipelineStep):
             return {"status": "ok", "sent": False, "note": "無可報內容"}
         sent = send_discord(msg)
         return {"status": "ok", "sent": sent, "note": None if sent else "未設定 webhook"}
+
+
+class CornerStep(PipelineStep):
+    """高確信角落影子軌（實驗）→ corner_signals。純標籤層，掛了不影響主流程。"""
+
+    name = "corners"
+    required = False
+
+    def run(self, ctx: PipelineContext) -> dict:
+        return CornerEngine().run(ctx.session, ctx.trading_date)
 
 
 class PoppableEfficacyStep(PipelineStep):
