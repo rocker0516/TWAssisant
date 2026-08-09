@@ -133,9 +133,17 @@ def _load_groups(
     return {sid: g.reset_index(drop=True) for sid, g in df.groupby("stock_id", sort=False)}
 
 
-def _load_latest(session: Session, model, cols: list[str], order_cols: list) -> dict[str, pd.Series]:
-    """每檔最新一筆（估值），回 stock_id→Series。"""
-    rows = session.execute(select(model).order_by(*order_cols)).scalars().all()
+def _load_latest(
+    session: Session, model, cols: list[str], order_cols: list, td: date | None = None
+) -> dict[str, pd.Series]:
+    """每檔最新一筆（估值），回 stock_id→Series。
+
+    td 給定時只取 ≤ td（point-in-time，回補歷史評分不偷看未來；近 30 天窗即夠）。
+    """
+    stmt = select(model).order_by(*order_cols)
+    if td is not None:
+        stmt = stmt.where(model.date <= td, model.date >= td - timedelta(days=30))
+    rows = session.execute(stmt).scalars().all()
     out: dict[str, pd.Series] = {}
     for r in rows:  # 升冪 → 後者覆寫，最終留最新
         out[r.stock_id] = pd.Series({c: getattr(r, c) for c in cols})
@@ -267,7 +275,7 @@ class ScoringEngine(BaseEngine):
         # 基本面（長線軌）：估值最新一筆；月營收/季財報載「歷史」並依公布時點切片
         valuation = _load_latest(
             session, models.Valuation, ["pe", "pb", "dividend_yield"],
-            [models.Valuation.stock_id, models.Valuation.date],
+            [models.Valuation.stock_id, models.Valuation.date], td=td,
         )
         revenue = _load_revenue_history(session, td)
         financials = _load_financial_history(session, td)
