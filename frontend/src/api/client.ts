@@ -6,6 +6,10 @@ export type RecommendationList = components["schemas"]["RecommendationList"];
 export type RecommendationItem = components["schemas"]["RecommendationItem"] & {
   passed_styles?: string[] | null; // 通過的純門檻風格（explosive/strong/story/crash）
   passed_filter?: boolean | null; // 會噴硬篩(含遲滯)是否通過
+  prob_hit?: number | null; // 同條件歷史命中%（分數帶×波動帶×大盤狀態查五年表）
+  prob_n?: number | null;
+  prob_cond?: string | null;
+  prob_mae?: number | null; // 同條件歷史平均最深回撤%
 };
 export type RecommendationDetail = components["schemas"]["RecommendationDetail"];
 export type RecommendationLookbackResponse = components["schemas"]["RecommendationLookbackResponse"];
@@ -114,29 +118,29 @@ export function useRecommendations(track: Track, style: WaveStyle = "pop") {
 
 // 回看：指定推薦日（月曆點選）；未給 date 就用 N 個交易日前
 export function useRecommendationsLookback(
-  opts: { date?: string | null; days?: number; topPct?: number; style?: WaveStyle },
+  opts: { date?: string | null; days?: number; probMin?: number; style?: WaveStyle },
 ) {
-  const { date, days, topPct, style } = opts;
+  const { date, days, probMin, style } = opts;
   const params = new URLSearchParams();
   if (date) params.set("date", date);
   else if (days != null && days > 0) params.set("days", String(days));
-  if (topPct != null) params.set("top_pct", String(topPct));
+  if (probMin != null && probMin > 0) params.set("prob_min", String(probMin));
   if (style && style !== "pop") params.set("style", style);
   const enabled = !!date || (days != null && days > 0);
   return useQuery({
-    queryKey: ["recommendations-lookback", date ?? null, days ?? null, topPct ?? null, style ?? "pop"],
+    queryKey: ["recommendations-lookback", date ?? null, days ?? null, probMin ?? 0, style ?? "pop"],
     queryFn: () => getJson<RecommendationLookbackResponse>(`/recommendations/lookback?${params}`),
     enabled,
   });
 }
 
 // 月曆：每個過去 Score 日一筆命中率
-export function useRecommendationsLookbackCalendar(topPct?: number, style: WaveStyle = "pop") {
+export function useRecommendationsLookbackCalendar(probMin?: number, style: WaveStyle = "pop") {
   const params = new URLSearchParams();
-  if (topPct != null) params.set("top_pct", String(topPct));
+  if (probMin != null && probMin > 0) params.set("prob_min", String(probMin));
   if (style !== "pop") params.set("style", style);
   return useQuery({
-    queryKey: ["recommendations-lookback-calendar", topPct ?? null, style],
+    queryKey: ["recommendations-lookback-calendar", probMin ?? 0, style],
     queryFn: () => getJson<LookbackCalendar>(`/recommendations/lookback/calendar?${params}`),
   });
 }
@@ -534,5 +538,56 @@ export function useItemToHolding() {
       qc.invalidateQueries({ queryKey: ["watchlists"] });
       qc.invalidateQueries({ queryKey: ["holdings"] });
     },
+  });
+}
+
+// ── 高確信角落影子軌（實驗）：data/corners.json 凍結挖掘產物 + corner_signals ──
+export type CornerStock = { stock_id: string; name: string; close: number | null };
+export type CornerFired = {
+  id: string;
+  atoms: string[];
+  family: "crash" | "dip" | "allweather";
+  family_label: string;
+  floor: number; // 挖掘窗(2021-24)分年地板命中 %
+  per_year: Record<string, { hit: number | null; n: number; days: number }>;
+  stocks: CornerStock[];
+};
+export type CornerSignalsResponse = {
+  date: string | null;
+  evaluated: boolean;
+  total_corners: number;
+  fired: CornerFired[];
+  recent: { date: string; signals: number; corners: number }[];
+  note: string;
+};
+
+export function useCornerSignals() {
+  return useQuery({
+    queryKey: ["corner-signals"],
+    queryFn: () => getJson<CornerSignalsResponse>(`/corners`),
+    staleTime: 5 * 60_000,
+  });
+}
+
+export type CornerReviewRow = {
+  id: string; atoms: string[]; family_label: string; floor: number;
+  n: number; matured: number; hits: number; hit_rate: number | null;
+  pending: number; early_hits: number;
+};
+export type CornerReviewResponse = {
+  as_of: string | null;
+  oos_from: string;
+  overall_unique: { n: number; matured: number; hits: number; hit_rate: number | null; pending: number; early_hits: number };
+  by_corner: CornerReviewRow[];
+  by_day: { date: string; n: number; matured: number; hits: number; hit_rate: number | null; pending: number; early_hits: number }[];
+  note: string;
+};
+
+export function useCornerReview(enabled: boolean) {
+  return useQuery({
+    queryKey: ["corner-review"],
+    queryFn: () => getJson<CornerReviewResponse>(`/corners/review`),
+    staleTime: 5 * 60_000,
+    enabled,
   });
 }

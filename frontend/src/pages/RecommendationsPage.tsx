@@ -3,17 +3,17 @@ import {
   useRecommendations,
   useRecommendationsLookback,
   useRecommendationsLookbackCalendar,
-  usePoppableEfficacy,
   type RecommendationItem,
   type Track,
   type WaveStyle,
   useTagComboStats,
 } from "../api/client";
 import { RecommendationCard } from "../components/RecommendationCard";
+import { CornerSignalsPanel } from "../components/CornerSignalsPanel";
 import { LookbackCalendar } from "../components/LookbackCalendar";
 import { changeColor, consolidationMeta, fmtPct, positionMeta, rangePositionMeta, TRACK_LABELS } from "../lib/format";
 
-type SortKey = "score" | "entry_timing" | "change" | "lookback_return" | "lookback_mfe";
+type SortKey = "score" | "prob" | "entry_timing" | "change" | "lookback_return" | "lookback_mfe";
 
 // 位階/買點篩選（個人偏好，不影響會噴分數）。"all" 不篩；"低位盤整"＝相對低 且 波動收斂打底。
 type PosFilter = "all" | "相對低" | "中性" | "偏高" | "低位盤整";
@@ -28,6 +28,8 @@ function sortItems(items: RecommendationItem[], key: SortKey): RecommendationIte
     switch (key) {
       case "score":
         return (b.total_score ?? 0) - (a.total_score ?? 0);
+      case "prob":
+        return (b.prob_hit ?? -1) - (a.prob_hit ?? -1);
       case "entry_timing":
         return (b.sub_scores?.entry_timing ?? 0) - (a.sub_scores?.entry_timing ?? 0);
       case "lookback_return":
@@ -43,10 +45,10 @@ function sortItems(items: RecommendationItem[], key: SortKey): RecommendationIte
 
 export default function RecommendationsPage() {
   const [track, setTrack] = useState<Track>("wave");
-  const [sort, setSort] = useState<SortKey>("score");
+  const [sort, setSort] = useState<SortKey>("prob"); // 波段預設按達標機率
   const [showExtra, setShowExtra] = useState(false);
-  const [topPctOverride, setTopPctOverride] = useState<number | null>(null);
   const [posFilter, setPosFilter] = useState<PosFilter>("all");
+  const [probMin, setProbMin] = useState(0); // 達標機率門檻（%；0＝全部）
   const [minPrice, setMinPrice] = useState(""); // 股價下限（元，空＝不限）
   const [maxPrice, setMaxPrice] = useState(""); // 股價上限（元，空＝不限）
   const [sparkDays, setSparkDays] = useState(60); // 走勢視窗：近 N 個交易日（預設近3月）
@@ -59,11 +61,10 @@ export default function RecommendationsPage() {
   const effTrack: Track = selectedLookbackDate ? "wave" : track;
   const effStyle: WaveStyle = "pop";
   const { data, isLoading, isError, error } = useRecommendations(effTrack, effStyle);
-  const { data: eff } = usePoppableEfficacy();
   const { data: tagStats } = useTagComboStats();
 
   // 波段(會噴)軌：API 回全部過硬篩股，前端用「前 N%」橫桿就地切（分數=百分位，前N% = 分數≥100−N）
-  const topPct = topPctOverride ?? (data?.top_pct ?? 20);
+  const topPct = data?.top_pct ?? 20; // 會噴標籤門檻（設定頁 top_pct；橫桿已由機率門檻取代）
   const cutoff = 100 - topPct;
 
   // 大盤 regime 閘門（僅波段軌）：防禦期(收盤跌破季線逾2%未站回)清單命中率實證較低
@@ -72,13 +73,13 @@ export default function RecommendationsPage() {
   const inDefense = track === "wave" && selectedLookbackDate == null && regime?.state === "defense";
   const gateClosed = inDefense && !showDefenseList;
 
-  // 月曆摘要（命中率）：隨風格切換（爆發=純門檻篩成員的命中率）
-  const calendar = useRecommendationsLookbackCalendar(topPct, effStyle);
+  // 月曆摘要（命中率）：機率口徑（成員=標籤制∩當日PIT機率≥門檻），隨機率門檻/風格切換
+  const calendar = useRecommendationsLookbackCalendar(probMin, effStyle);
 
-  // 回看：指定推薦日的清單（含 review），同樣隨風格
+  // 回看：指定推薦日的清單（含 review + 當日 PIT 機率），同樣隨機率門檻/風格
   const lookback = useRecommendationsLookback({
     date: selectedLookbackDate,
-    topPct: selectedLookbackDate ? topPct : undefined,
+    probMin: selectedLookbackDate ? probMin : undefined,
     style: effStyle,
   });
 
@@ -118,8 +119,11 @@ export default function RecommendationsPage() {
     () =>
       isLookback
         ? sortItems(baseItems, sort).filter(matchPrice) // 位階篩選不適用回看（鎖在當日）
-        : sortItems(baseItems, sort).filter(matchPos).filter(matchPrice),
-    [isLookback, baseItems, sort, matchPos, matchPrice],
+        : sortItems(baseItems, sort)
+            .filter(matchPos)
+            .filter(matchPrice)
+            .filter((it) => probMin <= 0 || (it.prob_hit ?? 0) >= probMin),
+    [isLookback, baseItems, sort, matchPos, matchPrice, probMin],
   );
   // 標籤數：會噴(過硬篩且分數達橫桿) + 各純門檻風格；標籤越多=越多獨立驗證的訊號共振
   const tagCountOf = useMemo(
@@ -154,10 +158,6 @@ export default function RecommendationsPage() {
   const lbSummary = lookback.data?.summary;
   const lbHitRate = lbSummary?.hit_rate != null ? Math.round(lbSummary.hit_rate * 100) : null;
 
-  const effPct = eff?.threshold != null ? Math.round(100 - eff.threshold) : null;
-  const effHit = eff?.overall_hit_rate != null ? Math.round(eff.overall_hit_rate * 100) : null;
-  const effHitClose = eff?.overall_hit_rate_close != null ? Math.round(eff.overall_hit_rate_close * 100) : null;
-  const effDays = eff?.horizon ?? 30;
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-6">
@@ -208,7 +208,7 @@ export default function RecommendationsPage() {
                 selectedDate={selectedLookbackDate}
                 onSelect={(d) => {
                   setSelectedLookbackDate(d);
-                  setSort("score"); // 切模式時把排序鎖回會噴分數
+                  setSort("prob"); // 切模式時排序鎖回達標機率
                 }}
               />
             )}
@@ -222,7 +222,7 @@ export default function RecommendationsPage() {
           {(["wave", "long"] as Track[]).map((t) => (
             <button
               key={t}
-              onClick={() => setTrack(t)}
+              onClick={() => { setTrack(t); setSort(t === "wave" ? "prob" : "score"); }}
               className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition ${
                 track === t ? "border-sky-500 text-sky-300" : "border-transparent text-muted hover:text-gray-300"
               }`}
@@ -249,6 +249,9 @@ export default function RecommendationsPage() {
         </div>
       )}
 
+      {/* 高確信角落影子軌（實驗）：與排序無關的觀察層；防禦期也顯示（深崩角落正是那時亮） */}
+      {track === "wave" && !isLookback && <CornerSignalsPanel />}
+
       {/* 回看摘要（清單為空時隱掉，避免和下方空狀態重複） */}
       {isLookback && lbSummary && lbSummary.n > 0 && (
         <div className="mb-4 rounded-lg border border-sky-700/40 bg-sky-950/30 px-3.5 py-2.5 text-xs leading-relaxed">
@@ -265,21 +268,25 @@ export default function RecommendationsPage() {
         </div>
       )}
 
-      {/* 會噴門檻橫桿（僅波段軌）：只影響「會噴」標籤的門檻，不影響風格標籤 */}
+      {/* 機率門檻（今日與回看共用）：清單以達標機率為主軸；回看=後端依當日 PIT 機率篩 */}
       {track === "wave" && !gateClosed && (
-        <div className="mb-3 flex flex-wrap items-center gap-3">
-          <span className="text-sm text-muted">嚴格度</span>
-          <input
-            type="range"
-            min={1}
-            max={50}
-            value={topPct}
-            onChange={(e) => setTopPctOverride(Number(e.target.value))}
-            className="h-1.5 w-56 cursor-pointer accent-sky-500"
-          />
-          <span className="text-sm font-medium text-sky-300">前 {topPct}%</span>
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted">達標機率</span>
+          <div className="inline-flex rounded-lg border border-edge bg-panel p-0.5">
+            {([[0, "全部"], [55, "≥55%"], [60, "≥60%"], [65, "≥65%"]] as [number, string][]).map(([v, label]) => (
+              <button
+                key={v}
+                onClick={() => setProbMin(v)}
+                className={`rounded-md px-3 py-1 text-sm font-medium transition ${
+                  probMin === v ? "bg-sky-600 text-white" : "text-muted hover:text-gray-200"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <span className="text-xs text-muted">
-            分數 ≥ {cutoff} 得「會噴」標籤　·　共 {main.length} 檔　·　標籤越多排越前
+            機率＝同條件（分數帶×波動帶×大盤狀態）五年歷史命中，非保證　·　顯示 {sorted.length} 檔
           </span>
         </div>
       )}
@@ -308,14 +315,11 @@ export default function RecommendationsPage() {
       {/* 會噴誠實話術：分數=會噴機率(回測實證)，非漲跌保證；高波動雙面刃。回看模式改顯示回看摘要 */}
       {track === "wave" && !isLookback && !gateClosed && (
         <div className="mb-4 rounded-lg border border-amber-700/50 bg-amber-950/30 px-3.5 py-2.5 text-xs leading-relaxed text-amber-200/90">
-          分數＝<b>當天全市場的「會噴排名」百分位</b>（2×波動度＋均線多排＋52週位階＋PB 四因子）——
-          是<b>相對排名不是機率</b>；機率看標籤旁的同條件五年實證命中率。
-          {effHitClose != null && effPct != null
-            ? <>回測：前 {effPct}% 清單，<b>隔天開盤進場後 {effDays} 個交易日內碰到 +10%</b> 的機率約 <b>{effHitClose}%</b>
-                {effHit != null ? <>（追高到隔天最高則約 {effHit}%）</> : null}。</>
-            : <>回測顯示分數越高、{effDays} 個交易日內越易碰到 +10% 停利點。</>}
-          <b>不是</b>「會漲」或「會賺」的保證：①多為<b>高波動股、雙面刃</b>（會噴的也會崩），請小部位；
-          ②能不能入袋全看<b>出場紀律</b>（沒到價要停損）。
+          每檔的大字＝<b>達標機率</b>：同條件（會噴排名帶 × 波動帶 × 大盤狀態）在 2021 年起歷史裡
+          「<b>隔天最高價進場、30 個交易日內曾摸到 +10%</b>」的實際比率——是<b>歷史條件機率，不是保證</b>，
+          旁邊的 n 是該條件的歷史樣本數。機率高的通常是<b>高波動股、雙面刃</b>（同條件的平均最深回撤一併標出）：
+          ①會噴的也會崩，請小部位；②能不能入袋全看<b>出場紀律</b>（沒到價要停損）；
+          ③大盤狀態變了機率就變（同一檔在深崩/正常日的機率不同）。
         </div>
       )}
 
@@ -326,8 +330,11 @@ export default function RecommendationsPage() {
           <span className="text-muted">排序</span>
           {(
             [
-              ["score", "會噴分數"],
-              ...(track === "wave" && !isLookback ? [["entry_timing", "進場時機"] as [SortKey, string]] : []),
+              ...(track === "wave" && !isLookback
+                ? ([["prob", "達標機率"], ["entry_timing", "進場時機"]] as [SortKey, string][])
+                : isLookback
+                  ? ([["prob", "達標機率"]] as [SortKey, string][])
+                  : ([["score", "分數"]] as [SortKey, string][])),
               ...(isLookback
                 ? ([
                     ["lookback_return", "至今報酬"],

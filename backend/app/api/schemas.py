@@ -70,6 +70,10 @@ class RecommendationItem(BaseModel):
     review: LookbackReview | None = None  # 回看模式才有：那天到今天的實際表現
     passed_styles: list[str] | None = None  # 通過的純門檻風格（explosive/strong/story/crash）
     passed_filter: bool | None = None  # 會噴硬篩(含遲滯)是否通過（前端判「會噴」標籤用）
+    prob_hit: float | None = None   # 同條件歷史命中%（分數帶×波動帶×大盤狀態查五年表）
+    prob_n: int | None = None       # 該條件格歷史樣本數
+    prob_cond: str | None = None    # 條件描述（例：分數90-95×波動5-8%×大盤正常）
+    prob_mae: float | None = None   # 同條件歷史平均最深回撤%（風險行顯示用）
 
 
 class MarketRegime(BaseModel):

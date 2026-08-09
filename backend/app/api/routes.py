@@ -140,6 +140,85 @@ def _to_item(
     )
 
 
+# ── 條件機率（每檔「同條件歷史命中率」，scripts/build_prob_table.py 產出）──
+
+_PROB_MIN_N = 150  # 格子樣本不足 → 逐層回退（去大盤 → 去波動 → 全域）
+
+
+def _prob_table() -> dict | None:
+    import json as _json
+    from pathlib import Path as _Path
+    global _PROB_CACHE
+    try:
+        return _PROB_CACHE  # type: ignore[name-defined]
+    except NameError:
+        pass
+    fp = _Path(__file__).resolve().parents[2] / "data" / "prob_table.json"
+    _PROB_CACHE = _json.loads(fp.read_text()) if fp.exists() else None
+    return _PROB_CACHE
+
+
+def _bin_label(v: float, edges: list[float], labels: list[str]) -> str | None:
+    for i in range(len(labels)):
+        if edges[i] <= v < edges[i + 1]:
+            return labels[i]
+    return None
+
+
+def _prob_lookup(score: float | None, atr_pct: float | None,
+                 mkt_bias60: float | None) -> tuple[float | None, int | None, str | None, float | None]:
+    """回 (同條件歷史命中%, n, 條件描述, 平均最深回撤%)。樣本薄逐層回退。"""
+    t = _prob_table()
+    if t is None or score is None:
+        return None, None, None, None
+    b = t["bins"]
+    s = _bin_label(score, b["score"], b["score_labels"])
+    a = _bin_label(atr_pct * 100, b["atr"], b["atr_labels"]) if atr_pct is not None else None
+    mk = _bin_label(mkt_bias60, b["mkt"], b["mkt_labels"]) if mkt_bias60 is not None else None
+    if s and a and mk:
+        c = t["full"].get(f"{s}|{a}|{mk}")
+        if c and c["n"] >= _PROB_MIN_N:
+            return c["hit"], c["n"], f"分數{s}×波動{a}%×大盤{mk}", c.get("mae")
+    if s and a:
+        c = t["sa"].get(f"{s}|{a}")
+        if c and c["n"] >= _PROB_MIN_N:
+            return c["hit"], c["n"], f"分數{s}×波動{a}%", c.get("mae")
+    if s:
+        c = t["s"].get(s)
+        if c:
+            return c["hit"], c["n"], f"分數{s}", c.get("mae")
+    gl = t.get("global")
+    return (gl["hit"], gl["n"], "全市場", gl.get("mae")) if gl else (None, None, None, None)
+
+
+def _attach_probabilities(session: Session, items: list[RecommendationItem], d: date) -> None:
+    """批次補上每檔「同條件歷史命中率」（波動用當日 atr14/close，大盤用乖離季線）。"""
+    if not items or _prob_table() is None:
+        return
+    ids = [it.stock_id for it in items]
+    atr_rows = session.execute(
+        select(models.Indicator.stock_id, models.Indicator.atr14, models.DailyPrice.close)
+        .join(models.DailyPrice,
+              (models.DailyPrice.stock_id == models.Indicator.stock_id)
+              & (models.DailyPrice.date == models.Indicator.date))
+        .where(models.Indicator.date == d, models.Indicator.stock_id.in_(ids))
+    ).all()
+    atr_map = {sid: (atr / close if atr is not None and close else None)
+               for sid, atr, close in atr_rows}
+    closes = session.execute(
+        select(models.MarketIndex.close).where(models.MarketIndex.date <= d)
+        .order_by(models.MarketIndex.date.desc()).limit(60)
+    ).scalars().all()
+    mkt_bias = ((closes[0] / (sum(closes) / len(closes)) - 1.0) * 100
+                if len(closes) >= 60 else None)
+    for it in items:
+        hit, n, cond, mae = _prob_lookup(it.total_score, atr_map.get(it.stock_id), mkt_bias)
+        it.prob_hit = hit
+        it.prob_n = n
+        it.prob_cond = cond
+        it.prob_mae = mae
+
+
 @router.get("/recommendations/tag-stats")
 def recommendation_tag_stats() -> dict:
     """標籤組合五年實證命中統計（scripts/build_tag_combo_stats.py 產出，靜態檔）。"""
@@ -204,6 +283,8 @@ def recommendations(
         elif sc.total_score >= cutoff - _NEAR_BAND:
             near.append(_to_item(session, sc, name, sector_name, d))
 
+    if track == "wave":
+        _attach_probabilities(session, items + near, d)
     items.sort(key=lambda it: it.total_score or 0, reverse=True)
     near.sort(key=lambda it: it.total_score or 0, reverse=True)
     return RecommendationList(
@@ -285,10 +366,14 @@ def _build_lookback_response(
     session: Session, lookback_d: date, today_d: date,
     eff_top_pct: float, cutoff: float, days_back: int,
     style: str = "pop",
+    prob_min: float = 0.0,
 ) -> RecommendationLookbackResponse:
     """給定推薦日與今日，組出該日回看清單（含每檔 review、整批摘要）。
 
-    style="explosive"：成員=當日 passed_styles 含 explosive（純門檻篩，不看 cutoff）。
+    機率口徑（2026-08-09 改版）：成員＝當日過硬篩或有風格標籤（同今日清單標籤制），
+    每檔附「當日 PIT 達標機率」（用那天的分數/波動/大盤狀態查表），prob_min 篩選、
+    摘要對篩後集合計算——「當時說 X%、實際命中多少」直接可對照。
+    style="explosive" 等：成員=當日 passed_styles 含該風格（純門檻篩）。
     """
     base = (
         select(models.Score, models.Stock.name, models.Sector.name)
@@ -297,22 +382,23 @@ def _build_lookback_response(
         .where(models.Score.track == "wave", models.Score.date == lookback_d)
     )
     items: list[RecommendationItem] = []
-    hit_count = 0
-    returns: list[float] = []
-    mfes: list[float] = []
-    maes: list[float] = []
     for sc, name, sector_name in session.execute(base).all():
         if style != "pop":
             if not sc.passed_styles or style not in sc.passed_styles:
                 continue
-        elif not sc.passed_filter or sc.total_score is None:
+        elif not sc.passed_filter and not sc.passed_styles:
             continue
-        elif sc.total_score < cutoff:
-            continue
-        base_item = _to_item(session, sc, name, sector_name, lookback_d)
-        review = _lookback_review(session, sc.stock_id, lookback_d, today_d)
-        base_item.review = review
-        items.append(base_item)
+        items.append(_to_item(session, sc, name, sector_name, lookback_d))
+    _attach_probabilities(session, items, lookback_d)  # PIT：用回看日的波動/大盤
+    if prob_min > 0:
+        items = [it for it in items if (it.prob_hit or 0) >= prob_min]
+    hit_count = 0
+    returns: list[float] = []
+    mfes: list[float] = []
+    maes: list[float] = []
+    for it in items:
+        review = _lookback_review(session, it.stock_id, lookback_d, today_d)
+        it.review = review
         if review.hit_pop:
             hit_count += 1
         if review.return_pct is not None:
@@ -321,7 +407,7 @@ def _build_lookback_response(
             mfes.append(review.mfe_pct)
         if review.mae_pct is not None:
             maes.append(review.mae_pct)
-    items.sort(key=lambda it: it.total_score or 0, reverse=True)
+    items.sort(key=lambda it: (it.prob_hit or 0, it.total_score or 0), reverse=True)
     n = len(items)
     return RecommendationLookbackResponse(
         track="wave",
@@ -346,7 +432,8 @@ def _build_lookback_response(
 def recommendations_lookback(
     date_: date | None = Query(None, alias="date", description="直接指定推薦日；不傳=用 days 算"),
     days: int = Query(3, ge=1, le=60, description="N 個交易日前（date 未指定時用）"),
-    top_pct: float | None = Query(None, ge=1.0, le=50.0, description="覆寫嚴格度（前 N%）；不傳用設定值"),
+    top_pct: float | None = Query(None, ge=1.0, le=50.0, description="舊參數（前 N%），機率口徑下僅回顯不篩選"),
+    prob_min: float = Query(0.0, ge=0.0, le=95.0, description="達標機率門檻%（0=全部有標籤者）"),
     style: str = Query("pop", pattern="^(pop|explosive|strong|story|crash)$", description="波段風格（爆發=純門檻篩，不看 top_pct）"),
     session: Session = Depends(get_session),
 ) -> RecommendationLookbackResponse:
@@ -381,7 +468,7 @@ def recommendations_lookback(
         if not has_score or date_ >= today_d:
             return _empty(None, today_d)
         return _build_lookback_response(
-            session, date_, today_d, eff_top_pct, cutoff, 0, style=style,
+            session, date_, today_d, eff_top_pct, cutoff, 0, style=style, prob_min=prob_min,
         )
 
     # 沒指定 date：以 days 為主，退到最近可用快照
@@ -405,15 +492,16 @@ def recommendations_lookback(
     if lookback_d is None or lookback_d >= today_d:
         return _empty(None, today_d)
     return _build_lookback_response(
-        session, lookback_d, today_d, eff_top_pct, cutoff, days, style=style,
+        session, lookback_d, today_d, eff_top_pct, cutoff, days, style=style, prob_min=prob_min,
     )
 
 
 @router.get("/recommendations/lookback/calendar", response_model=LookbackCalendar)
 def recommendations_lookback_calendar(
     since: date | None = Query(None, description="起始日；不傳=全部歷史"),
-    top_pct: float | None = Query(None, ge=1.0, le=50.0, description="覆寫嚴格度（前 N%）"),
-    style: str = Query("pop", pattern="^(pop|explosive|strong|story|crash)$", description="波段風格（爆發=純門檻篩，不看 top_pct）"),
+    top_pct: float | None = Query(None, ge=1.0, le=50.0, description="舊參數（前 N%），機率口徑下僅回顯"),
+    prob_min: float = Query(0.0, ge=0.0, le=95.0, description="達標機率門檻%（0=全部有標籤者）"),
+    style: str = Query("pop", pattern="^(pop|explosive|strong|story|crash)$", description="波段風格（爆發=純門檻篩）"),
     session: Session = Depends(get_session),
 ) -> LookbackCalendar:
     """回看月曆：每個過去的 Score 日一筆命中率（過硬篩且分數≥cutoff、期間 high ≥ entry×1.10）。
@@ -437,9 +525,51 @@ def recommendations_lookback_calendar(
         q = q.where(models.Score.date >= since)
     score_dates = session.execute(q).scalars().all()
 
+    # 機率口徑（pop）：成員=過硬篩或有標籤，PIT 機率 ≥ prob_min 才計入。
+    # 批次備料：分數+ATR（indicators×daily_prices）一次撈全期、大盤乖離逐日算。
+    prob_members: dict[date, list[str]] = {}
+    if style == "pop":
+        # 注意：passed_styles 空陣列 [] 非 NULL；成員=過硬篩 或 標籤陣列非空（LIKE '%"%' 表含字串元素）
+        cond_since = models.Score.date >= since if since is not None else True
+        rows = session.execute(
+            select(models.Score.date, models.Score.stock_id, models.Score.total_score,
+                   models.Indicator.atr14, models.DailyPrice.close)
+            .join(models.Indicator,
+                  (models.Indicator.stock_id == models.Score.stock_id)
+                  & (models.Indicator.date == models.Score.date), isouter=True)
+            .join(models.DailyPrice,
+                  (models.DailyPrice.stock_id == models.Score.stock_id)
+                  & (models.DailyPrice.date == models.Score.date), isouter=True)
+            .where(models.Score.track == "wave", models.Score.date < today_d, cond_since,
+                   or_(models.Score.passed_filter == True,  # noqa: E712
+                       cast(models.Score.passed_styles, String).like('%"%')))
+        ).all()
+        mkt = session.execute(
+            select(models.MarketIndex.date, models.MarketIndex.close)
+            .order_by(models.MarketIndex.date)
+        ).all()
+        mkt_dates = [r[0] for r in mkt]
+        mkt_closes = [r[1] for r in mkt]
+        bias_map: dict[date, float] = {}
+        for i in range(59, len(mkt)):
+            ma = sum(mkt_closes[i - 59:i + 1]) / 60
+            bias_map[mkt_dates[i]] = (mkt_closes[i] / ma - 1.0) * 100
+        for d_, sid, score_, atr14, close_ in rows:
+            atrp = (atr14 / close_) if atr14 is not None and close_ else None
+            hitp, _, _, _ = _prob_lookup(score_, atrp, bias_map.get(d_))
+            if hitp is not None and hitp >= prob_min:
+                prob_members.setdefault(d_, []).append(sid)
+
     pop_ratio = 1.0 + _POP_TARGET
     points: list[LookbackDatePoint] = []
     styled = style != "pop"
+    # 交易日軸一次算好：隔一交易日 = 軸上的下一天（避免每個日期全表 GROUP BY）
+    axis = session.execute(
+        select(models.DailyPrice.date).distinct()
+        .where(models.DailyPrice.date <= today_d)
+        .order_by(models.DailyPrice.date)
+    ).scalars().all()
+    next_day = {d0: d1 for d0, d1 in zip(axis, axis[1:])}
     for lb_d in score_dates:
         if styled:
             # SQLite JSON 存 TEXT，LIKE 足夠精準（值為風格名陣列，名稱互不為子字串）
@@ -451,26 +581,13 @@ def recommendations_lookback_calendar(
                 )
             ).scalars().all()
         else:
-            sids = session.execute(
-                select(models.Score.stock_id).where(
-                    models.Score.track == "wave",
-                    models.Score.date == lb_d,
-                    models.Score.passed_filter == True,  # noqa: E712
-                    models.Score.total_score >= cutoff,
-                )
-            ).scalars().all()
+            sids = prob_members.get(lb_d, [])
         n = len(sids)
         if n == 0:
             points.append(LookbackDatePoint(date=lb_d, n=0, hit_count=0, hit_rate=None))
             continue
         # 隔一交易日（推薦錨定的進場日）
-        entry_day = session.execute(
-            select(models.DailyPrice.date)
-            .where(models.DailyPrice.date > lb_d, models.DailyPrice.date <= today_d)
-            .group_by(models.DailyPrice.date)
-            .order_by(models.DailyPrice.date)
-            .limit(1)
-        ).scalar()
+        entry_day = next_day.get(lb_d)
         if entry_day is None:
             points.append(LookbackDatePoint(date=lb_d, n=n, hit_count=0, hit_rate=None))
             continue
