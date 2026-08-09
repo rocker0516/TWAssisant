@@ -13,6 +13,7 @@ from datetime import date, datetime
 from ..storage.database import init_db
 from .pipeline import DailyPipeline
 from .steps import (
+    CornerStep,
     ExitStep,
     FetchStep,
     IndicatorStep,
@@ -32,7 +33,7 @@ def build_pipeline() -> DailyPipeline:
     return DailyPipeline(
         steps=[
             FetchStep(), IndicatorStep(), SectorStep(), NewsStep(),
-            ScoringStep(), ExitStep(), NotifyStep(),
+            ScoringStep(), CornerStep(), ExitStep(), NotifyStep(),
             PoppableEfficacyStep(),
         ]
     )
@@ -48,7 +49,7 @@ def build_backfill_pipeline() -> DailyPipeline:
     return DailyPipeline(
         steps=[
             FetchStep(), IndicatorStep(), SectorStep(), NewsStep(),
-            ScoringStep(), ExitStep(),
+            ScoringStep(), CornerStep(), ExitStep(),
         ]
     )
 

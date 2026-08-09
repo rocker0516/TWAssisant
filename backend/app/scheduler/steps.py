@@ -12,6 +12,7 @@ from datetime import date, timedelta
 import pandas as pd
 from sqlalchemy import select
 
+from ..engines.corners import CornerEngine
 from ..engines.exit_engine import ExitEngine
 from ..engines.indicators import IndicatorEngine
 from ..engines.news_engine import NewsEngine
@@ -268,6 +269,16 @@ class NotifyStep(PipelineStep):
             return {"status": "ok", "sent": False, "note": "無可報內容"}
         sent = send_discord(msg)
         return {"status": "ok", "sent": sent, "note": None if sent else "未設定 webhook"}
+
+
+class CornerStep(PipelineStep):
+    """高確信角落影子軌（實驗）→ corner_signals。純標籤層，掛了不影響主流程。"""
+
+    name = "corners"
+    required = False
+
+    def run(self, ctx: PipelineContext) -> dict:
+        return CornerEngine().run(ctx.session, ctx.trading_date)
 
 
 class PoppableEfficacyStep(PipelineStep):

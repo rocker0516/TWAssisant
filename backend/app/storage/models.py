@@ -486,6 +486,21 @@ class LlmCache(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class CornerSignal(Base):
+    """高確信角落影子軌訊號（實驗）。角落定義=data/corners.json（挖掘凍結產物）。
+
+    純標籤層：不影響排序/推薦；累積 forward 驗證用（30 日後可對照 daily_prices
+    算「隔日高錨摸 +10%」實際命中 vs 各角落歷史帶）。
+    """
+
+    __tablename__ = "corner_signals"
+
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    date: Mapped[date_] = mapped_column(Date, primary_key=True, index=True)
+    corner_id: Mapped[str] = mapped_column(String(8), primary_key=True)  # C01~C30
+    close: Mapped[float | None] = mapped_column(Float)  # 訊號日收盤（回顧展示用）
+
+
 # ─────────────────────────── 排程 log ───────────────────────────
 
 
