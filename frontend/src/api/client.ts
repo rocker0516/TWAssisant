@@ -81,9 +81,17 @@ export type HoldingStatus = "open" | "closed";
 
 const BASE = "/api";
 
+/** 401 = session 過期/未登入 → 整頁導去登入（避免每個頁面各自處理）。 */
+function redirectToLoginOn401(res: Response) {
+  if (res.status === 401 && !window.location.pathname.startsWith("/login")) {
+    window.location.href = "/login";
+  }
+}
+
 async function getJson<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`);
   if (!res.ok) {
+    redirectToLoginOn401(res);
     const detail = await res.text().catch(() => "");
     throw new Error(`HTTP ${res.status} ${detail}`.trim());
   }
@@ -280,6 +288,7 @@ async function sendJson<T>(method: string, path: string, body?: unknown): Promis
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!res.ok) {
+    redirectToLoginOn401(res);
     const detail = await res.text().catch(() => "");
     throw new Error(`HTTP ${res.status} ${detail}`.trim());
   }

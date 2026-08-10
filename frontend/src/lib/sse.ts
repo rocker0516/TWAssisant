@@ -10,6 +10,9 @@ export async function streamSSE(
     body: opts.body ? JSON.stringify(opts.body) : undefined,
     signal: opts.signal,
   });
+  if (res.status === 401 && !window.location.pathname.startsWith("/login")) {
+    window.location.href = "/login";
+  }
   if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
   const reader = res.body.getReader();
   const dec = new TextDecoder();

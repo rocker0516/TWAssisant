@@ -13,6 +13,7 @@ credentials.toml 或用 `security add-generic-password` 寫 Keychain。
 from __future__ import annotations
 
 import subprocess
+import sys
 import tomllib
 from functools import lru_cache
 
@@ -75,9 +76,30 @@ def get_discord_webhook() -> str | None:
     return _from_keychain("discord_webhook") or _from_file().get("discord_webhook")
 
 
+def _write_credentials_file(key: str, token: str) -> None:
+    """非 macOS（Windows/Linux）fallback：寫 credentials.toml [sources] 區塊。"""
+    data: dict = {}
+    if _CREDENTIALS_FILE.exists():
+        with _CREDENTIALS_FILE.open("rb") as f:
+            data = tomllib.load(f)
+    data.setdefault("sources", {})[key] = token
+    lines: list[str] = []
+    for section, values in data.items():
+        lines.append(f"[{section}]")
+        for k, v in values.items():
+            escaped = str(v).replace("\\", "\\\\").replace('"', '\\"')
+            lines.append(f'{k} = "{escaped}"')
+        lines.append("")
+    _CREDENTIALS_FILE.write_text("\n".join(lines), encoding="utf-8")
+
+
 def set_token(name: str, token: str) -> None:
-    """寫入 Keychain（覆寫既有）。設定頁存 token 用。"""
+    """寫入 Keychain（macOS）；其他平台寫 credentials.toml。設定頁存 token 用。"""
     key = f"{name}_token"
+    if sys.platform != "darwin":
+        _write_credentials_file(key, token)
+        _from_file.cache_clear()
+        return
     subprocess.run(
         [
             "security",

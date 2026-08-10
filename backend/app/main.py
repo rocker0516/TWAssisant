@@ -17,8 +17,10 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
+from . import auth
 from .api.routes import router as api_router
 from .api.routes_assistant import router as assistant_router
+from .api.routes_auth import router as auth_router
 from .api.routes_corners import router as corners_router
 from .api.routes_flow import router as flow_router
 from .api.routes_holdings import router as holdings_router
@@ -42,6 +44,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router)
 app.include_router(api_router)
 app.include_router(holdings_router)
 app.include_router(sectors_router)
@@ -185,3 +188,30 @@ if _DIST.exists():
 
     # 打包後的靜態資源（JS/CSS，index.html 以 /assets/* 引用）。
     app.mount("/assets", StaticFiles(directory=_DIST / "assets"), name="assets")
+
+
+# --- 登入保護（網站模式）---
+# 註冊在 _spa_and_api 之後 → 在洋蔥最外層，看到的是原始路徑（含 /api 前綴）。
+# 放行：登入相關端點、健康檢查、SPA 頁面載入（GET html，前端自己導去 /login）
+# 與靜態資源；其餘（= 所有 API）沒有有效 session 一律 401。
+_AUTH_EXEMPT = {"/auth/login", "/auth/logout", "/auth/me", "/health"}
+
+
+@app.middleware("http")
+async def _require_login(request: Request, call_next):
+    if not auth.auth_enabled():
+        return await call_next(request)
+    if request.method == "OPTIONS":  # CORS preflight（dev）交給 CORS middleware
+        return await call_next(request)
+    path = request.scope["path"]
+    normalized = path[4:] or "/" if path == "/api" or path.startswith("/api/") else path
+    if normalized in _AUTH_EXEMPT or path.startswith("/assets/"):
+        return await call_next(request)
+    accept = request.headers.get("accept", "")
+    if request.method == "GET" and "text/html" in accept:
+        return await call_next(request)  # SPA 殼放行，資料仍受保護
+    if auth.verify_token(request.cookies.get(auth.SESSION_COOKIE)):
+        return await call_next(request)
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse({"detail": "not authenticated"}, status_code=401)
