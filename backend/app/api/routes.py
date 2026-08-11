@@ -36,6 +36,8 @@ from .schemas import (
     RecommendationItem,
     RecommendationList,
     RecommendationLookbackResponse,
+    RecommendationMark,
+    RecommendationMarksResponse,
     ScoreDTO,
     StockDetail,
     StockSearchItem,
@@ -923,6 +925,47 @@ def stock_ohlcv(
         for p, i in reversed(rows)
     ]
     return OhlcvResponse(stock_id=stock_id, candles=candles)
+
+
+@router.get("/stocks/{stock_id}/recommendation-marks", response_model=RecommendationMarksResponse)
+def stock_recommendation_marks(
+    stock_id: str,
+    days: int = Query(120, ge=20, le=3000),
+    session: Session = Depends(get_session),
+) -> RecommendationMarksResponse:
+    """K 線推薦標記：波段軌被推薦的段落起始日 + 達標狀態（口徑同回看）。"""
+    today_d = _latest_score_date(session)
+    if today_d is None:
+        return RecommendationMarksResponse(stock_id=stock_id, marks=[])
+    rows = session.execute(
+        select(models.Score.date, models.Score.passed_filter, models.Score.passed_styles)
+        .where(models.Score.stock_id == stock_id, models.Score.track == "wave")
+        .order_by(models.Score.date)
+    ).all()
+    rec_dates = [r[0] for r in rows if r[1] or r[2]]  # 回看同口徑：過硬篩或有風格標籤
+    if not rec_dates:
+        return RecommendationMarksResponse(stock_id=stock_id, marks=[])
+    trade_dates = session.execute(
+        select(models.DailyPrice.date)
+        .where(models.DailyPrice.stock_id == stock_id, models.DailyPrice.date <= today_d)
+        .order_by(models.DailyPrice.date)
+    ).scalars().all()
+    visible = set(trade_dates[-days:])
+    marks: list[RecommendationMark] = []
+    for d0 in _mark_segments(rec_dates, trade_dates):
+        if d0 not in visible:
+            continue
+        rv = _lookback_review(session, stock_id, d0, today_d)
+        status = _mark_status(rv.hit_pop, rv.days_to_pop, rv.days_elapsed)
+        marks.append(
+            RecommendationMark(
+                date=d0,
+                status=status,
+                hit_date=rv.hit_pop_date if status == "hit" else None,
+                ret_pct=rv.mfe_pct if status == "hit" else None,
+            )
+        )
+    return RecommendationMarksResponse(stock_id=stock_id, marks=marks)
 
 
 @router.get("/stocks/{stock_id}/levels", response_model=LevelsResponse)

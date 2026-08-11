@@ -277,6 +277,20 @@ class OhlcvResponse(BaseModel):
     candles: list[Candle]
 
 
+class RecommendationMark(BaseModel):
+    """K 線上的推薦段落標記（起始日）。"""
+
+    date: date
+    status: str  # "hit"（30日內噴）| "miss"（窗走完沒噴）| "pending"（窗未走完）
+    hit_date: date | None = None  # 首次摸到 +10% 的交易日（僅 hit）
+    ret_pct: float | None = None  # 期間 MFE %（僅 hit）
+
+
+class RecommendationMarksResponse(BaseModel):
+    stock_id: str
+    marks: list[RecommendationMark]
+
+
 class LevelDTO(BaseModel):
     price: float
     kind: str  # "support" | "resistance"
