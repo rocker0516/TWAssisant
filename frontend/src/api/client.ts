@@ -275,6 +275,37 @@ export function useRecommendationMarks(stockId: string | undefined, days = 120) 
   });
 }
 
+export interface TargetPriceEntry {
+  date: string;
+  target_price: number;
+  prev_target: number | null;
+  direction: "up" | "down" | "flat" | "new";
+  target_high: number | null;
+  target_low: number | null;
+  analyst_count: number | null;
+  rating_bull: number | null;
+  rating_neutral: number | null;
+  rating_bear: number | null;
+  eps_est: number | null;
+  hit: boolean;
+  hit_date: string | null;
+  upside_pct: number | null;
+}
+
+export interface TargetPriceResponse {
+  stock_id: string;
+  latest: TargetPriceEntry | null;
+  history: TargetPriceEntry[];
+}
+
+export function useTargetPrice(stockId: string | undefined) {
+  return useQuery({
+    queryKey: ["target-price", stockId],
+    queryFn: () => getJson<TargetPriceResponse>(`/stocks/${stockId}/target-price`),
+    enabled: !!stockId,
+  });
+}
+
 export function useLevels(stockId: string | undefined) {
   return useQuery({
     queryKey: ["levels", stockId],

@@ -8,7 +8,7 @@ const MA_COLORS: Record<string, string> = { ma5: "#eab308", ma20: "#38bdf8", ma6
 const SUPPORT_COLOR = "#16a34a"; // 支撐：綠
 const RESIST_COLOR = "#e11d48"; // 壓力：紅
 
-export function KLineChart({ candles, levels = [], marks = [] }: { candles: Candle[]; levels?: LevelDTO[]; marks?: MarkDTO[] }) {
+export function KLineChart({ candles, levels = [], marks = [], targetPrice = null }: { candles: Candle[]; levels?: LevelDTO[]; marks?: MarkDTO[]; targetPrice?: number | null }) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -69,6 +69,18 @@ export function KLineChart({ candles, levels = [], marks = [] }: { candles: Cand
       });
     }
 
+    // 法人（FactSet 共識）目標價水平線（卡片開關控制 targetPrice 是否傳入）
+    if (targetPrice != null) {
+      candleSeries.createPriceLine({
+        price: targetPrice,
+        color: "#f472b6",
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: "法人目標價",
+      });
+    }
+
     // 推薦標記：金✓=30日內達標（達標日另標「達標 +X%」）、灰✗=未達標、藍…=評估中（口徑同回看）
     if (marks.length > 0) {
       const times = new Set(candles.map((c) => c.date));
@@ -99,7 +111,7 @@ export function KLineChart({ candles, levels = [], marks = [] }: { candles: Cand
 
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [candles, levels, marks]);
+  }, [candles, levels, marks, targetPrice]);
 
   return <div ref={ref} className="h-[420px] w-full" />;
 }

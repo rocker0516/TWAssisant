@@ -8,6 +8,7 @@ import {
   useOhlcv,
   useRecommendationMarks,
   useStockDetail,
+  useTargetPrice,
   type HoldingItem,
   type LevelsResponse,
   type ScoreDTO,
@@ -22,6 +23,7 @@ import { Markdown } from "../components/Markdown";
 import { Modal } from "../components/Modal";
 import { ReasonChips } from "../components/ReasonChips";
 import { ScoreDisplay } from "../components/ScoreDisplay";
+import { TargetPriceCard } from "../components/TargetPriceCard";
 import { changeColor, fmtNum, fmtPct, positionMeta, TRACK_LABELS } from "../lib/format";
 import { streamSSE } from "../lib/sse";
 
@@ -297,6 +299,12 @@ export default function StockDetailPage() {
   const { data: ohlcv } = useOhlcv(id, klineDays);
   const { data: levels } = useLevels(id);
   const { data: recMarks } = useRecommendationMarks(id, klineDays);
+  const { data: targetPrice } = useTargetPrice(id);
+  const [tpLineOn, setTpLineOn] = useState(() => localStorage.getItem("tp-line") !== "0");
+  const toggleTpLine = (on: boolean) => {
+    setTpLineOn(on);
+    localStorage.setItem("tp-line", on ? "1" : "0");
+  };
   const [chipDays, setChipDays] = useState(120);
   const { data: chipHistory } = useChipHistory(id, chipDays);
   const { data: holdingHistory } = useHoldingHistory(id);
@@ -342,6 +350,7 @@ export default function StockDetailPage() {
                 candles={ohlcv.candles}
                 levels={[...(levels?.supports ?? []), ...(levels?.resistances ?? [])]}
                 marks={recMarks?.marks ?? []}
+                targetPrice={tpLineOn ? targetPrice?.latest?.target_price ?? null : null}
               />
             ) : (
               <p className="text-muted">無 K 線資料</p>
@@ -384,6 +393,7 @@ export default function StockDetailPage() {
 
         {/* 右側欄 */}
         <div className="flex flex-col gap-5">
+          {targetPrice && <TargetPriceCard data={targetPrice} lineOn={tpLineOn} onToggleLine={toggleTpLine} />}
           <Card title="籌碼">
             <Row label="外資（張）" value={fmtNum(d.chip?.foreign_net, 0)} color={changeColor(d.chip?.foreign_net)} />
             <Row label="投信（張）" value={fmtNum(d.chip?.trust_net, 0)} color={changeColor(d.chip?.trust_net)} />
