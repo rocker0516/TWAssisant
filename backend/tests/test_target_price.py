@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
+from app.api.routes import _tp_windows
 from app.sources.cnyes_forecast import parse_forecast_item
 
 TITLE_TP = "鉅亨速報 - Factset 最新調查：臻鼎-KY(4958-TW)目標價調降至640元，幅度約3.76%"
@@ -50,3 +51,17 @@ def test_parse_eps_type_takes_target_and_eps():
 def test_parse_skips_non_tw_or_no_target():
     assert parse_forecast_item("Factset 最新調查：Oscar(OSCR-US)EPS預估上修", "無", date(2026, 8, 11)) is None
     assert parse_forecast_item("台股盤後速記", "今日大盤...", date(2026, 8, 11)) is None
+
+
+def test_tp_windows_validity_ranges():
+    d1, d2, today = date(2026, 6, 1), date(2026, 7, 1), date(2026, 8, 11)
+    w = _tp_windows([(d1, 100.0), (d2, 120.0)], today)
+    assert w == [
+        (d1, d2 - timedelta(days=1), 100.0),
+        (d2, today, 120.0),
+    ]
+
+
+def test_tp_windows_single_entry_runs_to_today():
+    d1, today = date(2026, 6, 1), date(2026, 8, 11)
+    assert _tp_windows([(d1, 100.0)], today) == [(d1, today, 100.0)]

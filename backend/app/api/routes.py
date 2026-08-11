@@ -38,6 +38,8 @@ from .schemas import (
     RecommendationLookbackResponse,
     RecommendationMark,
     RecommendationMarksResponse,
+    TargetPriceEntry,
+    TargetPriceResponse,
     ScoreDTO,
     StockDetail,
     StockSearchItem,
@@ -394,6 +396,19 @@ def _mark_status(
     if days_elapsed >= horizon:
         return "miss"
     return "pending"
+
+
+def _tp_windows(
+    entries: list[tuple[date, float]], today: date
+) -> list[tuple[date, date, float]]:
+    """每筆目標價的有效期間：(生效日, 迄日, 目標價)。迄日＝下一筆生效日前一天；最新一筆到 today。"""
+    from datetime import timedelta
+
+    out: list[tuple[date, date, float]] = []
+    for i, (d, tp) in enumerate(entries):
+        end = entries[i + 1][0] - timedelta(days=1) if i + 1 < len(entries) else today
+        out.append((d, end, tp))
+    return out
 
 
 def _build_lookback_response(
@@ -966,6 +981,59 @@ def stock_recommendation_marks(
             )
         )
     return RecommendationMarksResponse(stock_id=stock_id, marks=marks)
+
+
+@router.get("/stocks/{stock_id}/target-price", response_model=TargetPriceResponse)
+def stock_target_price(
+    stock_id: str,
+    session: Session = Depends(get_session),
+) -> TargetPriceResponse:
+    """FactSet 共識目標價：最新一筆＋歷次調整，每筆附有效期間內是否達標。"""
+    rows = session.execute(
+        select(models.TargetPrice)
+        .where(models.TargetPrice.stock_id == stock_id)
+        .order_by(models.TargetPrice.date)
+    ).scalars().all()
+    if not rows:
+        return TargetPriceResponse(stock_id=stock_id, latest=None, history=[])
+
+    today_d = session.execute(
+        select(func.max(models.DailyPrice.date)).where(models.DailyPrice.stock_id == stock_id)
+    ).scalar() or rows[-1].date
+    windows = _tp_windows([(r.date, r.target_price) for r in rows], today_d)
+
+    price_rows = session.execute(
+        select(models.DailyPrice.date, models.DailyPrice.high)
+        .where(
+            models.DailyPrice.stock_id == stock_id,
+            models.DailyPrice.date >= rows[0].date,
+            models.DailyPrice.high.isnot(None),
+        )
+        .order_by(models.DailyPrice.date)
+    ).all()
+    latest_close = session.execute(
+        select(models.DailyPrice.close)
+        .where(models.DailyPrice.stock_id == stock_id, models.DailyPrice.close.isnot(None))
+        .order_by(models.DailyPrice.date.desc())
+        .limit(1)
+    ).scalar()
+
+    entries: list[TargetPriceEntry] = []
+    for r, (start, end, tp) in zip(rows, windows):
+        hit_date = next((d for d, h in price_rows if start <= d <= end and h >= tp), None)
+        entries.append(
+            TargetPriceEntry(
+                date=r.date, target_price=r.target_price, prev_target=r.prev_target,
+                direction=r.direction, target_high=r.target_high, target_low=r.target_low,
+                analyst_count=r.analyst_count, rating_bull=r.rating_bull,
+                rating_neutral=r.rating_neutral, rating_bear=r.rating_bear,
+                eps_est=r.eps_est, hit=hit_date is not None, hit_date=hit_date,
+            )
+        )
+    latest = entries[-1]
+    if latest_close:
+        latest.upside_pct = round((latest.target_price / latest_close - 1) * 100, 2)
+    return TargetPriceResponse(stock_id=stock_id, latest=latest, history=list(reversed(entries)))
 
 
 @router.get("/stocks/{stock_id}/levels", response_model=LevelsResponse)

@@ -291,6 +291,31 @@ class RecommendationMarksResponse(BaseModel):
     marks: list[RecommendationMark]
 
 
+class TargetPriceEntry(BaseModel):
+    """一筆 FactSet 共識目標價（含達標實況）。"""
+
+    date: date
+    target_price: float
+    prev_target: float | None = None
+    direction: str = "new"  # up/down/flat/new
+    target_high: float | None = None
+    target_low: float | None = None
+    analyst_count: int | None = None
+    rating_bull: int | None = None
+    rating_neutral: int | None = None
+    rating_bear: int | None = None
+    eps_est: float | None = None
+    hit: bool = False          # 有效期間內盤中高點是否觸及目標價
+    hit_date: date | None = None
+    upside_pct: float | None = None  # 僅 latest：目標價/最新收盤 − 1
+
+
+class TargetPriceResponse(BaseModel):
+    stock_id: str
+    latest: TargetPriceEntry | None = None
+    history: list[TargetPriceEntry] = []
+
+
 class LevelDTO(BaseModel):
     price: float
     kind: str  # "support" | "resistance"
