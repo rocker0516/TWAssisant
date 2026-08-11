@@ -69,20 +69,32 @@ export function KLineChart({ candles, levels = [], marks = [] }: { candles: Cand
       });
     }
 
-    // 推薦標記：金✓=30日內達標、灰✗=未達標、藍…=評估中（口徑同回看）
+    // 推薦標記：金✓=30日內達標（達標日另標「達標 +X%」）、灰✗=未達標、藍…=評估中（口徑同回看）
     if (marks.length > 0) {
       const times = new Set(candles.map((c) => c.date));
-      candleSeries.setMarkers(
-        marks
-          .filter((m) => times.has(m.date))
-          .map((m): SeriesMarker<Time> => ({
+      const markers: SeriesMarker<Time>[] = [];
+      for (const m of marks) {
+        if (times.has(m.date)) {
+          markers.push({
             time: m.date as Time,
             position: "belowBar",
             shape: m.status === "hit" ? "arrowUp" : "circle",
             color: m.status === "hit" ? "#f59e0b" : m.status === "miss" ? "#6b7280" : "#38bdf8",
             text: m.status === "hit" ? `推薦✓${m.ret_pct != null ? ` +${m.ret_pct}%` : ""}` : m.status === "miss" ? "推薦✗" : "推薦…",
-          })),
-      );
+          });
+        }
+        if (m.status === "hit" && m.hit_date && times.has(m.hit_date)) {
+          markers.push({
+            time: m.hit_date as Time,
+            position: "aboveBar",
+            shape: "circle",
+            color: "#f59e0b",
+            text: "達標",
+          });
+        }
+      }
+      markers.sort((a, b) => String(a.time).localeCompare(String(b.time)));
+      candleSeries.setMarkers(markers);
     }
 
     chart.timeScale().fitContent();
