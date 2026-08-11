@@ -154,7 +154,7 @@ def _prob_table() -> dict | None:
     except NameError:
         pass
     fp = _Path(__file__).resolve().parents[2] / "data" / "prob_table.json"
-    _PROB_CACHE = _json.loads(fp.read_text()) if fp.exists() else None
+    _PROB_CACHE = _json.loads(fp.read_text(encoding="utf-8")) if fp.exists() else None
     return _PROB_CACHE
 
 
@@ -227,7 +227,7 @@ def recommendation_tag_stats() -> dict:
     fp = _Path(__file__).resolve().parents[2] / "data" / "tag_combo_stats.json"
     if not fp.exists():
         return {"stats": {}}
-    return _json.loads(fp.read_text())
+    return _json.loads(fp.read_text(encoding="utf-8"))
 
 
 @router.get("/recommendations", response_model=RecommendationList)
@@ -360,6 +360,38 @@ def _lookback_review(
         days_to_pop=days_to_pop,
         days_elapsed=len(following),
     )
+
+
+_MARK_GAP = 5  # 推薦中斷 ≥5 個交易日視為新段落
+_MARK_HORIZON = 30  # 會噴觀察窗（與 poppability._H 對齊）
+
+
+def _mark_segments(
+    rec_dates: list[date], trade_dates: list[date], gap: int = _MARK_GAP
+) -> list[date]:
+    """連續推薦日合併成段落、回起始日。中斷（未推薦的交易日數）≥ gap 才算新段。"""
+    idx = {d: i for i, d in enumerate(trade_dates)}
+    starts: list[date] = []
+    prev_i: int | None = None
+    for d in rec_dates:
+        i = idx.get(d)
+        if i is None:
+            continue
+        if prev_i is None or (i - prev_i - 1) >= gap:
+            starts.append(d)
+        prev_i = i
+    return starts
+
+
+def _mark_status(
+    hit_pop: bool, days_to_pop: int | None, days_elapsed: int, horizon: int = _MARK_HORIZON
+) -> str:
+    """段落起始日的達標狀態：30 交易日內噴=hit；窗走完沒噴=miss；窗未走完=pending。"""
+    if hit_pop and days_to_pop is not None and days_to_pop <= horizon:
+        return "hit"
+    if days_elapsed >= horizon:
+        return "miss"
+    return "pending"
 
 
 def _build_lookback_response(
