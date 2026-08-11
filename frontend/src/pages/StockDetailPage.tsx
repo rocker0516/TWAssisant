@@ -6,6 +6,7 @@ import {
   useHoldings,
   useLevels,
   useOhlcv,
+  useRecommendationMarks,
   useStockDetail,
   type HoldingItem,
   type LevelsResponse,
@@ -295,6 +296,7 @@ export default function StockDetailPage() {
   const [klineDays, setKlineDays] = useState(120);
   const { data: ohlcv } = useOhlcv(id, klineDays);
   const { data: levels } = useLevels(id);
+  const { data: recMarks } = useRecommendationMarks(id, klineDays);
   const [chipDays, setChipDays] = useState(120);
   const { data: chipHistory } = useChipHistory(id, chipDays);
   const { data: holdingHistory } = useHoldingHistory(id);
@@ -332,13 +334,14 @@ export default function StockDetailPage() {
         {/* 左主欄 */}
         <div className="flex flex-col gap-5">
           <Card
-            title="K 線（日K，疊均線 MA5/20/60 + 支撐/壓力）"
+            title="K 線（日K，疊均線 MA5/20/60 + 支撐/壓力 + 推薦標記）"
             action={<RangeSelector value={klineDays} onChange={setKlineDays} />}
           >
             {ohlcv && ohlcv.candles.length > 0 ? (
               <KLineChart
                 candles={ohlcv.candles}
                 levels={[...(levels?.supports ?? []), ...(levels?.resistances ?? [])]}
+                marks={recMarks?.marks ?? []}
               />
             ) : (
               <p className="text-muted">無 K 線資料</p>

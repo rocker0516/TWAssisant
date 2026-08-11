@@ -255,6 +255,26 @@ export function useOhlcv(stockId: string | undefined, days = 120) {
   });
 }
 
+export interface MarkDTO {
+  date: string;
+  status: "hit" | "miss" | "pending";
+  hit_date: string | null;
+  ret_pct: number | null;
+}
+
+export interface RecommendationMarksResponse {
+  stock_id: string;
+  marks: MarkDTO[];
+}
+
+export function useRecommendationMarks(stockId: string | undefined, days = 120) {
+  return useQuery({
+    queryKey: ["recommendation-marks", stockId, days],
+    queryFn: () => getJson<RecommendationMarksResponse>(`/stocks/${stockId}/recommendation-marks?days=${days}`),
+    enabled: !!stockId,
+  });
+}
+
 export function useLevels(stockId: string | undefined) {
   return useQuery({
     queryKey: ["levels", stockId],

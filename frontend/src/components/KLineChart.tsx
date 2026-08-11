@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import { createChart, LineStyle, type IChartApi, type Time } from "lightweight-charts";
-import type { Candle, LevelDTO } from "../api/client";
+import { createChart, LineStyle, type IChartApi, type SeriesMarker, type Time } from "lightweight-charts";
+import type { Candle, LevelDTO, MarkDTO } from "../api/client";
 
 const UP = "#e11d48"; // 紅漲
 const DOWN = "#16a34a"; // 綠跌
@@ -8,7 +8,7 @@ const MA_COLORS: Record<string, string> = { ma5: "#eab308", ma20: "#38bdf8", ma6
 const SUPPORT_COLOR = "#16a34a"; // 支撐：綠
 const RESIST_COLOR = "#e11d48"; // 壓力：紅
 
-export function KLineChart({ candles, levels = [] }: { candles: Candle[]; levels?: LevelDTO[] }) {
+export function KLineChart({ candles, levels = [], marks = [] }: { candles: Candle[]; levels?: LevelDTO[]; marks?: MarkDTO[] }) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -69,9 +69,25 @@ export function KLineChart({ candles, levels = [] }: { candles: Candle[]; levels
       });
     }
 
+    // 推薦標記：金✓=30日內達標、灰✗=未達標、藍…=評估中（口徑同回看）
+    if (marks.length > 0) {
+      const times = new Set(candles.map((c) => c.date));
+      candleSeries.setMarkers(
+        marks
+          .filter((m) => times.has(m.date))
+          .map((m): SeriesMarker<Time> => ({
+            time: m.date as Time,
+            position: "belowBar",
+            shape: m.status === "hit" ? "arrowUp" : "circle",
+            color: m.status === "hit" ? "#f59e0b" : m.status === "miss" ? "#6b7280" : "#38bdf8",
+            text: m.status === "hit" ? `推薦✓${m.ret_pct != null ? ` +${m.ret_pct}%` : ""}` : m.status === "miss" ? "推薦✗" : "推薦…",
+          })),
+      );
+    }
+
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [candles, levels]);
+  }, [candles, levels, marks]);
 
   return <div ref={ref} className="h-[420px] w-full" />;
 }
