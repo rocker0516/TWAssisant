@@ -13,9 +13,11 @@
 
 ## 口徑（與「回看」功能完全一致）
 
-- 只涵蓋**波段（wave）軌** `passed=True` 的日子。
+- 只涵蓋**波段（wave）軌**「`passed_filter=True` 或 `passed_styles` 非空」的日子
+  （與回看 `_build_lookback_response` 成員口徑一致；實作時發現回看用的是這個而非 `passed`）。
 - 達標判斷直接重用 `backend/app/api/routes.py` 的 `_lookback_review()`：
-  隔日開盤為錨點、觀察窗內是否觸及噴出門檻（`hit_pop`）。不另寫第二份邏輯。
+  隔日最高價為錨點、**30 個交易日**（`poppability._H`）內是否摸到 +10%。不另寫第二份邏輯。
+- `ret_pct` ＝ 期間 MFE（最大有利偏移%，`_lookback_review` 現成值）。
 - 連續推薦日合併為一個「段落」，只在段落**起始日**放標記；
   中斷 **≥ 5 個交易日**才視為新段落。
 - 段落狀態以起始日的回看結果為準：
