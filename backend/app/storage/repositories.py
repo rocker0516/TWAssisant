@@ -143,6 +143,10 @@ class ValuationRepository(BaseRepository[models.Valuation]):
     model = models.Valuation
 
 
+class TargetPriceRepository(BaseRepository[models.TargetPrice]):
+    model = models.TargetPrice
+
+
 class EtfProfileRepository(BaseRepository[models.EtfProfile]):
     model = models.EtfProfile
 

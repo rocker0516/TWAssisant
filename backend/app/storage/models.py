@@ -335,6 +335,28 @@ class SectorDaily(Base):
 # ─────────────────────────── E 引擎結果（前端只讀）───────────────────────────
 
 
+class TargetPrice(Base):
+    """FactSet 共識目標價（鉅亨 tw_forecast 快報）。PK=(stock_id, date)，一日一筆取最新。"""
+
+    __tablename__ = "target_prices"
+
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    date: Mapped[date_] = mapped_column(Date, primary_key=True)
+
+    target_price: Mapped[float] = mapped_column(Float)  # 共識中位數
+    prev_target: Mapped[float | None] = mapped_column(Float)
+    direction: Mapped[str] = mapped_column(String(5), default="new")  # up/down/flat/new
+    target_high: Mapped[float | None] = mapped_column(Float)
+    target_low: Mapped[float | None] = mapped_column(Float)
+    analyst_count: Mapped[int | None] = mapped_column(Integer)
+    rating_bull: Mapped[int | None] = mapped_column(Integer)
+    rating_neutral: Mapped[int | None] = mapped_column(Integer)
+    rating_bear: Mapped[int | None] = mapped_column(Integer)
+    eps_est: Mapped[float | None] = mapped_column(Float)
+    news_id: Mapped[int | None] = mapped_column(Integer)  # 去重／同日取 news_id 較大者
+    title: Mapped[str | None] = mapped_column(String(200))
+
+
 class Score(Base):
     """雙軌評分結果。PK = (stock_id, date, track)，波段/長線各一列。"""
 

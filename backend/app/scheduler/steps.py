@@ -237,6 +237,42 @@ class NewsStep(PipelineStep):
         return NewsEngine().run(ctx.session, ctx.trading_date)
 
 
+class TargetPriceStep(PipelineStep):
+    """FactSet 共識目標價（鉅亨 tw_forecast）。首次自動回補 180 天，之後增量。非必要。"""
+
+    name = "target_price"
+    required = False
+
+    def run(self, ctx: PipelineContext) -> dict:
+        from ..sources.cnyes_forecast import CnyesForecastSource
+
+        session = ctx.session
+        known = set(
+            session.execute(
+                select(models.TargetPrice.news_id).where(models.TargetPrice.news_id.isnot(None))
+            ).scalars().all()
+        )
+        min_date = ctx.trading_date - timedelta(days=180)
+        src = CnyesForecastSource()
+        try:
+            rows = src.fetch_target_prices(known, min_date)
+        except SourceError as exc:
+            return {"ok": False, "reason": exc.reason}
+        finally:
+            src.close()
+        # 只留 universe 內股票（FK 保護）；同日同股取 news_id 較大者
+        valid_ids = set(session.execute(select(models.Stock.id)).scalars().all())
+        best: dict[tuple[str, object], dict] = {}
+        for r in rows:
+            if r["stock_id"] not in valid_ids:
+                continue
+            key = (r["stock_id"], r["date"])
+            if key not in best or (r.get("news_id") or 0) > (best[key].get("news_id") or 0):
+                best[key] = r
+        n = repo.TargetPriceRepository().upsert_many(session, list(best.values()))
+        return {"ok": True, "rows": n}
+
+
 class ScoringStep(PipelineStep):
     """雙軌評分 → scores（P1，含類股修正）。"""
 
