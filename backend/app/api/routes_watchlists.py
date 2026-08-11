@@ -81,10 +81,19 @@ def _build_item(session: Session, it: models.WatchlistItem, td: date | None, thr
 _LIGHT_ORDER = {"green": 0, "yellow": 1, "white": 2}
 
 
+def _thresholds(session: Session) -> dict[str, float]:
+    # 波段軌改 top_pct 制後已無 threshold 鍵：門檻分數 = 100 − top_pct；長線軌仍為 threshold
+    scoring = _settings.get(session, "scoring")
+    return {
+        "wave": 100 - scoring.get("wave", {}).get("top_pct", 20),
+        "long": scoring.get("long", {}).get("threshold", 70),
+    }
+
+
 @router.get("/watchlists", response_model=WatchlistsResponse)
 def list_watchlists(session: Session = Depends(get_session)) -> WatchlistsResponse:
     td = _market_date(session)
-    thresholds = {tk: _settings.get(session, "scoring")[tk]["threshold"] for tk in ("wave", "long")}
+    thresholds = _thresholds(session)
     lists = session.execute(select(models.Watchlist).order_by(models.Watchlist.id)).scalars().all()
     out = []
     for wl in lists:
@@ -125,7 +134,7 @@ def add_item(wl_id: int, body: WatchlistItemCreate, session: Session = Depends(g
     session.add(it)
     session.flush()
     td = _market_date(session)
-    thresholds = {tk: _settings.get(session, "scoring")[tk]["threshold"] for tk in ("wave", "long")}
+    thresholds = _thresholds(session)
     return _build_item(session, it, td, thresholds)
 
 

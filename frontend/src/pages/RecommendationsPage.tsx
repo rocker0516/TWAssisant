@@ -23,8 +23,8 @@ const POS_FILTERS: [PosFilter, string][] = [
 
 // 注意：排序只改顯示順序，不改清單成員（成員由會噴分數 cutoff 決定）。「進場時機」＝在已選出
 // 的會噴清單『內部』把法人剛進場的往前排——研究實證清單內高時機半比低時機半多噴 +2.6pp。
-function sortItems(items: RecommendationItem[], key: SortKey): RecommendationItem[] {
-  return [...items].sort((a, b) => {
+function compareBy(key: SortKey): (a: RecommendationItem, b: RecommendationItem) => number {
+  return (a, b) => {
     switch (key) {
       case "score":
         return (b.total_score ?? 0) - (a.total_score ?? 0);
@@ -40,7 +40,11 @@ function sortItems(items: RecommendationItem[], key: SortKey): RecommendationIte
       default:
         return (b.change_pct ?? -999) - (a.change_pct ?? -999);
     }
-  });
+  };
+}
+
+function sortItems(items: RecommendationItem[], key: SortKey): RecommendationItem[] {
+  return [...items].sort(compareBy(key));
 }
 
 export default function RecommendationsPage() {
@@ -132,16 +136,22 @@ export default function RecommendationsPage() {
       + (it.passed_filter && (it.total_score ?? 0) >= cutoff ? 1 : 0),
     [cutoff],
   );
-  // 波段軌：主清單=至少一個標籤，標籤多者在前（穩定排序保留次要排序鍵）；
+  // 波段軌：主清單=至少一個標籤；排序主鍵=使用者所選鍵（預設達標機率），
+  // 次鍵=標籤數（同分時標籤多者在前，越多獨立驗證的訊號共振越前）；
   // 觀察區=0標籤（未達橫桿又無風格）；長線軌/回看沿用原邏輯
+  const mainCompare = useMemo(
+    () => (a: RecommendationItem, b: RecommendationItem) =>
+      compareBy(sort)(a, b) || tagCountOf(b) - tagCountOf(a),
+    [sort, tagCountOf],
+  );
   const main = useMemo(
     () =>
       isLookback
-        ? [...sorted].sort((a, b) => tagCountOf(b) - tagCountOf(a))
+        ? [...sorted].sort(mainCompare)
         : track === "wave"
-        ? sorted.filter((it) => tagCountOf(it) > 0).sort((a, b) => tagCountOf(b) - tagCountOf(a))
+        ? sorted.filter((it) => tagCountOf(it) > 0).sort(mainCompare)
         : sorted,
-    [isLookback, track, sorted, tagCountOf],
+    [isLookback, track, sorted, tagCountOf, mainCompare],
   );
   const extra = useMemo(
     () =>
@@ -173,7 +183,7 @@ export default function RecommendationsPage() {
               <>
                 盤後資料：{data?.date ?? "—"}
                 {track === "wave"
-                  ? `　會噴前 ${topPct}%＋風格標籤（標籤越多排越前）`
+                  ? `　會噴前 ${topPct}%＋風格標籤（依所選排序，同序看標籤數）`
                   : `　門檻 ≥ ${data?.threshold ?? 70} 分`}
               </>
             )}

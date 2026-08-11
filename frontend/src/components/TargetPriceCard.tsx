@@ -47,10 +47,12 @@ export function TargetPriceCard({
             )}
           </div>
           <div className="mt-2 flex flex-col gap-1 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted">估值區間</span>
-              <span className="tabular-nums">{fmtNum(tp.target_low)} ~ {fmtNum(tp.target_high)}</span>
-            </div>
+            {tp.target_low != null && tp.target_high != null && (
+              <div className="flex justify-between">
+                <span className="text-muted">估值區間</span>
+                <span className="tabular-nums">{fmtNum(tp.target_low)} ~ {fmtNum(tp.target_high)}</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-muted">分析師</span>
               <span>{tp.analyst_count ?? "—"} 位</span>
