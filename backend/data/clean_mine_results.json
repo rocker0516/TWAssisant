@@ -1,0 +1,6221 @@
+{
+ "generated_at": "2026-08-15 11:11",
+ "n_conditions": 821,
+ "n_survivors": 239,
+ "results": [
+  {
+   "cond": "乾淨(基準)",
+   "days": 971,
+   "avg_picks": 1744.1,
+   "hit": 31.5,
+   "lift": -0.75,
+   "t_lift": -58.0,
+   "ctrl": NaN,
+   "t_ctrl": NaN,
+   "mae_cost": NaN,
+   "fold_ctrl": [
+    NaN,
+    NaN,
+    NaN
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 1847.2,
+    "hit": 33.1,
+    "lift": -1.23,
+    "t_lift": -31.0,
+    "ctrl": NaN,
+    "t_ctrl": NaN,
+    "mae_cost": NaN
+   }
+  },
+  {
+   "cond": "乾淨 & pos_52w>q80 & sec_ret20>q80",
+   "days": 601,
+   "avg_picks": 125.8,
+   "hit": 38.6,
+   "lift": 6.66,
+   "t_lift": 12.6,
+   "ctrl": 4.21,
+   "t_ctrl": 8.5,
+   "mae_cost": -0.78,
+   "fold_ctrl": [
+    0.5,
+    6.75,
+    4.88
+   ],
+   "holdout": {
+    "days": 257,
+    "avg_picks": 88.3,
+    "hit": 49.5,
+    "lift": 10.74,
+    "t_lift": 10.4,
+    "ctrl": 10.36,
+    "t_ctrl": 11.1,
+    "mae_cost": 0.42
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att5>q80 & pos_52w>q80",
+   "days": 829,
+   "avg_picks": 71.3,
+   "hit": 39.4,
+   "lift": 9.54,
+   "t_lift": 20.7,
+   "ctrl": 3.41,
+   "t_ctrl": 7.8,
+   "mae_cost": -1.06,
+   "fold_ctrl": [
+    4.91,
+    1.96,
+    3.39
+   ],
+   "holdout": {
+    "days": 328,
+    "avg_picks": 89.9,
+    "hit": 58.9,
+    "lift": 18.87,
+    "t_lift": 23.9,
+    "ctrl": 8.86,
+    "t_ctrl": 13.4,
+    "mae_cost": -0.26
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att_chg>q80 & pos_52w>q80",
+   "days": 822,
+   "avg_picks": 62.6,
+   "hit": 39.8,
+   "lift": 9.77,
+   "t_lift": 24.3,
+   "ctrl": 5.46,
+   "t_ctrl": 14.2,
+   "mae_cost": -0.64,
+   "fold_ctrl": [
+    5.02,
+    5.66,
+    5.63
+   ],
+   "holdout": {
+    "days": 330,
+    "avg_picks": 53.8,
+    "hit": 54.3,
+    "lift": 14.98,
+    "t_lift": 17.6,
+    "ctrl": 7.36,
+    "t_ctrl": 10.5,
+    "mae_cost": -0.27
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att5>q80 & dist_60d_high>q80",
+   "days": 847,
+   "avg_picks": 55.7,
+   "hit": 33.2,
+   "lift": 0.85,
+   "t_lift": 1.9,
+   "ctrl": 3.69,
+   "t_ctrl": 9.3,
+   "mae_cost": -1.06,
+   "fold_ctrl": [
+    2.51,
+    2.82,
+    5.47
+   ],
+   "holdout": {
+    "days": 328,
+    "avg_picks": 58.8,
+    "hit": 43.4,
+    "lift": 6.1,
+    "t_lift": 8.8,
+    "ctrl": 6.62,
+    "t_ctrl": 10.9,
+    "mae_cost": -1.05
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att5>q80 & inst_streak>q80",
+   "days": 907,
+   "avg_picks": 44.3,
+   "hit": 37.1,
+   "lift": 6.11,
+   "t_lift": 14.0,
+   "ctrl": 2.87,
+   "t_ctrl": 7.3,
+   "mae_cost": -0.86,
+   "fold_ctrl": [
+    2.8,
+    3.16,
+    2.67
+   ],
+   "holdout": {
+    "days": 347,
+    "avg_picks": 66.6,
+    "hit": 47.9,
+    "lift": 11.16,
+    "t_lift": 20.2,
+    "ctrl": 5.53,
+    "t_ctrl": 11.4,
+    "mae_cost": -0.27
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att5>q80 & inst_f5>q80",
+   "days": 918,
+   "avg_picks": 72.8,
+   "hit": 36.4,
+   "lift": 4.95,
+   "t_lift": 13.2,
+   "ctrl": 1.79,
+   "t_ctrl": 5.2,
+   "mae_cost": -0.69,
+   "fold_ctrl": [
+    1.27,
+    1.48,
+    2.6
+   ],
+   "holdout": {
+    "days": 348,
+    "avg_picks": 120.3,
+    "hit": 46.9,
+    "lift": 9.94,
+    "t_lift": 19.2,
+    "ctrl": 5.08,
+    "t_ctrl": 11.1,
+    "mae_cost": -0.05
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att5>q80 & node_surge5>q80",
+   "days": 883,
+   "avg_picks": 91.0,
+   "hit": 38.4,
+   "lift": 6.56,
+   "t_lift": 16.2,
+   "ctrl": 2.2,
+   "t_ctrl": 5.1,
+   "mae_cost": -0.45,
+   "fold_ctrl": [
+    3.61,
+    0.95,
+    2.03
+   ],
+   "holdout": {
+    "days": 341,
+    "avg_picks": 175.1,
+    "hit": 50.0,
+    "lift": 12.07,
+    "t_lift": 22.3,
+    "ctrl": 5.07,
+    "t_ctrl": 8.9,
+    "mae_cost": 0.23
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att_chg>q80 & inst_streak>q80",
+   "days": 871,
+   "avg_picks": 41.4,
+   "hit": 36.4,
+   "lift": 4.24,
+   "t_lift": 10.0,
+   "ctrl": 3.0,
+   "t_ctrl": 7.7,
+   "mae_cost": -0.59,
+   "fold_ctrl": [
+    2.0,
+    4.15,
+    2.86
+   ],
+   "holdout": {
+    "days": 347,
+    "avg_picks": 47.3,
+    "hit": 43.8,
+    "lift": 7.96,
+    "t_lift": 12.0,
+    "ctrl": 4.74,
+    "t_ctrl": 8.1,
+    "mae_cost": -0.21
+   }
+  },
+  {
+   "cond": "乾淨 & node_att5>q80 & inst_streak>q80",
+   "days": 965,
+   "avg_picks": 40.9,
+   "hit": 35.3,
+   "lift": 4.17,
+   "t_lift": 12.8,
+   "ctrl": 2.94,
+   "t_ctrl": 9.7,
+   "mae_cost": -0.51,
+   "fold_ctrl": [
+    1.24,
+    2.88,
+    4.7
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 57.4,
+    "hit": 42.0,
+    "lift": 7.99,
+    "t_lift": 16.4,
+    "ctrl": 4.65,
+    "t_ctrl": 11.3,
+    "mae_cost": -0.22
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att5>q80 & dh_chg5>q80",
+   "days": 885,
+   "avg_picks": 80.4,
+   "hit": 39.6,
+   "lift": 8.22,
+   "t_lift": 20.8,
+   "ctrl": 2.03,
+   "t_ctrl": 5.9,
+   "mae_cost": -1.5,
+   "fold_ctrl": [
+    2.07,
+    0.85,
+    3.04
+   ],
+   "holdout": {
+    "days": 341,
+    "avg_picks": 133.0,
+    "hit": 49.0,
+    "lift": 12.25,
+    "t_lift": 22.8,
+    "ctrl": 4.63,
+    "t_ctrl": 10.3,
+    "mae_cost": -0.83
+   }
+  },
+  {
+   "cond": "乾淨 & pos_52w>q80",
+   "days": 912,
+   "avg_picks": 314.8,
+   "hit": 36.1,
+   "lift": 4.7,
+   "t_lift": 21.3,
+   "ctrl": 3.63,
+   "t_ctrl": 18.0,
+   "mae_cost": -0.47,
+   "fold_ctrl": [
+    2.79,
+    3.49,
+    4.45
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 228.5,
+    "hit": 42.1,
+    "lift": 4.63,
+    "t_lift": 8.3,
+    "ctrl": 4.03,
+    "t_ctrl": 11.3,
+    "mae_cost": -0.06
+   }
+  },
+  {
+   "cond": "乾淨 & node_att5>q80 & inst_f5>q80",
+   "days": 969,
+   "avg_picks": 65.5,
+   "hit": 34.4,
+   "lift": 3.33,
+   "t_lift": 12.2,
+   "ctrl": 2.58,
+   "t_ctrl": 9.9,
+   "mae_cost": -0.29,
+   "fold_ctrl": [
+    0.86,
+    1.89,
+    4.99
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 103.6,
+    "hit": 40.2,
+    "lift": 6.37,
+    "t_lift": 16.5,
+    "ctrl": 4.02,
+    "t_ctrl": 11.1,
+    "mae_cost": -0.11
+   }
+  },
+  {
+   "cond": "乾淨 & node_att5>q80 & peer_surge5>q80",
+   "days": 830,
+   "avg_picks": 103.1,
+   "hit": 38.5,
+   "lift": 6.36,
+   "t_lift": 14.7,
+   "ctrl": 2.99,
+   "t_ctrl": 5.5,
+   "mae_cost": -0.36,
+   "fold_ctrl": [
+    2.28,
+    3.66,
+    3.04
+   ],
+   "holdout": {
+    "days": 317,
+    "avg_picks": 185.9,
+    "hit": 47.0,
+    "lift": 9.85,
+    "t_lift": 16.3,
+    "ctrl": 3.93,
+    "t_ctrl": 5.3,
+    "mae_cost": -0.07
+   }
+  },
+  {
+   "cond": "乾淨 & node_surge5>q80",
+   "days": 966,
+   "avg_picks": 295.6,
+   "hit": 35.9,
+   "lift": 3.21,
+   "t_lift": 17.7,
+   "ctrl": 1.61,
+   "t_ctrl": 4.6,
+   "mae_cost": -0.06,
+   "fold_ctrl": [
+    0.97,
+    1.49,
+    2.15
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 385.8,
+    "hit": 40.9,
+    "lift": 5.25,
+    "t_lift": 15.6,
+    "ctrl": 2.26,
+    "t_ctrl": 3.0,
+    "mae_cost": 0.02
+   }
+  },
+  {
+   "cond": "乾淨 & c_over_ma20>q80",
+   "days": 971,
+   "avg_picks": 310.4,
+   "hit": 39.9,
+   "lift": 7.28,
+   "t_lift": 38.4,
+   "ctrl": 1.95,
+   "t_ctrl": 10.5,
+   "mae_cost": -1.22,
+   "fold_ctrl": [
+    1.97,
+    1.41,
+    2.47
+   ],
+   "holdout": {
+    "days": 359,
+    "avg_picks": 333.0,
+    "hit": 40.6,
+    "lift": 7.32,
+    "t_lift": 17.0,
+    "ctrl": 1.71,
+    "t_ctrl": 4.7,
+    "mae_cost": -1.11
+   }
+  },
+  {
+   "cond": "乾淨 & inst_streak>q80",
+   "days": 969,
+   "avg_picks": 222.9,
+   "hit": 31.7,
+   "lift": -0.15,
+   "t_lift": -1.0,
+   "ctrl": 0.98,
+   "t_ctrl": 7.7,
+   "mae_cost": -0.4,
+   "fold_ctrl": [
+    0.27,
+    0.81,
+    1.87
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 241.2,
+    "hit": 34.9,
+    "lift": 1.05,
+    "t_lift": 4.1,
+    "ctrl": 1.68,
+    "t_ctrl": 8.6,
+    "mae_cost": -0.25
+   }
+  },
+  {
+   "cond": "乾淨 & inst_f5>q80",
+   "days": 969,
+   "avg_picks": 358.9,
+   "hit": 31.6,
+   "lift": -0.14,
+   "t_lift": -1.1,
+   "ctrl": 0.77,
+   "t_ctrl": 4.9,
+   "mae_cost": -0.25,
+   "fold_ctrl": [
+    0.06,
+    0.6,
+    1.74
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 446.5,
+    "hit": 33.9,
+    "lift": 0.01,
+    "t_lift": 0.1,
+    "ctrl": 0.94,
+    "t_ctrl": 3.5,
+    "mae_cost": -0.2
+   }
+  },
+  {
+   "cond": "乾淨 & node_att_chg>q80",
+   "days": 971,
+   "avg_picks": 303.5,
+   "hit": 34.0,
+   "lift": 2.04,
+   "t_lift": 14.3,
+   "ctrl": 1.21,
+   "t_ctrl": 4.9,
+   "mae_cost": -0.0,
+   "fold_ctrl": [
+    0.59,
+    1.8,
+    1.38
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 359.1,
+    "hit": 37.5,
+    "lift": 3.09,
+    "t_lift": 13.0,
+    "ctrl": 0.93,
+    "t_ctrl": 1.8,
+    "mae_cost": -0.09
+   }
+  },
+  {
+   "cond": "乾淨 & node_att5>q80",
+   "days": 971,
+   "avg_picks": 314.9,
+   "hit": 34.9,
+   "lift": 3.24,
+   "t_lift": 23.8,
+   "ctrl": 1.41,
+   "t_ctrl": 4.9,
+   "mae_cost": -0.01,
+   "fold_ctrl": [
+    0.5,
+    1.57,
+    2.01
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 425.3,
+    "hit": 39.9,
+    "lift": 5.3,
+    "t_lift": 19.6,
+    "ctrl": 0.91,
+    "t_ctrl": 1.4,
+    "mae_cost": 0.03
+   }
+  },
+  {
+   "cond": "乾淨 & fg_chg5>q80",
+   "days": 194,
+   "avg_picks": 1749.4,
+   "hit": 33.4,
+   "lift": -0.7,
+   "t_lift": -27.1,
+   "ctrl": NaN,
+   "t_ctrl": NaN,
+   "mae_cost": NaN,
+   "fold_ctrl": [
+    NaN,
+    NaN,
+    NaN
+   ],
+   "holdout": {
+    "days": 78,
+    "avg_picks": 1856.5,
+    "hit": 33.7,
+    "lift": -1.16,
+    "t_lift": -14.0,
+    "ctrl": NaN,
+    "t_ctrl": NaN,
+    "mae_cost": NaN
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att5>q80 & kd_k>q80",
+   "days": 872,
+   "avg_picks": 70.0,
+   "hit": 37.6,
+   "lift": 6.01,
+   "t_lift": 13.5,
+   "ctrl": 3.54,
+   "t_ctrl": 8.7,
+   "mae_cost": -1.49,
+   "fold_ctrl": [
+    2.85,
+    3.29,
+    4.43
+   ],
+   "holdout": {
+    "days": 337,
+    "avg_picks": 85.6,
+    "hit": 46.9,
+    "lift": 10.7,
+    "t_lift": 16.2,
+    "ctrl": 6.05,
+    "t_ctrl": 10.9,
+    "mae_cost": -0.99
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att5>q80 & 上升結構",
+   "days": 903,
+   "avg_picks": 132.3,
+   "hit": 37.2,
+   "lift": 5.93,
+   "t_lift": 16.5,
+   "ctrl": 1.85,
+   "t_ctrl": 5.6,
+   "mae_cost": -1.05,
+   "fold_ctrl": [
+    1.74,
+    1.53,
+    2.24
+   ],
+   "holdout": {
+    "days": 334,
+    "avg_picks": 181.1,
+    "hit": 48.4,
+    "lift": 12.13,
+    "t_lift": 22.4,
+    "ctrl": 5.6,
+    "t_ctrl": 12.5,
+    "mae_cost": -0.38
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att5>q80 & c_over_ma20>q80",
+   "days": 902,
+   "avg_picks": 82.9,
+   "hit": 41.6,
+   "lift": 9.47,
+   "t_lift": 22.4,
+   "ctrl": 1.99,
+   "t_ctrl": 5.1,
+   "mae_cost": -1.61,
+   "fold_ctrl": [
+    2.37,
+    1.44,
+    2.1
+   ],
+   "holdout": {
+    "days": 337,
+    "avg_picks": 126.8,
+    "hit": 51.9,
+    "lift": 15.31,
+    "t_lift": 24.6,
+    "ctrl": 5.55,
+    "t_ctrl": 10.8,
+    "mae_cost": -0.96
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att5>q80 & rel_ret20>q80",
+   "days": 905,
+   "avg_picks": 69.7,
+   "hit": 41.0,
+   "lift": 9.1,
+   "t_lift": 23.5,
+   "ctrl": 1.41,
+   "t_ctrl": 4.1,
+   "mae_cost": -1.19,
+   "fold_ctrl": [
+    1.77,
+    1.06,
+    1.39
+   ],
+   "holdout": {
+    "days": 348,
+    "avg_picks": 111.9,
+    "hit": 52.9,
+    "lift": 14.51,
+    "t_lift": 22.5,
+    "ctrl": 4.81,
+    "t_ctrl": 9.8,
+    "mae_cost": -0.51
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att5>q80 & node_att5>q80",
+   "days": 922,
+   "avg_picks": 98.2,
+   "hit": 37.7,
+   "lift": 7.14,
+   "t_lift": 19.8,
+   "ctrl": 1.94,
+   "t_ctrl": 5.1,
+   "mae_cost": -0.46,
+   "fold_ctrl": [
+    2.75,
+    1.47,
+    1.63
+   ],
+   "holdout": {
+    "days": 348,
+    "avg_picks": 177.0,
+    "hit": 49.3,
+    "lift": 11.96,
+    "t_lift": 24.9,
+    "ctrl": 4.4,
+    "t_ctrl": 9.3,
+    "mae_cost": 0.13
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att5>q80 & vol_ratio>q80",
+   "days": 921,
+   "avg_picks": 67.9,
+   "hit": 37.5,
+   "lift": 6.75,
+   "t_lift": 17.9,
+   "ctrl": 2.27,
+   "t_ctrl": 6.7,
+   "mae_cost": -1.22,
+   "fold_ctrl": [
+    2.83,
+    1.88,
+    2.08
+   ],
+   "holdout": {
+    "days": 348,
+    "avg_picks": 101.7,
+    "hit": 48.7,
+    "lift": 10.5,
+    "t_lift": 19.4,
+    "ctrl": 4.36,
+    "t_ctrl": 8.9,
+    "mae_cost": -0.92
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att_chg>q80 & inst_f5>q80",
+   "days": 899,
+   "avg_picks": 65.6,
+   "hit": 35.1,
+   "lift": 3.2,
+   "t_lift": 8.3,
+   "ctrl": 2.48,
+   "t_ctrl": 6.6,
+   "mae_cost": -0.35,
+   "fold_ctrl": [
+    1.39,
+    3.38,
+    2.69
+   ],
+   "holdout": {
+    "days": 350,
+    "avg_picks": 86.4,
+    "hit": 42.1,
+    "lift": 6.46,
+    "t_lift": 11.2,
+    "ctrl": 4.35,
+    "t_ctrl": 8.4,
+    "mae_cost": -0.08
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att5>q80 & node_att_chg>q80",
+   "days": 920,
+   "avg_picks": 86.7,
+   "hit": 37.4,
+   "lift": 6.32,
+   "t_lift": 18.0,
+   "ctrl": 1.62,
+   "t_ctrl": 4.5,
+   "mae_cost": -0.44,
+   "fold_ctrl": [
+    2.55,
+    1.71,
+    0.64
+   ],
+   "holdout": {
+    "days": 347,
+    "avg_picks": 136.0,
+    "hit": 47.9,
+    "lift": 10.95,
+    "t_lift": 21.9,
+    "ctrl": 4.25,
+    "t_ctrl": 8.3,
+    "mae_cost": 0.11
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att_chg>q80 & dist_60d_high>q80",
+   "days": 859,
+   "avg_picks": 58.8,
+   "hit": 32.6,
+   "lift": -0.43,
+   "t_lift": -1.0,
+   "ctrl": 4.51,
+   "t_ctrl": 12.4,
+   "mae_cost": -0.68,
+   "fold_ctrl": [
+    3.18,
+    5.23,
+    5.06
+   ],
+   "holdout": {
+    "days": 331,
+    "avg_picks": 45.4,
+    "hit": 36.3,
+    "lift": 0.18,
+    "t_lift": 0.2,
+    "ctrl": 4.08,
+    "t_ctrl": 6.6,
+    "mae_cost": -0.67
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att_chg>q80 & kd_k>q80",
+   "days": 869,
+   "avg_picks": 71.1,
+   "hit": 37.6,
+   "lift": 5.23,
+   "t_lift": 12.4,
+   "ctrl": 4.69,
+   "t_ctrl": 12.2,
+   "mae_cost": -1.04,
+   "fold_ctrl": [
+    2.91,
+    5.1,
+    6.02
+   ],
+   "holdout": {
+    "days": 333,
+    "avg_picks": 69.1,
+    "hit": 42.4,
+    "lift": 5.75,
+    "t_lift": 7.4,
+    "ctrl": 4.05,
+    "t_ctrl": 6.5,
+    "mae_cost": -0.92
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att_chg>q80 & short_chg5>q80",
+   "days": 912,
+   "avg_picks": 59.6,
+   "hit": 38.0,
+   "lift": 7.0,
+   "t_lift": 18.3,
+   "ctrl": 2.09,
+   "t_ctrl": 5.8,
+   "mae_cost": -0.47,
+   "fold_ctrl": [
+    1.88,
+    2.41,
+    2.0
+   ],
+   "holdout": {
+    "days": 351,
+    "avg_picks": 68.3,
+    "hit": 48.8,
+    "lift": 10.76,
+    "t_lift": 17.0,
+    "ctrl": 3.78,
+    "t_ctrl": 7.1,
+    "mae_cost": -0.19
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att5>q80 & pos52_chg20>q80",
+   "days": 806,
+   "avg_picks": 75.4,
+   "hit": 36.2,
+   "lift": 6.69,
+   "t_lift": 15.3,
+   "ctrl": 2.33,
+   "t_ctrl": 5.8,
+   "mae_cost": -0.95,
+   "fold_ctrl": [
+    3.19,
+    0.42,
+    3.34
+   ],
+   "holdout": {
+    "days": 339,
+    "avg_picks": 104.3,
+    "hit": 48.1,
+    "lift": 10.83,
+    "t_lift": 17.1,
+    "ctrl": 3.77,
+    "t_ctrl": 6.9,
+    "mae_cost": -0.5
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att_chg>q80 & c_over_ma20>q80",
+   "days": 890,
+   "avg_picks": 74.2,
+   "hit": 42.0,
+   "lift": 9.69,
+   "t_lift": 24.0,
+   "ctrl": 3.26,
+   "t_ctrl": 8.4,
+   "mae_cost": -1.23,
+   "fold_ctrl": [
+    2.55,
+    3.65,
+    3.58
+   ],
+   "holdout": {
+    "days": 343,
+    "avg_picks": 84.8,
+    "hit": 47.4,
+    "lift": 11.39,
+    "t_lift": 16.3,
+    "ctrl": 3.6,
+    "t_ctrl": 6.1,
+    "mae_cost": -0.97
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att_chg>q80 & 上升結構",
+   "days": 904,
+   "avg_picks": 119.0,
+   "hit": 37.0,
+   "lift": 5.25,
+   "t_lift": 16.1,
+   "ctrl": 3.1,
+   "t_ctrl": 10.1,
+   "mae_cost": -0.57,
+   "fold_ctrl": [
+    2.95,
+    3.25,
+    3.1
+   ],
+   "holdout": {
+    "days": 342,
+    "avg_picks": 121.3,
+    "hit": 42.6,
+    "lift": 7.27,
+    "t_lift": 10.9,
+    "ctrl": 3.41,
+    "t_ctrl": 6.4,
+    "mae_cost": -0.5
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att5>q80 & ret5_accel>q80",
+   "days": 899,
+   "avg_picks": 79.1,
+   "hit": 41.0,
+   "lift": 9.55,
+   "t_lift": 23.6,
+   "ctrl": 1.51,
+   "t_ctrl": 4.2,
+   "mae_cost": -1.16,
+   "fold_ctrl": [
+    2.1,
+    1.12,
+    1.29
+   ],
+   "holdout": {
+    "days": 340,
+    "avg_picks": 131.4,
+    "hit": 50.3,
+    "lift": 12.75,
+    "t_lift": 22.9,
+    "ctrl": 3.28,
+    "t_ctrl": 7.0,
+    "mae_cost": -0.64
+   }
+  },
+  {
+   "cond": "乾淨 & node_att5>q80 & dh_chg5>q80",
+   "days": 940,
+   "avg_picks": 70.2,
+   "hit": 38.5,
+   "lift": 7.17,
+   "t_lift": 23.2,
+   "ctrl": 2.18,
+   "t_ctrl": 7.5,
+   "mae_cost": -1.04,
+   "fold_ctrl": [
+    2.08,
+    1.39,
+    3.05
+   ],
+   "holdout": {
+    "days": 355,
+    "avg_picks": 107.4,
+    "hit": 44.1,
+    "lift": 9.27,
+    "t_lift": 19.9,
+    "ctrl": 3.16,
+    "t_ctrl": 8.0,
+    "mae_cost": -0.86
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att_chg>q80 & node_surge5>q80",
+   "days": 879,
+   "avg_picks": 84.4,
+   "hit": 38.0,
+   "lift": 5.19,
+   "t_lift": 12.3,
+   "ctrl": 2.46,
+   "t_ctrl": 5.3,
+   "mae_cost": -0.13,
+   "fold_ctrl": [
+    2.28,
+    2.68,
+    2.43
+   ],
+   "holdout": {
+    "days": 342,
+    "avg_picks": 118.1,
+    "hit": 46.2,
+    "lift": 7.79,
+    "t_lift": 11.5,
+    "ctrl": 3.1,
+    "t_ctrl": 4.3,
+    "mae_cost": 0.05
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att_chg>q80 & node_att5>q80",
+   "days": 912,
+   "avg_picks": 89.1,
+   "hit": 36.7,
+   "lift": 5.14,
+   "t_lift": 14.4,
+   "ctrl": 2.34,
+   "t_ctrl": 5.6,
+   "mae_cost": -0.13,
+   "fold_ctrl": [
+    2.38,
+    2.7,
+    1.98
+   ],
+   "holdout": {
+    "days": 352,
+    "avg_picks": 121.1,
+    "hit": 43.5,
+    "lift": 7.12,
+    "t_lift": 12.2,
+    "ctrl": 3.07,
+    "t_ctrl": 5.0,
+    "mae_cost": 0.11
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att_chg>q80 & dh_chg5>q80",
+   "days": 877,
+   "avg_picks": 73.6,
+   "hit": 39.7,
+   "lift": 7.3,
+   "t_lift": 18.8,
+   "ctrl": 2.41,
+   "t_ctrl": 6.8,
+   "mae_cost": -1.07,
+   "fold_ctrl": [
+    2.09,
+    2.35,
+    2.76
+   ],
+   "holdout": {
+    "days": 344,
+    "avg_picks": 94.8,
+    "hit": 45.0,
+    "lift": 8.28,
+    "t_lift": 13.2,
+    "ctrl": 2.85,
+    "t_ctrl": 5.5,
+    "mae_cost": -0.83
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att_chg>q80 & rel_ret20>q80",
+   "days": 888,
+   "avg_picks": 59.6,
+   "hit": 41.4,
+   "lift": 9.54,
+   "t_lift": 25.9,
+   "ctrl": 2.96,
+   "t_ctrl": 8.9,
+   "mae_cost": -0.81,
+   "fold_ctrl": [
+    2.46,
+    4.0,
+    2.42
+   ],
+   "holdout": {
+    "days": 350,
+    "avg_picks": 73.2,
+    "hit": 47.4,
+    "lift": 10.42,
+    "t_lift": 14.9,
+    "ctrl": 2.75,
+    "t_ctrl": 5.1,
+    "mae_cost": -0.56
+   }
+  },
+  {
+   "cond": "乾淨 & node_att5>q80 & vol_ratio>q80",
+   "days": 970,
+   "avg_picks": 66.3,
+   "hit": 36.2,
+   "lift": 4.24,
+   "t_lift": 15.7,
+   "ctrl": 2.31,
+   "t_ctrl": 9.0,
+   "mae_cost": -0.89,
+   "fold_ctrl": [
+    1.74,
+    1.93,
+    3.27
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 89.4,
+    "hit": 42.1,
+    "lift": 6.46,
+    "t_lift": 14.6,
+    "ctrl": 2.71,
+    "t_ctrl": 6.9,
+    "mae_cost": -0.83
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att_chg>q80 & node_att_chg>q80",
+   "days": 913,
+   "avg_picks": 92.1,
+   "hit": 36.5,
+   "lift": 4.54,
+   "t_lift": 12.2,
+   "ctrl": 1.72,
+   "t_ctrl": 4.1,
+   "mae_cost": -0.2,
+   "fold_ctrl": [
+    1.86,
+    2.59,
+    0.82
+   ],
+   "holdout": {
+    "days": 349,
+    "avg_picks": 110.0,
+    "hit": 42.1,
+    "lift": 6.16,
+    "t_lift": 10.5,
+    "ctrl": 2.59,
+    "t_ctrl": 4.4,
+    "mae_cost": 0.01
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att_chg>q80 & vol_ratio>q80",
+   "days": 914,
+   "avg_picks": 67.9,
+   "hit": 37.3,
+   "lift": 5.16,
+   "t_lift": 13.6,
+   "ctrl": 3.04,
+   "t_ctrl": 9.1,
+   "mae_cost": -0.86,
+   "fold_ctrl": [
+    3.29,
+    3.85,
+    2.02
+   ],
+   "holdout": {
+    "days": 348,
+    "avg_picks": 76.8,
+    "hit": 44.0,
+    "lift": 6.17,
+    "t_lift": 10.1,
+    "ctrl": 2.59,
+    "t_ctrl": 5.1,
+    "mae_cost": -0.85
+   }
+  },
+  {
+   "cond": "乾淨 & node_att5>q80 & pos52_chg20>q80",
+   "days": 882,
+   "avg_picks": 66.7,
+   "hit": 36.0,
+   "lift": 5.42,
+   "t_lift": 15.6,
+   "ctrl": 2.79,
+   "t_ctrl": 8.6,
+   "mae_cost": -0.72,
+   "fold_ctrl": [
+    2.94,
+    0.99,
+    4.43
+   ],
+   "holdout": {
+    "days": 357,
+    "avg_picks": 87.9,
+    "hit": 40.8,
+    "lift": 7.04,
+    "t_lift": 12.6,
+    "ctrl": 2.4,
+    "t_ctrl": 5.4,
+    "mae_cost": -0.34
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att_chg>q80 & inst_f5_chg<q20",
+   "days": 891,
+   "avg_picks": 60.9,
+   "hit": 34.1,
+   "lift": 2.77,
+   "t_lift": 7.7,
+   "ctrl": 1.65,
+   "t_ctrl": 4.7,
+   "mae_cost": -0.03,
+   "fold_ctrl": [
+    2.23,
+    2.27,
+    0.49
+   ],
+   "holdout": {
+    "days": 350,
+    "avg_picks": 80.1,
+    "hit": 39.3,
+    "lift": 4.42,
+    "t_lift": 7.9,
+    "ctrl": 2.34,
+    "t_ctrl": 4.5,
+    "mae_cost": 0.18
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att_chg>q80 & vol_trend>q80",
+   "days": 913,
+   "avg_picks": 70.1,
+   "hit": 37.3,
+   "lift": 5.46,
+   "t_lift": 14.4,
+   "ctrl": 2.26,
+   "t_ctrl": 6.4,
+   "mae_cost": -0.53,
+   "fold_ctrl": [
+    2.74,
+    2.81,
+    1.25
+   ],
+   "holdout": {
+    "days": 348,
+    "avg_picks": 75.7,
+    "hit": 44.1,
+    "lift": 6.85,
+    "t_lift": 11.4,
+    "ctrl": 2.3,
+    "t_ctrl": 4.6,
+    "mae_cost": -0.39
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att_chg>q80 & pos52_chg20>q80",
+   "days": 808,
+   "avg_picks": 64.2,
+   "hit": 36.1,
+   "lift": 6.0,
+   "t_lift": 14.5,
+   "ctrl": 3.31,
+   "t_ctrl": 8.4,
+   "mae_cost": -0.71,
+   "fold_ctrl": [
+    3.07,
+    3.64,
+    3.17
+   ],
+   "holdout": {
+    "days": 346,
+    "avg_picks": 71.3,
+    "hit": 42.6,
+    "lift": 6.74,
+    "t_lift": 8.7,
+    "ctrl": 2.16,
+    "t_ctrl": 3.5,
+    "mae_cost": -0.53
+   }
+  },
+  {
+   "cond": "乾淨 & node_att5>q80 & vol_trend>q80",
+   "days": 971,
+   "avg_picks": 67.6,
+   "hit": 36.1,
+   "lift": 4.17,
+   "t_lift": 15.3,
+   "ctrl": 1.34,
+   "t_ctrl": 5.2,
+   "mae_cost": -0.52,
+   "fold_ctrl": [
+    0.48,
+    1.81,
+    1.74
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 87.9,
+    "hit": 42.1,
+    "lift": 6.62,
+    "t_lift": 14.0,
+    "ctrl": 1.87,
+    "t_ctrl": 4.4,
+    "mae_cost": -0.43
+   }
+  },
+  {
+   "cond": "乾淨 & node_att5>q80 & vol_trend_chg>q80",
+   "days": 966,
+   "avg_picks": 66.6,
+   "hit": 35.9,
+   "lift": 3.77,
+   "t_lift": 15.0,
+   "ctrl": 1.08,
+   "t_ctrl": 4.5,
+   "mae_cost": -0.48,
+   "fold_ctrl": [
+    0.96,
+    0.71,
+    1.57
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 88.1,
+    "hit": 41.4,
+    "lift": 6.29,
+    "t_lift": 14.4,
+    "ctrl": 1.79,
+    "t_ctrl": 4.7,
+    "mae_cost": -0.42
+   }
+  },
+  {
+   "cond": "乾淨 & node_att5>q80 & ret5_accel>q80",
+   "days": 957,
+   "avg_picks": 68.9,
+   "hit": 40.0,
+   "lift": 8.51,
+   "t_lift": 27.5,
+   "ctrl": 1.31,
+   "t_ctrl": 4.5,
+   "mae_cost": -0.76,
+   "fold_ctrl": [
+    0.63,
+    1.07,
+    2.2
+   ],
+   "holdout": {
+    "days": 355,
+    "avg_picks": 104.0,
+    "hit": 45.7,
+    "lift": 10.01,
+    "t_lift": 21.9,
+    "ctrl": 1.76,
+    "t_ctrl": 4.7,
+    "mae_cost": -0.57
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att_chg>q80 & ret5_accel>q80",
+   "days": 884,
+   "avg_picks": 69.3,
+   "hit": 40.7,
+   "lift": 8.39,
+   "t_lift": 21.5,
+   "ctrl": 1.54,
+   "t_ctrl": 4.2,
+   "mae_cost": -0.8,
+   "fold_ctrl": [
+    1.74,
+    1.55,
+    1.34
+   ],
+   "holdout": {
+    "days": 342,
+    "avg_picks": 89.2,
+    "hit": 46.9,
+    "lift": 9.41,
+    "t_lift": 15.1,
+    "ctrl": 1.74,
+    "t_ctrl": 3.3,
+    "mae_cost": -0.61
+   }
+  },
+  {
+   "cond": "乾淨 & sec_att_chg>q80 & vol_trend_chg>q80",
+   "days": 906,
+   "avg_picks": 71.7,
+   "hit": 37.5,
+   "lift": 4.98,
+   "t_lift": 14.0,
+   "ctrl": 1.94,
+   "t_ctrl": 6.1,
+   "mae_cost": -0.46,
+   "fold_ctrl": [
+    2.51,
+    1.96,
+    1.37
+   ],
+   "holdout": {
+    "days": 347,
+    "avg_picks": 79.7,
+    "hit": 43.4,
+    "lift": 6.18,
+    "t_lift": 10.1,
+    "ctrl": 1.67,
+    "t_ctrl": 3.4,
+    "mae_cost": -0.43
+   }
+  },
+  {
+   "cond": "乾淨 & node_att5>q80 & node_att_chg>q80",
+   "days": 971,
+   "avg_picks": 204.6,
+   "hit": 34.7,
+   "lift": 2.93,
+   "t_lift": 16.7,
+   "ctrl": 1.69,
+   "t_ctrl": 6.3,
+   "mae_cost": 0.04,
+   "fold_ctrl": [
+    0.76,
+    2.33,
+    2.02
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 262.5,
+    "hit": 38.7,
+    "lift": 4.36,
+    "t_lift": 13.4,
+    "ctrl": 1.44,
+    "t_ctrl": 2.7,
+    "mae_cost": 0.05
+   }
+  },
+  {
+   "cond": "乾淨 & kd_k>q80",
+   "days": 971,
+   "avg_picks": 329.0,
+   "hit": 32.0,
+   "lift": -1.53,
+   "t_lift": -7.7,
+   "ctrl": 1.67,
+   "t_ctrl": 10.8,
+   "mae_cost": -0.73,
+   "fold_ctrl": [
+    1.48,
+    1.1,
+    2.43
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 308.8,
+    "hit": 31.3,
+    "lift": -3.17,
+    "t_lift": -5.9,
+    "ctrl": 0.75,
+    "t_ctrl": 2.1,
+    "mae_cost": -0.65
+   }
+  },
+  {
+   "cond": "乾淨 & dh_chg5>q80",
+   "days": 947,
+   "avg_picks": 338.5,
+   "hit": 36.5,
+   "lift": 4.73,
+   "t_lift": 29.6,
+   "ctrl": 1.37,
+   "t_ctrl": 10.2,
+   "mae_cost": -0.92,
+   "fold_ctrl": [
+    1.61,
+    0.72,
+    1.81
+   ],
+   "holdout": {
+    "days": 359,
+    "avg_picks": 403.4,
+    "hit": 38.5,
+    "lift": 3.81,
+    "t_lift": 11.4,
+    "ctrl": 0.73,
+    "t_ctrl": 2.8,
+    "mae_cost": -0.91
+   }
+  },
+  {
+   "cond": "乾淨 & rel_ret20>q80",
+   "days": 951,
+   "avg_picks": 303.7,
+   "hit": 38.9,
+   "lift": 6.85,
+   "t_lift": 36.0,
+   "ctrl": 1.75,
+   "t_ctrl": 13.2,
+   "mae_cost": -0.6,
+   "fold_ctrl": [
+    1.6,
+    1.78,
+    1.86
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 341.0,
+    "hit": 40.0,
+    "lift": 5.54,
+    "t_lift": 13.9,
+    "ctrl": 0.41,
+    "t_ctrl": 1.7,
+    "mae_cost": -0.6
+   }
+  },
+  {
+   "cond": "乾淨 & 上升結構",
+   "days": 966,
+   "avg_picks": 605.0,
+   "hit": 33.0,
+   "lift": 0.75,
+   "t_lift": 4.7,
+   "ctrl": 1.26,
+   "t_ctrl": 8.9,
+   "mae_cost": -0.46,
+   "fold_ctrl": [
+    1.37,
+    0.75,
+    1.67
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 570.5,
+    "hit": 33.1,
+    "lift": -0.03,
+    "t_lift": -0.1,
+    "ctrl": 0.38,
+    "t_ctrl": 1.4,
+    "mae_cost": -0.41
+   }
+  },
+  {
+   "cond": "乾淨 & vol_ratio>q80",
+   "days": 971,
+   "avg_picks": 338.2,
+   "hit": 32.5,
+   "lift": 0.3,
+   "t_lift": 2.4,
+   "ctrl": 0.91,
+   "t_ctrl": 8.0,
+   "mae_cost": -0.67,
+   "fold_ctrl": [
+    1.42,
+    0.47,
+    0.85
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 371.5,
+    "hit": 34.5,
+    "lift": -0.61,
+    "t_lift": -2.7,
+    "ctrl": 0.08,
+    "t_ctrl": 0.4,
+    "mae_cost": -0.69
+   }
+  },
+  {
+   "cond": "乾淨 & dist_60d_high>q80",
+   "days": 952,
+   "avg_picks": 346.6,
+   "hit": 25.8,
+   "lift": -8.64,
+   "t_lift": -30.5,
+   "ctrl": 0.66,
+   "t_ctrl": 4.5,
+   "mae_cost": -0.15,
+   "fold_ctrl": [
+    0.22,
+    0.21,
+    1.51
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 269.9,
+    "hit": 23.0,
+    "lift": -11.86,
+    "t_lift": -20.0,
+    "ctrl": -0.76,
+    "t_ctrl": -2.2,
+    "mae_cost": 0.04
+   }
+  },
+  {
+   "cond": "乾淨 & fg_chg5<q20",
+   "days": 193,
+   "avg_picks": 1740.6,
+   "hit": 29.7,
+   "lift": -0.86,
+   "t_lift": -28.1,
+   "ctrl": NaN,
+   "t_ctrl": NaN,
+   "mae_cost": NaN,
+   "fold_ctrl": [
+    NaN,
+    NaN,
+    NaN
+   ],
+   "holdout": {
+    "days": 76,
+    "avg_picks": 1837.1,
+    "hit": 32.1,
+    "lift": -1.5,
+    "t_lift": -13.9,
+    "ctrl": NaN,
+    "t_ctrl": NaN,
+    "mae_cost": NaN
+   }
+  },
+  {
+   "cond": "乾淨 & sec_ret20>q80 & kd_k>q80",
+   "days": 629,
+   "avg_picks": 156.6,
+   "hit": 35.3,
+   "lift": 1.14,
+   "t_lift": 2.2,
+   "ctrl": 2.03,
+   "t_ctrl": 4.0,
+   "mae_cost": -1.31,
+   "fold_ctrl": [
+    1.3,
+    1.59,
+    3.12
+   ],
+   "holdout": {
+    "days": 250,
+    "avg_picks": 126.6,
+    "hit": 34.3,
+    "lift": 8.2,
+    "t_lift": 7.8,
+    "ctrl": 10.25,
+    "t_ctrl": 10.2,
+    "mae_cost": -0.09
+   }
+  },
+  {
+   "cond": "乾淨 & peer_surge5>q80 & pos_52w>q80",
+   "days": 772,
+   "avg_picks": 89.1,
+   "hit": 40.3,
+   "lift": 9.84,
+   "t_lift": 21.7,
+   "ctrl": 5.05,
+   "t_ctrl": 11.5,
+   "mae_cost": -1.1,
+   "fold_ctrl": [
+    4.66,
+    5.93,
+    4.57
+   ],
+   "holdout": {
+    "days": 305,
+    "avg_picks": 103.8,
+    "hit": 55.2,
+    "lift": 17.73,
+    "t_lift": 20.0,
+    "ctrl": 9.78,
+    "t_ctrl": 12.2,
+    "mae_cost": -0.62
+   }
+  },
+  {
+   "cond": "乾淨 & sec_ret20>q80 & dist_60d_high>q80",
+   "days": 646,
+   "avg_picks": 145.2,
+   "hit": 32.5,
+   "lift": -2.37,
+   "t_lift": -4.7,
+   "ctrl": 2.27,
+   "t_ctrl": 4.9,
+   "mae_cost": -0.81,
+   "fold_ctrl": [
+    1.1,
+    1.68,
+    4.03
+   ],
+   "holdout": {
+    "days": 261,
+    "avg_picks": 83.8,
+    "hit": 32.5,
+    "lift": 2.82,
+    "t_lift": 2.8,
+    "ctrl": 9.55,
+    "t_ctrl": 9.9,
+    "mae_cost": 0.06
+   }
+  },
+  {
+   "cond": "乾淨 & node_att5>q80 & pos_52w>q80",
+   "days": 901,
+   "avg_picks": 70.7,
+   "hit": 40.6,
+   "lift": 10.45,
+   "t_lift": 32.3,
+   "ctrl": 6.11,
+   "t_ctrl": 20.7,
+   "mae_cost": -0.5,
+   "fold_ctrl": [
+    4.89,
+    5.79,
+    7.41
+   ],
+   "holdout": {
+    "days": 349,
+    "avg_picks": 68.7,
+    "hit": 54.2,
+    "lift": 17.58,
+    "t_lift": 27.7,
+    "ctrl": 9.22,
+    "t_ctrl": 17.6,
+    "mae_cost": -0.33
+   }
+  },
+  {
+   "cond": "乾淨 & node_surge5>q80 & pos_52w>q80",
+   "days": 876,
+   "avg_picks": 68.8,
+   "hit": 40.3,
+   "lift": 10.11,
+   "t_lift": 28.5,
+   "ctrl": 5.97,
+   "t_ctrl": 17.8,
+   "mae_cost": -0.66,
+   "fold_ctrl": [
+    4.23,
+    6.49,
+    6.91
+   ],
+   "holdout": {
+    "days": 339,
+    "avg_picks": 69.9,
+    "hit": 54.9,
+    "lift": 16.92,
+    "t_lift": 21.8,
+    "ctrl": 8.6,
+    "t_ctrl": 13.5,
+    "mae_cost": -0.39
+   }
+  },
+  {
+   "cond": "乾淨 & inst_streak>q80 & pos_52w>q80",
+   "days": 906,
+   "avg_picks": 61.2,
+   "hit": 34.6,
+   "lift": 3.23,
+   "t_lift": 9.5,
+   "ctrl": 3.62,
+   "t_ctrl": 11.6,
+   "mae_cost": -0.92,
+   "fold_ctrl": [
+    2.3,
+    3.6,
+    4.73
+   ],
+   "holdout": {
+    "days": 357,
+    "avg_picks": 45.8,
+    "hit": 43.6,
+    "lift": 7.6,
+    "t_lift": 11.5,
+    "ctrl": 8.45,
+    "t_ctrl": 16.2,
+    "mae_cost": -0.23
+   }
+  },
+  {
+   "cond": "乾淨 & pos_52w>q80 & macd_hist>q80",
+   "days": 911,
+   "avg_picks": 88.6,
+   "hit": 41.7,
+   "lift": 10.1,
+   "t_lift": 34.3,
+   "ctrl": 4.84,
+   "t_ctrl": 16.8,
+   "mae_cost": -1.57,
+   "fold_ctrl": [
+    4.01,
+    4.5,
+    5.86
+   ],
+   "holdout": {
+    "days": 356,
+    "avg_picks": 79.5,
+    "hit": 51.4,
+    "lift": 15.0,
+    "t_lift": 23.3,
+    "ctrl": 8.2,
+    "t_ctrl": 14.7,
+    "mae_cost": -1.21
+   }
+  },
+  {
+   "cond": "乾淨 & inst_t5_chg>q80 & pos_52w>q80",
+   "days": 908,
+   "avg_picks": 58.5,
+   "hit": 36.6,
+   "lift": 5.08,
+   "t_lift": 15.2,
+   "ctrl": 1.9,
+   "t_ctrl": 5.7,
+   "mae_cost": -0.69,
+   "fold_ctrl": [
+    3.06,
+    0.6,
+    2.25
+   ],
+   "holdout": {
+    "days": 355,
+    "avg_picks": 50.8,
+    "hit": 49.8,
+    "lift": 11.79,
+    "t_lift": 16.5,
+    "ctrl": 8.11,
+    "t_ctrl": 14.7,
+    "mae_cost": 0.09
+   }
+  },
+  {
+   "cond": "乾淨 & pos_52w>q80 & c_over_ma20>q80",
+   "days": 912,
+   "avg_picks": 134.5,
+   "hit": 42.3,
+   "lift": 11.49,
+   "t_lift": 44.8,
+   "ctrl": 5.48,
+   "t_ctrl": 21.3,
+   "mae_cost": -1.39,
+   "fold_ctrl": [
+    5.09,
+    5.52,
+    5.77
+   ],
+   "holdout": {
+    "days": 357,
+    "avg_picks": 110.1,
+    "hit": 51.7,
+    "lift": 14.85,
+    "t_lift": 26.1,
+    "ctrl": 7.84,
+    "t_ctrl": 16.4,
+    "mae_cost": -1.13
+   }
+  },
+  {
+   "cond": "乾淨 & node_att_chg>q80 & pos_52w>q80",
+   "days": 903,
+   "avg_picks": 64.2,
+   "hit": 39.8,
+   "lift": 9.1,
+   "t_lift": 26.5,
+   "ctrl": 5.66,
+   "t_ctrl": 17.6,
+   "mae_cost": -0.66,
+   "fold_ctrl": [
+    5.07,
+    5.15,
+    6.62
+   ],
+   "holdout": {
+    "days": 353,
+    "avg_picks": 51.4,
+    "hit": 51.4,
+    "lift": 14.1,
+    "t_lift": 21.0,
+    "ctrl": 7.81,
+    "t_ctrl": 13.5,
+    "mae_cost": -0.56
+   }
+  },
+  {
+   "cond": "乾淨 & pos_52w>q80 & short_chg5>q80",
+   "days": 912,
+   "avg_picks": 77.5,
+   "hit": 40.7,
+   "lift": 10.07,
+   "t_lift": 35.2,
+   "ctrl": 4.55,
+   "t_ctrl": 16.3,
+   "mae_cost": -1.04,
+   "fold_ctrl": [
+    3.82,
+    4.65,
+    5.04
+   ],
+   "holdout": {
+    "days": 357,
+    "avg_picks": 57.3,
+    "hit": 53.2,
+    "lift": 14.93,
+    "t_lift": 22.2,
+    "ctrl": 7.71,
+    "t_ctrl": 14.8,
+    "mae_cost": -0.76
+   }
+  },
+  {
+   "cond": "乾淨 & sq_ratio>q80 & pos_52w>q80",
+   "days": 911,
+   "avg_picks": 75.0,
+   "hit": 42.5,
+   "lift": 10.94,
+   "t_lift": 42.2,
+   "ctrl": 2.78,
+   "t_ctrl": 11.0,
+   "mae_cost": -0.99,
+   "fold_ctrl": [
+    3.1,
+    2.74,
+    2.57
+   ],
+   "holdout": {
+    "days": 356,
+    "avg_picks": 53.0,
+    "hit": 51.4,
+    "lift": 17.06,
+    "t_lift": 23.1,
+    "ctrl": 7.61,
+    "t_ctrl": 13.0,
+    "mae_cost": -0.55
+   }
+  },
+  {
+   "cond": "乾淨 & pos_52w>q80 & pe_chg20>q80",
+   "days": 911,
+   "avg_picks": 86.0,
+   "hit": 36.7,
+   "lift": 5.69,
+   "t_lift": 18.0,
+   "ctrl": 3.52,
+   "t_ctrl": 11.4,
+   "mae_cost": -0.79,
+   "fold_ctrl": [
+    3.4,
+    2.73,
+    4.42
+   ],
+   "holdout": {
+    "days": 357,
+    "avg_picks": 60.9,
+    "hit": 48.1,
+    "lift": 11.55,
+    "t_lift": 16.5,
+    "ctrl": 7.41,
+    "t_ctrl": 13.2,
+    "mae_cost": -0.18
+   }
+  },
+  {
+   "cond": "乾淨 & inst_f5>q80 & pos_52w>q80",
+   "days": 906,
+   "avg_picks": 85.3,
+   "hit": 35.4,
+   "lift": 3.63,
+   "t_lift": 10.5,
+   "ctrl": 3.98,
+   "t_ctrl": 13.1,
+   "mae_cost": -0.62,
+   "fold_ctrl": [
+    1.83,
+    3.82,
+    5.9
+   ],
+   "holdout": {
+    "days": 357,
+    "avg_picks": 66.5,
+    "hit": 42.5,
+    "lift": 6.48,
+    "t_lift": 11.1,
+    "ctrl": 7.0,
+    "t_ctrl": 14.8,
+    "mae_cost": -0.3
+   }
+  },
+  {
+   "cond": "乾淨 & ret5_accel>q80 & pos_52w>q80",
+   "days": 906,
+   "avg_picks": 79.4,
+   "hit": 42.0,
+   "lift": 11.63,
+   "t_lift": 37.9,
+   "ctrl": 4.65,
+   "t_ctrl": 15.6,
+   "mae_cost": -1.57,
+   "fold_ctrl": [
+    4.15,
+    4.26,
+    5.45
+   ],
+   "holdout": {
+    "days": 353,
+    "avg_picks": 68.4,
+    "hit": 52.4,
+    "lift": 15.15,
+    "t_lift": 24.9,
+    "ctrl": 6.76,
+    "t_ctrl": 13.2,
+    "mae_cost": -1.49
+   }
+  },
+  {
+   "cond": "乾淨 & dh_chg5>q80 & pos_52w>q80",
+   "days": 907,
+   "avg_picks": 77.6,
+   "hit": 42.2,
+   "lift": 11.52,
+   "t_lift": 38.1,
+   "ctrl": 5.16,
+   "t_ctrl": 17.7,
+   "mae_cost": -1.6,
+   "fold_ctrl": [
+    5.33,
+    4.35,
+    5.84
+   ],
+   "holdout": {
+    "days": 356,
+    "avg_picks": 67.6,
+    "hit": 52.5,
+    "lift": 14.48,
+    "t_lift": 23.7,
+    "ctrl": 6.64,
+    "t_ctrl": 13.0,
+    "mae_cost": -1.58
+   }
+  },
+  {
+   "cond": "乾淨 & rel_ret20>q80 & pos_52w>q80",
+   "days": 912,
+   "avg_picks": 135.0,
+   "hit": 42.3,
+   "lift": 10.98,
+   "t_lift": 42.0,
+   "ctrl": 4.99,
+   "t_ctrl": 22.1,
+   "mae_cost": -1.06,
+   "fold_ctrl": [
+    4.38,
+    5.24,
+    5.24
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 111.5,
+    "hit": 50.3,
+    "lift": 12.83,
+    "t_lift": 20.0,
+    "ctrl": 6.1,
+    "t_ctrl": 13.5,
+    "mae_cost": -0.91
+   }
+  },
+  {
+   "cond": "乾淨 & inst_f5_chg>q80 & pos_52w>q80",
+   "days": 904,
+   "avg_picks": 61.9,
+   "hit": 35.4,
+   "lift": 3.54,
+   "t_lift": 9.9,
+   "ctrl": 3.84,
+   "t_ctrl": 11.6,
+   "mae_cost": -0.5,
+   "fold_ctrl": [
+    3.12,
+    3.0,
+    5.24
+   ],
+   "holdout": {
+    "days": 353,
+    "avg_picks": 48.6,
+    "hit": 43.4,
+    "lift": 6.59,
+    "t_lift": 11.0,
+    "ctrl": 6.04,
+    "t_ctrl": 12.1,
+    "mae_cost": -0.09
+   }
+  },
+  {
+   "cond": "乾淨 & pos52_chg20>q80 & pos_52w>q80",
+   "days": 892,
+   "avg_picks": 115.9,
+   "hit": 38.0,
+   "lift": 6.67,
+   "t_lift": 25.9,
+   "ctrl": 5.08,
+   "t_ctrl": 20.9,
+   "mae_cost": -1.03,
+   "fold_ctrl": [
+    3.94,
+    4.96,
+    6.06
+   ],
+   "holdout": {
+    "days": 357,
+    "avg_picks": 93.8,
+    "hit": 44.2,
+    "lift": 7.91,
+    "t_lift": 15.8,
+    "ctrl": 5.7,
+    "t_ctrl": 14.1,
+    "mae_cost": -0.7
+   }
+  },
+  {
+   "cond": "乾淨 & peer_surge5>q80 & dist_60d_high>q80",
+   "days": 816,
+   "avg_picks": 86.5,
+   "hit": 34.6,
+   "lift": 0.11,
+   "t_lift": 0.2,
+   "ctrl": 3.48,
+   "t_ctrl": 8.4,
+   "mae_cost": -1.12,
+   "fold_ctrl": [
+    1.83,
+    3.97,
+    4.49
+   ],
+   "holdout": {
+    "days": 317,
+    "avg_picks": 81.7,
+    "hit": 39.5,
+    "lift": 2.78,
+    "t_lift": 3.1,
+    "ctrl": 5.56,
+    "t_ctrl": 7.4,
+    "mae_cost": -0.9
+   }
+  },
+  {
+   "cond": "乾淨 & peer_surge5>q80 & kd_k>q80",
+   "days": 807,
+   "avg_picks": 118.9,
+   "hit": 38.9,
+   "lift": 4.85,
+   "t_lift": 11.6,
+   "ctrl": 3.2,
+   "t_ctrl": 7.9,
+   "mae_cost": -1.41,
+   "fold_ctrl": [
+    2.15,
+    3.84,
+    3.58
+   ],
+   "holdout": {
+    "days": 316,
+    "avg_picks": 130.3,
+    "hit": 42.3,
+    "lift": 8.16,
+    "t_lift": 9.6,
+    "ctrl": 5.53,
+    "t_ctrl": 7.5,
+    "mae_cost": -1.22
+   }
+  },
+  {
+   "cond": "乾淨 & atr_pct>q80 & dist_60d_high>q80",
+   "days": 859,
+   "avg_picks": 15.3,
+   "hit": 47.8,
+   "lift": 15.85,
+   "t_lift": 28.5,
+   "ctrl": 2.62,
+   "t_ctrl": 4.7,
+   "mae_cost": -2.48,
+   "fold_ctrl": [
+    3.92,
+    1.63,
+    2.4
+   ],
+   "holdout": {
+    "days": 330,
+    "avg_picks": 23.6,
+    "hit": 58.7,
+    "lift": 20.57,
+    "t_lift": 22.3,
+    "ctrl": 5.35,
+    "t_ctrl": 7.0,
+    "mae_cost": -2.54
+   }
+  },
+  {
+   "cond": "乾淨 & node_surge5>q80 & kd_k>q80",
+   "days": 886,
+   "avg_picks": 83.8,
+   "hit": 38.1,
+   "lift": 5.18,
+   "t_lift": 13.9,
+   "ctrl": 4.39,
+   "t_ctrl": 12.2,
+   "mae_cost": -1.05,
+   "fold_ctrl": [
+    3.43,
+    4.73,
+    4.97
+   ],
+   "holdout": {
+    "days": 342,
+    "avg_picks": 91.0,
+    "hit": 41.3,
+    "lift": 7.38,
+    "t_lift": 10.7,
+    "ctrl": 5.27,
+    "t_ctrl": 9.5,
+    "mae_cost": -0.96
+   }
+  },
+  {
+   "cond": "乾淨 & inst_streak>q80 & peer_surge5>q80",
+   "days": 789,
+   "avg_picks": 64.5,
+   "hit": 37.1,
+   "lift": 4.54,
+   "t_lift": 10.0,
+   "ctrl": 3.4,
+   "t_ctrl": 7.8,
+   "mae_cost": -0.8,
+   "fold_ctrl": [
+    2.91,
+    3.91,
+    3.37
+   ],
+   "holdout": {
+    "days": 301,
+    "avg_picks": 90.5,
+    "hit": 43.6,
+    "lift": 7.82,
+    "t_lift": 11.4,
+    "ctrl": 5.22,
+    "t_ctrl": 8.7,
+    "mae_cost": -0.25
+   }
+  },
+  {
+   "cond": "乾淨 & vol_ratio>q80 & pos_52w>q80",
+   "days": 912,
+   "avg_picks": 87.3,
+   "hit": 38.4,
+   "lift": 7.27,
+   "t_lift": 24.7,
+   "ctrl": 5.17,
+   "t_ctrl": 17.5,
+   "mae_cost": -1.41,
+   "fold_ctrl": [
+    4.71,
+    4.73,
+    5.99
+   ],
+   "holdout": {
+    "days": 359,
+    "avg_picks": 65.6,
+    "hit": 45.3,
+    "lift": 7.4,
+    "t_lift": 11.3,
+    "ctrl": 5.19,
+    "t_ctrl": 10.8,
+    "mae_cost": -1.1
+   }
+  },
+  {
+   "cond": "乾淨 & c_over_ma20>q80 & dist_60d_high>q80",
+   "days": 951,
+   "avg_picks": 128.2,
+   "hit": 38.6,
+   "lift": 5.25,
+   "t_lift": 17.5,
+   "ctrl": 4.18,
+   "t_ctrl": 15.0,
+   "mae_cost": -1.67,
+   "fold_ctrl": [
+    4.32,
+    2.58,
+    5.65
+   ],
+   "holdout": {
+    "days": 357,
+    "avg_picks": 113.2,
+    "hit": 39.5,
+    "lift": 5.3,
+    "t_lift": 9.0,
+    "ctrl": 4.93,
+    "t_ctrl": 10.3,
+    "mae_cost": -1.49
+   }
+  },
+  {
+   "cond": "乾淨 & pos_52w>q80 & 上升結構",
+   "days": 912,
+   "avg_picks": 217.3,
+   "hit": 37.1,
+   "lift": 6.1,
+   "t_lift": 26.5,
+   "ctrl": 4.6,
+   "t_ctrl": 20.7,
+   "mae_cost": -0.74,
+   "fold_ctrl": [
+    3.95,
+    4.79,
+    4.94
+   ],
+   "holdout": {
+    "days": 359,
+    "avg_picks": 156.8,
+    "hit": 43.9,
+    "lift": 6.51,
+    "t_lift": 11.6,
+    "ctrl": 4.89,
+    "t_ctrl": 11.8,
+    "mae_cost": -0.41
+   }
+  },
+  {
+   "cond": "乾淨 & inst_streak>q80 & c_over_ma20>q80",
+   "days": 964,
+   "avg_picks": 68.9,
+   "hit": 38.0,
+   "lift": 5.66,
+   "t_lift": 18.1,
+   "ctrl": 2.76,
+   "t_ctrl": 9.1,
+   "mae_cost": -1.49,
+   "fold_ctrl": [
+    2.35,
+    1.8,
+    4.12
+   ],
+   "holdout": {
+    "days": 355,
+    "avg_picks": 75.5,
+    "hit": 40.0,
+    "lift": 7.47,
+    "t_lift": 13.0,
+    "ctrl": 4.87,
+    "t_ctrl": 9.5,
+    "mae_cost": -1.1
+   }
+  },
+  {
+   "cond": "乾淨 & vol_trend>q80 & pos_52w>q80",
+   "days": 912,
+   "avg_picks": 85.2,
+   "hit": 38.6,
+   "lift": 7.09,
+   "t_lift": 23.3,
+   "ctrl": 4.64,
+   "t_ctrl": 15.7,
+   "mae_cost": -1.12,
+   "fold_ctrl": [
+    4.03,
+    4.63,
+    5.14
+   ],
+   "holdout": {
+    "days": 359,
+    "avg_picks": 60.9,
+    "hit": 44.7,
+    "lift": 6.91,
+    "t_lift": 9.7,
+    "ctrl": 4.75,
+    "t_ctrl": 8.7,
+    "mae_cost": -0.87
+   }
+  },
+  {
+   "cond": "乾淨 & short_chg5>q80 & dist_60d_high>q80",
+   "days": 949,
+   "avg_picks": 63.5,
+   "hit": 35.6,
+   "lift": 2.73,
+   "t_lift": 8.3,
+   "ctrl": 3.21,
+   "t_ctrl": 11.1,
+   "mae_cost": -1.48,
+   "fold_ctrl": [
+    3.34,
+    1.71,
+    4.57
+   ],
+   "holdout": {
+    "days": 357,
+    "avg_picks": 53.3,
+    "hit": 40.8,
+    "lift": 5.53,
+    "t_lift": 7.9,
+    "ctrl": 4.74,
+    "t_ctrl": 9.0,
+    "mae_cost": -1.34
+   }
+  },
+  {
+   "cond": "乾淨 & pos_52w>q80 & kd_k>q80",
+   "days": 912,
+   "avg_picks": 116.7,
+   "hit": 36.2,
+   "lift": 4.29,
+   "t_lift": 14.8,
+   "ctrl": 5.09,
+   "t_ctrl": 19.4,
+   "mae_cost": -1.11,
+   "fold_ctrl": [
+    3.93,
+    4.98,
+    6.15
+   ],
+   "holdout": {
+    "days": 359,
+    "avg_picks": 88.3,
+    "hit": 40.0,
+    "lift": 2.56,
+    "t_lift": 3.7,
+    "ctrl": 4.72,
+    "t_ctrl": 9.1,
+    "mae_cost": -0.46
+   }
+  },
+  {
+   "cond": "乾淨 & node_surge5>q80 & inst_streak>q80",
+   "days": 915,
+   "avg_picks": 46.7,
+   "hit": 36.1,
+   "lift": 4.22,
+   "t_lift": 11.6,
+   "ctrl": 3.26,
+   "t_ctrl": 9.3,
+   "mae_cost": -0.54,
+   "fold_ctrl": [
+    2.34,
+    3.18,
+    4.23
+   ],
+   "holdout": {
+    "days": 348,
+    "avg_picks": 61.2,
+    "hit": 42.1,
+    "lift": 7.53,
+    "t_lift": 12.5,
+    "ctrl": 4.6,
+    "t_ctrl": 8.3,
+    "mae_cost": -0.39
+   }
+  },
+  {
+   "cond": "乾淨 & node_att_chg>q80 & kd_k>q80",
+   "days": 955,
+   "avg_picks": 65.3,
+   "hit": 35.5,
+   "lift": 3.21,
+   "t_lift": 9.0,
+   "ctrl": 3.27,
+   "t_ctrl": 10.3,
+   "mae_cost": -1.23,
+   "fold_ctrl": [
+    2.57,
+    1.92,
+    5.26
+   ],
+   "holdout": {
+    "days": 353,
+    "avg_picks": 66.8,
+    "hit": 39.2,
+    "lift": 5.83,
+    "t_lift": 9.0,
+    "ctrl": 4.55,
+    "t_ctrl": 8.4,
+    "mae_cost": -1.19
+   }
+  },
+  {
+   "cond": "乾淨 & inst_streak>q80 & short_chg5>q80",
+   "days": 966,
+   "avg_picks": 47.9,
+   "hit": 34.5,
+   "lift": 2.89,
+   "t_lift": 10.5,
+   "ctrl": 1.29,
+   "t_ctrl": 4.9,
+   "mae_cost": -0.86,
+   "fold_ctrl": [
+    0.04,
+    0.74,
+    3.06
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 51.5,
+    "hit": 42.5,
+    "lift": 7.51,
+    "t_lift": 15.0,
+    "ctrl": 4.55,
+    "t_ctrl": 10.3,
+    "mae_cost": -0.68
+   }
+  },
+  {
+   "cond": "乾淨 & ret5_accel>q80 & dist_60d_high>q80",
+   "days": 944,
+   "avg_picks": 63.4,
+   "hit": 39.3,
+   "lift": 6.74,
+   "t_lift": 18.7,
+   "ctrl": 4.64,
+   "t_ctrl": 13.8,
+   "mae_cost": -2.08,
+   "fold_ctrl": [
+    4.47,
+    3.37,
+    6.06
+   ],
+   "holdout": {
+    "days": 352,
+    "avg_picks": 60.2,
+    "hit": 41.5,
+    "lift": 6.51,
+    "t_lift": 9.8,
+    "ctrl": 4.48,
+    "t_ctrl": 8.3,
+    "mae_cost": -2.06
+   }
+  },
+  {
+   "cond": "乾淨 & vol_trend_chg>q80 & pos_52w>q80",
+   "days": 912,
+   "avg_picks": 75.1,
+   "hit": 37.8,
+   "lift": 6.41,
+   "t_lift": 21.5,
+   "ctrl": 4.3,
+   "t_ctrl": 14.8,
+   "mae_cost": -1.11,
+   "fold_ctrl": [
+    4.08,
+    4.05,
+    4.73
+   ],
+   "holdout": {
+    "days": 355,
+    "avg_picks": 55.2,
+    "hit": 43.9,
+    "lift": 6.69,
+    "t_lift": 10.7,
+    "ctrl": 4.37,
+    "t_ctrl": 9.1,
+    "mae_cost": -0.87
+   }
+  },
+  {
+   "cond": "乾淨 & pos_52w>q80 & margin_chg5<q20",
+   "days": 909,
+   "avg_picks": 70.9,
+   "hit": 35.3,
+   "lift": 3.64,
+   "t_lift": 11.8,
+   "ctrl": 1.97,
+   "t_ctrl": 6.8,
+   "mae_cost": -0.34,
+   "fold_ctrl": [
+    1.31,
+    1.77,
+    2.71
+   ],
+   "holdout": {
+    "days": 357,
+    "avg_picks": 51.2,
+    "hit": 44.5,
+    "lift": 6.61,
+    "t_lift": 9.1,
+    "ctrl": 4.36,
+    "t_ctrl": 8.0,
+    "mae_cost": 0.04
+   }
+  },
+  {
+   "cond": "乾淨 & inst_f5>q80 & peer_surge5>q80",
+   "days": 832,
+   "avg_picks": 96.8,
+   "hit": 35.8,
+   "lift": 2.16,
+   "t_lift": 5.3,
+   "ctrl": 1.7,
+   "t_ctrl": 4.2,
+   "mae_cost": -0.59,
+   "fold_ctrl": [
+    0.37,
+    2.41,
+    2.3
+   ],
+   "holdout": {
+    "days": 321,
+    "avg_picks": 153.3,
+    "hit": 42.5,
+    "lift": 6.16,
+    "t_lift": 9.8,
+    "ctrl": 4.35,
+    "t_ctrl": 7.6,
+    "mae_cost": -0.25
+   }
+  },
+  {
+   "cond": "乾淨 & node_surge5>q80 & dist_60d_high>q80",
+   "days": 903,
+   "avg_picks": 65.3,
+   "hit": 33.8,
+   "lift": 0.06,
+   "t_lift": 0.2,
+   "ctrl": 4.7,
+   "t_ctrl": 13.7,
+   "mae_cost": -0.82,
+   "fold_ctrl": [
+    3.95,
+    4.82,
+    5.31
+   ],
+   "holdout": {
+    "days": 346,
+    "avg_picks": 56.9,
+    "hit": 37.5,
+    "lift": 0.97,
+    "t_lift": 1.3,
+    "ctrl": 4.33,
+    "t_ctrl": 7.4,
+    "mae_cost": -0.81
+   }
+  },
+  {
+   "cond": "乾淨 & node_att5>q80 & c_over_ma20>q80",
+   "days": 965,
+   "avg_picks": 71.9,
+   "hit": 41.5,
+   "lift": 9.43,
+   "t_lift": 27.5,
+   "ctrl": 2.73,
+   "t_ctrl": 8.2,
+   "mae_cost": -1.3,
+   "fold_ctrl": [
+    2.0,
+    2.49,
+    3.7
+   ],
+   "holdout": {
+    "days": 354,
+    "avg_picks": 100.5,
+    "hit": 46.7,
+    "lift": 12.75,
+    "t_lift": 20.6,
+    "ctrl": 4.23,
+    "t_ctrl": 7.8,
+    "mae_cost": -0.92
+   }
+  },
+  {
+   "cond": "乾淨 & node_att5>q80 & short_chg5>q80",
+   "days": 966,
+   "avg_picks": 63.0,
+   "hit": 37.5,
+   "lift": 6.43,
+   "t_lift": 23.6,
+   "ctrl": 1.48,
+   "t_ctrl": 5.8,
+   "mae_cost": -0.49,
+   "fold_ctrl": [
+    1.1,
+    0.86,
+    2.47
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 84.3,
+    "hit": 47.6,
+    "lift": 11.44,
+    "t_lift": 24.5,
+    "ctrl": 4.22,
+    "t_ctrl": 11.6,
+    "mae_cost": -0.12
+   }
+  },
+  {
+   "cond": "乾淨 & node_att5>q80 & kd_k>q80",
+   "days": 943,
+   "avg_picks": 64.4,
+   "hit": 36.1,
+   "lift": 4.28,
+   "t_lift": 12.9,
+   "ctrl": 4.05,
+   "t_ctrl": 13.4,
+   "mae_cost": -1.06,
+   "fold_ctrl": [
+    3.04,
+    3.45,
+    5.59
+   ],
+   "holdout": {
+    "days": 350,
+    "avg_picks": 74.9,
+    "hit": 40.4,
+    "lift": 6.49,
+    "t_lift": 10.7,
+    "ctrl": 4.18,
+    "t_ctrl": 8.5,
+    "mae_cost": -0.96
+   }
+  },
+  {
+   "cond": "乾淨 & peer_surge5>q80 & c_over_ma20>q80",
+   "days": 831,
+   "avg_picks": 126.7,
+   "hit": 42.4,
+   "lift": 8.72,
+   "t_lift": 19.6,
+   "ctrl": 2.2,
+   "t_ctrl": 5.1,
+   "mae_cost": -1.6,
+   "fold_ctrl": [
+    1.74,
+    2.96,
+    1.92
+   ],
+   "holdout": {
+    "days": 321,
+    "avg_picks": 169.2,
+    "hit": 47.4,
+    "lift": 12.13,
+    "t_lift": 15.2,
+    "ctrl": 4.17,
+    "t_ctrl": 5.9,
+    "mae_cost": -1.3
+   }
+  },
+  {
+   "cond": "乾淨 & node_surge5>q80 & c_over_ma20>q80",
+   "days": 919,
+   "avg_picks": 89.0,
+   "hit": 42.3,
+   "lift": 10.08,
+   "t_lift": 26.9,
+   "ctrl": 3.73,
+   "t_ctrl": 10.5,
+   "mae_cost": -1.31,
+   "fold_ctrl": [
+    2.82,
+    4.92,
+    3.5
+   ],
+   "holdout": {
+    "days": 346,
+    "avg_picks": 118.3,
+    "hit": 46.6,
+    "lift": 12.29,
+    "t_lift": 18.6,
+    "ctrl": 4.15,
+    "t_ctrl": 7.4,
+    "mae_cost": -0.99
+   }
+  },
+  {
+   "cond": "乾淨 & peer_surge5>q80 & 上升結構",
+   "days": 855,
+   "avg_picks": 177.9,
+   "hit": 37.9,
+   "lift": 5.08,
+   "t_lift": 12.8,
+   "ctrl": 2.35,
+   "t_ctrl": 6.1,
+   "mae_cost": -0.92,
+   "fold_ctrl": [
+    1.91,
+    3.16,
+    2.02
+   ],
+   "holdout": {
+    "days": 325,
+    "avg_picks": 217.1,
+    "hit": 44.3,
+    "lift": 8.19,
+    "t_lift": 11.1,
+    "ctrl": 4.1,
+    "t_ctrl": 6.6,
+    "mae_cost": -0.62
+   }
+  },
+  {
+   "cond": "乾淨 & dist_60d_high>q80 & macd_hist>q80",
+   "days": 949,
+   "avg_picks": 85.7,
+   "hit": 36.6,
+   "lift": 3.38,
+   "t_lift": 10.7,
+   "ctrl": 2.99,
+   "t_ctrl": 10.0,
+   "mae_cost": -1.85,
+   "fold_ctrl": [
+    2.07,
+    2.24,
+    4.62
+   ],
+   "holdout": {
+    "days": 354,
+    "avg_picks": 88.9,
+    "hit": 38.1,
+    "lift": 4.21,
+    "t_lift": 7.1,
+    "ctrl": 4.06,
+    "t_ctrl": 8.8,
+    "mae_cost": -1.65
+   }
+  },
+  {
+   "cond": "乾淨 & node_surge5>q80 & short_chg5>q80",
+   "days": 956,
+   "avg_picks": 61.0,
+   "hit": 38.8,
+   "lift": 6.71,
+   "t_lift": 20.7,
+   "ctrl": 1.55,
+   "t_ctrl": 5.0,
+   "mae_cost": -0.59,
+   "fold_ctrl": [
+    1.09,
+    0.82,
+    2.72
+   ],
+   "holdout": {
+    "days": 355,
+    "avg_picks": 83.8,
+    "hit": 49.1,
+    "lift": 11.24,
+    "t_lift": 19.9,
+    "ctrl": 4.04,
+    "t_ctrl": 8.5,
+    "mae_cost": -0.34
+   }
+  },
+  {
+   "cond": "乾淨 & inst_streak>q80 & kd_k>q80",
+   "days": 968,
+   "avg_picks": 80.7,
+   "hit": 31.2,
+   "lift": -2.26,
+   "t_lift": -6.7,
+   "ctrl": 1.79,
+   "t_ctrl": 6.3,
+   "mae_cost": -1.05,
+   "fold_ctrl": [
+    0.61,
+    1.26,
+    3.47
+   ],
+   "holdout": {
+    "days": 355,
+    "avg_picks": 76.4,
+    "hit": 32.2,
+    "lift": -0.66,
+    "t_lift": -1.1,
+    "ctrl": 4.01,
+    "t_ctrl": 8.3,
+    "mae_cost": -0.69
+   }
+  },
+  {
+   "cond": "乾淨 & short_chg5>q80 & kd_k>q80",
+   "days": 963,
+   "avg_picks": 78.7,
+   "hit": 38.0,
+   "lift": 5.51,
+   "t_lift": 18.2,
+   "ctrl": 2.86,
+   "t_ctrl": 9.8,
+   "mae_cost": -1.47,
+   "fold_ctrl": [
+    3.2,
+    1.5,
+    3.89
+   ],
+   "holdout": {
+    "days": 355,
+    "avg_picks": 81.5,
+    "hit": 42.4,
+    "lift": 8.25,
+    "t_lift": 15.4,
+    "ctrl": 4.0,
+    "t_ctrl": 8.8,
+    "mae_cost": -1.31
+   }
+  },
+  {
+   "cond": "乾淨 & inst_f5>q80 & c_over_ma20>q80",
+   "days": 956,
+   "avg_picks": 90.7,
+   "hit": 38.0,
+   "lift": 5.4,
+   "t_lift": 18.1,
+   "ctrl": 2.94,
+   "t_ctrl": 10.3,
+   "mae_cost": -1.21,
+   "fold_ctrl": [
+    1.87,
+    2.23,
+    4.69
+   ],
+   "holdout": {
+    "days": 354,
+    "avg_picks": 110.9,
+    "hit": 38.8,
+    "lift": 6.23,
+    "t_lift": 11.9,
+    "ctrl": 3.9,
+    "t_ctrl": 8.8,
+    "mae_cost": -1.14
+   }
+  },
+  {
+   "cond": "乾淨 & atr_pct_chg>q80 & pos_52w>q80",
+   "days": 911,
+   "avg_picks": 74.3,
+   "hit": 41.4,
+   "lift": 10.52,
+   "t_lift": 31.8,
+   "ctrl": 4.08,
+   "t_ctrl": 12.7,
+   "mae_cost": -0.86,
+   "fold_ctrl": [
+    3.0,
+    4.75,
+    4.28
+   ],
+   "holdout": {
+    "days": 351,
+    "avg_picks": 59.1,
+    "hit": 51.4,
+    "lift": 12.1,
+    "t_lift": 15.6,
+    "ctrl": 3.88,
+    "t_ctrl": 6.3,
+    "mae_cost": -0.9
+   }
+  },
+  {
+   "cond": "乾淨 & peer_surge5>q80 & rel_ret20>q80",
+   "days": 836,
+   "avg_picks": 82.4,
+   "hit": 42.5,
+   "lift": 9.58,
+   "t_lift": 20.8,
+   "ctrl": 2.14,
+   "t_ctrl": 4.8,
+   "mae_cost": -1.42,
+   "fold_ctrl": [
+    1.63,
+    3.43,
+    1.44
+   ],
+   "holdout": {
+    "days": 324,
+    "avg_picks": 124.7,
+    "hit": 49.7,
+    "lift": 12.68,
+    "t_lift": 16.3,
+    "ctrl": 3.88,
+    "t_ctrl": 5.7,
+    "mae_cost": -0.9
+   }
+  },
+  {
+   "cond": "乾淨 & node_surge5>q80 & 上升結構",
+   "days": 941,
+   "avg_picks": 133.2,
+   "hit": 37.3,
+   "lift": 5.26,
+   "t_lift": 17.0,
+   "ctrl": 3.08,
+   "t_ctrl": 10.4,
+   "mae_cost": -0.7,
+   "fold_ctrl": [
+    2.2,
+    3.33,
+    3.7
+   ],
+   "holdout": {
+    "days": 351,
+    "avg_picks": 154.6,
+    "hit": 42.9,
+    "lift": 8.18,
+    "t_lift": 14.3,
+    "ctrl": 3.85,
+    "t_ctrl": 8.3,
+    "mae_cost": -0.44
+   }
+  },
+  {
+   "cond": "乾淨 & pos52_chg20>q80 & peer_surge5>q80",
+   "days": 759,
+   "avg_picks": 97.9,
+   "hit": 37.1,
+   "lift": 5.77,
+   "t_lift": 13.1,
+   "ctrl": 2.5,
+   "t_ctrl": 5.9,
+   "mae_cost": -1.08,
+   "fold_ctrl": [
+    2.52,
+    2.53,
+    2.47
+   ],
+   "holdout": {
+    "days": 315,
+    "avg_picks": 137.4,
+    "hit": 43.9,
+    "lift": 9.0,
+    "t_lift": 11.1,
+    "ctrl": 3.82,
+    "t_ctrl": 5.6,
+    "mae_cost": -0.7
+   }
+  },
+  {
+   "cond": "乾淨 & node_att_chg>q80 & inst_streak>q80",
+   "days": 967,
+   "avg_picks": 40.0,
+   "hit": 34.2,
+   "lift": 2.97,
+   "t_lift": 8.7,
+   "ctrl": 2.55,
+   "t_ctrl": 8.3,
+   "mae_cost": -0.5,
+   "fold_ctrl": [
+    1.98,
+    2.33,
+    3.33
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 49.7,
+    "hit": 39.5,
+    "lift": 5.78,
+    "t_lift": 11.8,
+    "ctrl": 3.73,
+    "t_ctrl": 8.5,
+    "mae_cost": -0.33
+   }
+  },
+  {
+   "cond": "乾淨 & node_surge5>q80 & dh_chg5>q80",
+   "days": 897,
+   "avg_picks": 97.0,
+   "hit": 40.1,
+   "lift": 7.42,
+   "t_lift": 20.9,
+   "ctrl": 2.61,
+   "t_ctrl": 7.8,
+   "mae_cost": -1.03,
+   "fold_ctrl": [
+    1.57,
+    3.52,
+    2.67
+   ],
+   "holdout": {
+    "days": 347,
+    "avg_picks": 139.4,
+    "hit": 45.5,
+    "lift": 9.49,
+    "t_lift": 16.5,
+    "ctrl": 3.73,
+    "t_ctrl": 7.7,
+    "mae_cost": -0.86
+   }
+  },
+  {
+   "cond": "乾淨 & dh_chg5>q80 & dist_60d_high>q80",
+   "days": 944,
+   "avg_picks": 80.7,
+   "hit": 36.5,
+   "lift": 4.11,
+   "t_lift": 12.7,
+   "ctrl": 4.12,
+   "t_ctrl": 14.7,
+   "mae_cost": -1.64,
+   "fold_ctrl": [
+    4.75,
+    2.19,
+    5.47
+   ],
+   "holdout": {
+    "days": 355,
+    "avg_picks": 80.0,
+    "hit": 37.9,
+    "lift": 3.54,
+    "t_lift": 6.0,
+    "ctrl": 3.71,
+    "t_ctrl": 8.0,
+    "mae_cost": -1.68
+   }
+  },
+  {
+   "cond": "乾淨 & node_surge5>q80 & inst_f5>q80",
+   "days": 935,
+   "avg_picks": 72.8,
+   "hit": 35.4,
+   "lift": 3.49,
+   "t_lift": 11.0,
+   "ctrl": 2.99,
+   "t_ctrl": 9.5,
+   "mae_cost": -0.31,
+   "fold_ctrl": [
+    1.5,
+    2.83,
+    4.59
+   ],
+   "holdout": {
+    "days": 356,
+    "avg_picks": 109.3,
+    "hit": 40.9,
+    "lift": 5.87,
+    "t_lift": 11.5,
+    "ctrl": 3.66,
+    "t_ctrl": 7.2,
+    "mae_cost": -0.25
+   }
+  },
+  {
+   "cond": "乾淨 & pos52_chg20>q80 & inst_streak>q80",
+   "days": 882,
+   "avg_picks": 68.0,
+   "hit": 31.3,
+   "lift": 0.49,
+   "t_lift": 1.5,
+   "ctrl": 2.02,
+   "t_ctrl": 7.0,
+   "mae_cost": -0.91,
+   "fold_ctrl": [
+    2.16,
+    0.06,
+    3.84
+   ],
+   "holdout": {
+    "days": 357,
+    "avg_picks": 69.7,
+    "hit": 34.7,
+    "lift": 2.48,
+    "t_lift": 4.1,
+    "ctrl": 3.65,
+    "t_ctrl": 7.6,
+    "mae_cost": -0.54
+   }
+  },
+  {
+   "cond": "乾淨 & node_att5>q80 & 上升結構",
+   "days": 962,
+   "avg_picks": 122.1,
+   "hit": 36.8,
+   "lift": 5.34,
+   "t_lift": 19.4,
+   "ctrl": 3.11,
+   "t_ctrl": 12.2,
+   "mae_cost": -0.6,
+   "fold_ctrl": [
+    2.33,
+    2.28,
+    4.7
+   ],
+   "holdout": {
+    "days": 353,
+    "avg_picks": 150.6,
+    "hit": 41.2,
+    "lift": 8.22,
+    "t_lift": 16.5,
+    "ctrl": 3.55,
+    "t_ctrl": 8.7,
+    "mae_cost": -0.36
+   }
+  },
+  {
+   "cond": "乾淨 & pos_52w>q80 & atr_pct>q80",
+   "days": 912,
+   "avg_picks": 71.3,
+   "hit": 45.5,
+   "lift": 15.89,
+   "t_lift": 52.7,
+   "ctrl": 1.91,
+   "t_ctrl": 7.2,
+   "mae_cost": -1.24,
+   "fold_ctrl": [
+    2.73,
+    1.33,
+    1.81
+   ],
+   "holdout": {
+    "days": 359,
+    "avg_picks": 88.8,
+    "hit": 58.4,
+    "lift": 19.41,
+    "t_lift": 28.3,
+    "ctrl": 3.54,
+    "t_ctrl": 7.4,
+    "mae_cost": -1.33
+   }
+  },
+  {
+   "cond": "乾淨 & pos_52w>q80 & inst_f5_chg<q20",
+   "days": 904,
+   "avg_picks": 58.9,
+   "hit": 35.2,
+   "lift": 3.65,
+   "t_lift": 10.7,
+   "ctrl": 3.48,
+   "t_ctrl": 11.8,
+   "mae_cost": -0.24,
+   "fold_ctrl": [
+    2.74,
+    3.29,
+    4.27
+   ],
+   "holdout": {
+    "days": 354,
+    "avg_picks": 46.1,
+    "hit": 41.6,
+    "lift": 4.39,
+    "t_lift": 6.8,
+    "ctrl": 3.53,
+    "t_ctrl": 7.2,
+    "mae_cost": -0.33
+   }
+  },
+  {
+   "cond": "乾淨 & node_att5>q80 & dist_60d_high>q80",
+   "days": 938,
+   "avg_picks": 58.5,
+   "hit": 31.9,
+   "lift": -0.86,
+   "t_lift": -2.4,
+   "ctrl": 4.7,
+   "t_ctrl": 16.6,
+   "mae_cost": -0.61,
+   "fold_ctrl": [
+    4.24,
+    3.37,
+    6.42
+   ],
+   "holdout": {
+    "days": 354,
+    "avg_picks": 54.0,
+    "hit": 34.0,
+    "lift": -1.3,
+    "t_lift": -1.8,
+    "ctrl": 3.44,
+    "t_ctrl": 6.5,
+    "mae_cost": -0.42
+   }
+  },
+  {
+   "cond": "乾淨 & inst_streak>q80 & rel_ret20>q80",
+   "days": 951,
+   "avg_picks": 54.7,
+   "hit": 37.9,
+   "lift": 5.75,
+   "t_lift": 18.9,
+   "ctrl": 2.6,
+   "t_ctrl": 9.9,
+   "mae_cost": -1.02,
+   "fold_ctrl": [
+    1.64,
+    2.47,
+    3.63
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 62.2,
+    "hit": 40.0,
+    "lift": 6.19,
+    "t_lift": 11.9,
+    "ctrl": 3.39,
+    "t_ctrl": 8.3,
+    "mae_cost": -0.81
+   }
+  },
+  {
+   "cond": "乾淨 & inst_streak>q80 & dist_60d_high>q80",
+   "days": 948,
+   "avg_picks": 74.6,
+   "hit": 28.3,
+   "lift": -5.49,
+   "t_lift": -15.1,
+   "ctrl": 1.63,
+   "t_ctrl": 6.1,
+   "mae_cost": -0.79,
+   "fold_ctrl": [
+    0.66,
+    0.67,
+    3.5
+   ],
+   "holdout": {
+    "days": 359,
+    "avg_picks": 60.1,
+    "hit": 28.6,
+    "lift": -5.3,
+    "t_lift": -7.5,
+    "ctrl": 3.39,
+    "t_ctrl": 6.7,
+    "mae_cost": -0.38
+   }
+  },
+  {
+   "cond": "乾淨 & short_chg5>q80 & macd_hist>q80",
+   "days": 966,
+   "avg_picks": 92.7,
+   "hit": 39.1,
+   "lift": 7.11,
+   "t_lift": 27.8,
+   "ctrl": 1.1,
+   "t_ctrl": 4.4,
+   "mae_cost": -1.47,
+   "fold_ctrl": [
+    0.89,
+    0.5,
+    1.9
+   ],
+   "holdout": {
+    "days": 355,
+    "avg_picks": 116.1,
+    "hit": 45.2,
+    "lift": 10.64,
+    "t_lift": 21.9,
+    "ctrl": 3.37,
+    "t_ctrl": 8.0,
+    "mae_cost": -1.06
+   }
+  },
+  {
+   "cond": "乾淨 & inst_streak>q80 & 上升結構",
+   "days": 960,
+   "avg_picks": 114.9,
+   "hit": 31.7,
+   "lift": -0.25,
+   "t_lift": -1.0,
+   "ctrl": 1.65,
+   "t_ctrl": 6.8,
+   "mae_cost": -0.87,
+   "fold_ctrl": [
+    1.14,
+    0.42,
+    3.37
+   ],
+   "holdout": {
+    "days": 356,
+    "avg_picks": 109.1,
+    "hit": 33.7,
+    "lift": 1.09,
+    "t_lift": 2.1,
+    "ctrl": 3.36,
+    "t_ctrl": 8.5,
+    "mae_cost": -0.54
+   }
+  },
+  {
+   "cond": "乾淨 & node_att_chg>q80 & c_over_ma20>q80",
+   "days": 963,
+   "avg_picks": 68.6,
+   "hit": 40.9,
+   "lift": 8.68,
+   "t_lift": 25.5,
+   "ctrl": 2.47,
+   "t_ctrl": 7.3,
+   "mae_cost": -1.43,
+   "fold_ctrl": [
+    1.75,
+    2.17,
+    3.47
+   ],
+   "holdout": {
+    "days": 353,
+    "avg_picks": 81.5,
+    "hit": 44.9,
+    "lift": 11.03,
+    "t_lift": 16.8,
+    "ctrl": 3.35,
+    "t_ctrl": 5.6,
+    "mae_cost": -1.21
+   }
+  },
+  {
+   "cond": "乾淨 & node_surge5>q80 & rel_ret20>q80",
+   "days": 943,
+   "avg_picks": 64.4,
+   "hit": 42.1,
+   "lift": 9.59,
+   "t_lift": 27.2,
+   "ctrl": 3.15,
+   "t_ctrl": 9.8,
+   "mae_cost": -0.9,
+   "fold_ctrl": [
+    2.38,
+    3.19,
+    3.84
+   ],
+   "holdout": {
+    "days": 357,
+    "avg_picks": 93.2,
+    "hit": 47.7,
+    "lift": 10.89,
+    "t_lift": 16.4,
+    "ctrl": 3.15,
+    "t_ctrl": 6.5,
+    "mae_cost": -0.52
+   }
+  },
+  {
+   "cond": "乾淨 & dh_chg5>q80 & inst_streak>q80",
+   "days": 925,
+   "avg_picks": 67.7,
+   "hit": 36.0,
+   "lift": 4.73,
+   "t_lift": 14.3,
+   "ctrl": 2.65,
+   "t_ctrl": 8.6,
+   "mae_cost": -1.35,
+   "fold_ctrl": [
+    2.03,
+    2.33,
+    3.53
+   ],
+   "holdout": {
+    "days": 354,
+    "avg_picks": 81.8,
+    "hit": 38.6,
+    "lift": 4.78,
+    "t_lift": 9.9,
+    "ctrl": 3.15,
+    "t_ctrl": 7.4,
+    "mae_cost": -1.19
+   }
+  },
+  {
+   "cond": "乾淨 & dh_chg5>q80 & short_chg5>q80",
+   "days": 947,
+   "avg_picks": 95.9,
+   "hit": 38.9,
+   "lift": 7.33,
+   "t_lift": 28.9,
+   "ctrl": 1.34,
+   "t_ctrl": 5.6,
+   "mae_cost": -1.4,
+   "fold_ctrl": [
+    2.04,
+    0.14,
+    1.91
+   ],
+   "holdout": {
+    "days": 354,
+    "avg_picks": 117.7,
+    "hit": 45.3,
+    "lift": 10.23,
+    "t_lift": 23.0,
+    "ctrl": 3.15,
+    "t_ctrl": 8.5,
+    "mae_cost": -1.08
+   }
+  },
+  {
+   "cond": "乾淨 & pos_52w>q80 & dist_60d_high>q80",
+   "days": 912,
+   "avg_picks": 142.6,
+   "hit": 31.8,
+   "lift": -0.53,
+   "t_lift": -1.7,
+   "ctrl": 4.95,
+   "t_ctrl": 20.8,
+   "mae_cost": -0.63,
+   "fold_ctrl": [
+    3.71,
+    4.92,
+    5.97
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 98.7,
+    "hit": 32.1,
+    "lift": -4.85,
+    "t_lift": -7.2,
+    "ctrl": 3.15,
+    "t_ctrl": 7.2,
+    "mae_cost": 0.13
+   }
+  },
+  {
+   "cond": "乾淨 & c_over_ma20>q80 & short_chg5>q80",
+   "days": 965,
+   "avg_picks": 100.5,
+   "hit": 40.5,
+   "lift": 8.67,
+   "t_lift": 34.5,
+   "ctrl": 2.18,
+   "t_ctrl": 8.6,
+   "mae_cost": -1.49,
+   "fold_ctrl": [
+    2.68,
+    1.28,
+    2.58
+   ],
+   "holdout": {
+    "days": 355,
+    "avg_picks": 113.6,
+    "hit": 45.5,
+    "lift": 11.01,
+    "t_lift": 22.0,
+    "ctrl": 3.14,
+    "t_ctrl": 7.5,
+    "mae_cost": -1.18
+   }
+  },
+  {
+   "cond": "乾淨 & node_att_chg>q80 & node_surge5>q80",
+   "days": 962,
+   "avg_picks": 120.2,
+   "hit": 36.0,
+   "lift": 3.76,
+   "t_lift": 12.9,
+   "ctrl": 1.97,
+   "t_ctrl": 5.4,
+   "mae_cost": -0.1,
+   "fold_ctrl": [
+    0.44,
+    2.25,
+    2.99
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 158.7,
+    "hit": 41.8,
+    "lift": 6.57,
+    "t_lift": 13.3,
+    "ctrl": 3.13,
+    "t_ctrl": 4.8,
+    "mae_cost": -0.05
+   }
+  },
+  {
+   "cond": "乾淨 & vol_ratio>q80 & inst_streak>q80",
+   "days": 969,
+   "avg_picks": 54.0,
+   "hit": 33.1,
+   "lift": 1.1,
+   "t_lift": 3.8,
+   "ctrl": 2.34,
+   "t_ctrl": 8.9,
+   "mae_cost": -1.35,
+   "fold_ctrl": [
+    1.8,
+    1.93,
+    3.28
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 56.4,
+    "hit": 37.4,
+    "lift": 2.47,
+    "t_lift": 4.6,
+    "ctrl": 3.13,
+    "t_ctrl": 6.8,
+    "mae_cost": -1.08
+   }
+  },
+  {
+   "cond": "乾淨 & node_surge5>q80 & pos52_chg20>q80",
+   "days": 848,
+   "avg_picks": 72.7,
+   "hit": 36.3,
+   "lift": 5.8,
+   "t_lift": 16.0,
+   "ctrl": 3.12,
+   "t_ctrl": 9.0,
+   "mae_cost": -0.81,
+   "fold_ctrl": [
+    2.86,
+    2.85,
+    3.56
+   ],
+   "holdout": {
+    "days": 348,
+    "avg_picks": 96.1,
+    "hit": 42.4,
+    "lift": 7.76,
+    "t_lift": 11.6,
+    "ctrl": 3.06,
+    "t_ctrl": 5.8,
+    "mae_cost": -0.46
+   }
+  },
+  {
+   "cond": "乾淨 & vol_trend>q80 & inst_streak>q80",
+   "days": 965,
+   "avg_picks": 44.2,
+   "hit": 33.6,
+   "lift": 1.51,
+   "t_lift": 4.8,
+   "ctrl": 2.42,
+   "t_ctrl": 8.4,
+   "mae_cost": -1.06,
+   "fold_ctrl": [
+    2.31,
+    1.87,
+    3.08
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 45.8,
+    "hit": 37.6,
+    "lift": 2.45,
+    "t_lift": 4.4,
+    "ctrl": 3.01,
+    "t_ctrl": 5.9,
+    "mae_cost": -0.83
+   }
+  },
+  {
+   "cond": "乾淨 & node_att5>q80 & rel_ret20>q80",
+   "days": 951,
+   "avg_picks": 65.6,
+   "hit": 41.4,
+   "lift": 9.58,
+   "t_lift": 31.4,
+   "ctrl": 2.87,
+   "t_ctrl": 10.8,
+   "mae_cost": -0.78,
+   "fold_ctrl": [
+    2.38,
+    2.85,
+    3.34
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 98.0,
+    "hit": 46.6,
+    "lift": 11.05,
+    "t_lift": 19.5,
+    "ctrl": 2.98,
+    "t_ctrl": 7.4,
+    "mae_cost": -0.45
+   }
+  },
+  {
+   "cond": "乾淨 & node_surge5>q80 & inst_f5_chg>q80",
+   "days": 952,
+   "avg_picks": 67.9,
+   "hit": 34.3,
+   "lift": 1.86,
+   "t_lift": 5.8,
+   "ctrl": 1.57,
+   "t_ctrl": 5.0,
+   "mae_cost": -0.1,
+   "fold_ctrl": [
+    1.44,
+    1.26,
+    2.01
+   ],
+   "holdout": {
+    "days": 357,
+    "avg_picks": 105.2,
+    "hit": 40.0,
+    "lift": 4.81,
+    "t_lift": 10.3,
+    "ctrl": 2.96,
+    "t_ctrl": 6.3,
+    "mae_cost": 0.06
+   }
+  },
+  {
+   "cond": "乾淨 & rel_ret20>q80 & dist_60d_high>q80",
+   "days": 951,
+   "avg_picks": 104.9,
+   "hit": 38.0,
+   "lift": 3.92,
+   "t_lift": 11.6,
+   "ctrl": 3.91,
+   "t_ctrl": 16.9,
+   "mae_cost": -1.32,
+   "fold_ctrl": [
+    3.55,
+    2.93,
+    5.24
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 104.5,
+    "hit": 37.0,
+    "lift": 1.56,
+    "t_lift": 2.1,
+    "ctrl": 2.95,
+    "t_ctrl": 6.3,
+    "mae_cost": -1.27
+   }
+  },
+  {
+   "cond": "乾淨 & short_chg5>q80 & 上升結構",
+   "days": 966,
+   "avg_picks": 126.7,
+   "hit": 37.1,
+   "lift": 5.49,
+   "t_lift": 23.7,
+   "ctrl": 1.44,
+   "t_ctrl": 6.2,
+   "mae_cost": -1.12,
+   "fold_ctrl": [
+    2.13,
+    0.33,
+    1.86
+   ],
+   "holdout": {
+    "days": 355,
+    "avg_picks": 128.8,
+    "hit": 42.9,
+    "lift": 8.74,
+    "t_lift": 17.6,
+    "ctrl": 2.93,
+    "t_ctrl": 7.4,
+    "mae_cost": -0.83
+   }
+  },
+  {
+   "cond": "乾淨 & rel_ret20>q80 & short_chg5>q80",
+   "days": 951,
+   "avg_picks": 87.1,
+   "hit": 40.7,
+   "lift": 9.04,
+   "t_lift": 38.6,
+   "ctrl": 2.4,
+   "t_ctrl": 11.0,
+   "mae_cost": -1.15,
+   "fold_ctrl": [
+    3.0,
+    2.22,
+    2.03
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 95.2,
+    "hit": 46.2,
+    "lift": 10.62,
+    "t_lift": 21.6,
+    "ctrl": 2.91,
+    "t_ctrl": 7.9,
+    "mae_cost": -1.02
+   }
+  },
+  {
+   "cond": "乾淨 & pos52_chg20>q80 & short_chg5>q80",
+   "days": 890,
+   "avg_picks": 79.3,
+   "hit": 36.6,
+   "lift": 5.74,
+   "t_lift": 21.8,
+   "ctrl": 1.81,
+   "t_ctrl": 7.0,
+   "mae_cost": -1.3,
+   "fold_ctrl": [
+    3.63,
+    0.26,
+    1.98
+   ],
+   "holdout": {
+    "days": 358,
+    "avg_picks": 87.2,
+    "hit": 42.9,
+    "lift": 8.49,
+    "t_lift": 16.2,
+    "ctrl": 2.89,
+    "t_ctrl": 7.0,
+    "mae_cost": -0.9
+   }
+  },
+  {
+   "cond": "乾淨 & ret5_accel>q80 & kd_k>q80",
+   "days": 957,
+   "avg_picks": 84.3,
+   "hit": 39.9,
+   "lift": 7.26,
+   "t_lift": 23.7,
+   "ctrl": 2.93,
+   "t_ctrl": 9.7,
+   "mae_cost": -2.06,
+   "fold_ctrl": [
+    2.47,
+    2.21,
+    4.11
+   ],
+   "holdout": {
+    "days": 355,
+    "avg_picks": 95.3,
+    "hit": 41.0,
+    "lift": 7.18,
+    "t_lift": 13.1,
+    "ctrl": 2.88,
+    "t_ctrl": 6.0,
+    "mae_cost": -1.89
+   }
+  },
+  {
+   "cond": "乾淨 & c_over_ma20>q80 & kd_k>q80",
+   "days": 971,
+   "avg_picks": 180.0,
+   "hit": 39.1,
+   "lift": 5.92,
+   "t_lift": 23.4,
+   "ctrl": 2.86,
+   "t_ctrl": 11.7,
+   "mae_cost": -1.59,
+   "fold_ctrl": [
+    2.92,
+    1.75,
+    3.93
+   ],
+   "holdout": {
+    "days": 358,
+    "avg_picks": 186.5,
+    "hit": 38.5,
+    "lift": 5.58,
+    "t_lift": 10.5,
+    "ctrl": 2.84,
+    "t_ctrl": 6.1,
+    "mae_cost": -1.49
+   }
+  },
+  {
+   "cond": "乾淨 & node_att_chg>q80 & 上升結構",
+   "days": 962,
+   "avg_picks": 116.1,
+   "hit": 35.9,
+   "lift": 4.16,
+   "t_lift": 14.7,
+   "ctrl": 2.63,
+   "t_ctrl": 10.0,
+   "mae_cost": -0.72,
+   "fold_ctrl": [
+    1.94,
+    1.89,
+    4.05
+   ],
+   "holdout": {
+    "days": 356,
+    "avg_picks": 122.3,
+    "hit": 39.1,
+    "lift": 5.93,
+    "t_lift": 10.9,
+    "ctrl": 2.81,
+    "t_ctrl": 5.8,
+    "mae_cost": -0.6
+   }
+  },
+  {
+   "cond": "乾淨 & dh_chg5>q80 & inst_f5>q80",
+   "days": 932,
+   "avg_picks": 104.7,
+   "hit": 35.7,
+   "lift": 4.06,
+   "t_lift": 14.3,
+   "ctrl": 2.37,
+   "t_ctrl": 8.9,
+   "mae_cost": -1.03,
+   "fold_ctrl": [
+    1.28,
+    2.07,
+    3.64
+   ],
+   "holdout": {
+    "days": 354,
+    "avg_picks": 146.4,
+    "hit": 38.1,
+    "lift": 4.06,
+    "t_lift": 9.7,
+    "ctrl": 2.79,
+    "t_ctrl": 7.8,
+    "mae_cost": -0.92
+   }
+  },
+  {
+   "cond": "乾淨 & node_surge5>q80 & vol_ratio>q80",
+   "days": 957,
+   "avg_picks": 72.6,
+   "hit": 37.7,
+   "lift": 4.89,
+   "t_lift": 14.7,
+   "ctrl": 2.81,
+   "t_ctrl": 8.8,
+   "mae_cost": -0.99,
+   "fold_ctrl": [
+    2.25,
+    3.07,
+    3.09
+   ],
+   "holdout": {
+    "days": 359,
+    "avg_picks": 92.6,
+    "hit": 42.7,
+    "lift": 6.24,
+    "t_lift": 11.0,
+    "ctrl": 2.73,
+    "t_ctrl": 5.2,
+    "mae_cost": -0.95
+   }
+  },
+  {
+   "cond": "乾淨 & vol_ratio>q80 & peer_surge5>q80",
+   "days": 852,
+   "avg_picks": 100.8,
+   "hit": 38.2,
+   "lift": 4.54,
+   "t_lift": 10.6,
+   "ctrl": 1.69,
+   "t_ctrl": 4.1,
+   "mae_cost": -1.3,
+   "fold_ctrl": [
+    1.0,
+    2.22,
+    1.85
+   ],
+   "holdout": {
+    "days": 326,
+    "avg_picks": 131.2,
+    "hit": 44.5,
+    "lift": 6.77,
+    "t_lift": 9.4,
+    "ctrl": 2.72,
+    "t_ctrl": 4.1,
+    "mae_cost": -1.16
+   }
+  },
+  {
+   "cond": "乾淨 & ret5_accel>q80 & inst_streak>q80",
+   "days": 937,
+   "avg_picks": 55.2,
+   "hit": 37.7,
+   "lift": 6.01,
+   "t_lift": 16.7,
+   "ctrl": 1.86,
+   "t_ctrl": 5.5,
+   "mae_cost": -1.24,
+   "fold_ctrl": [
+    0.49,
+    1.79,
+    3.23
+   ],
+   "holdout": {
+    "days": 352,
+    "avg_picks": 68.0,
+    "hit": 40.9,
+    "lift": 6.8,
+    "t_lift": 12.2,
+    "ctrl": 2.71,
+    "t_ctrl": 5.4,
+    "mae_cost": -1.05
+   }
+  },
+  {
+   "cond": "乾淨 & inst_f5>q80 & rel_ret20>q80",
+   "days": 951,
+   "avg_picks": 72.5,
+   "hit": 37.2,
+   "lift": 5.18,
+   "t_lift": 18.1,
+   "ctrl": 2.81,
+   "t_ctrl": 11.8,
+   "mae_cost": -0.74,
+   "fold_ctrl": [
+    1.57,
+    2.64,
+    4.12
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 92.7,
+    "hit": 38.3,
+    "lift": 4.22,
+    "t_lift": 9.5,
+    "ctrl": 2.54,
+    "t_ctrl": 7.3,
+    "mae_cost": -0.76
+   }
+  },
+  {
+   "cond": "乾淨 & node_att_chg>q80 & dist_60d_high>q80",
+   "days": 939,
+   "avg_picks": 59.7,
+   "hit": 31.3,
+   "lift": -2.07,
+   "t_lift": -5.8,
+   "ctrl": 3.87,
+   "t_ctrl": 13.4,
+   "mae_cost": -0.76,
+   "fold_ctrl": [
+    3.89,
+    2.5,
+    5.17
+   ],
+   "holdout": {
+    "days": 355,
+    "avg_picks": 48.5,
+    "hit": 31.4,
+    "lift": -3.2,
+    "t_lift": -4.1,
+    "ctrl": 2.51,
+    "t_ctrl": 4.3,
+    "mae_cost": -0.74
+   }
+  },
+  {
+   "cond": "乾淨 & pos52_chg20>q80 & inst_f5>q80",
+   "days": 884,
+   "avg_picks": 94.6,
+   "hit": 30.9,
+   "lift": -0.15,
+   "t_lift": -0.5,
+   "ctrl": 1.96,
+   "t_ctrl": 7.7,
+   "mae_cost": -0.74,
+   "fold_ctrl": [
+    2.11,
+    0.22,
+    3.57
+   ],
+   "holdout": {
+    "days": 357,
+    "avg_picks": 108.6,
+    "hit": 32.9,
+    "lift": 0.36,
+    "t_lift": 0.7,
+    "ctrl": 2.5,
+    "t_ctrl": 6.3,
+    "mae_cost": -0.5
+   }
+  },
+  {
+   "cond": "乾淨 & node_att_chg>q80 & dh_chg5>q80",
+   "days": 941,
+   "avg_picks": 69.3,
+   "hit": 38.0,
+   "lift": 6.54,
+   "t_lift": 21.3,
+   "ctrl": 2.0,
+   "t_ctrl": 7.1,
+   "mae_cost": -1.09,
+   "fold_ctrl": [
+    1.8,
+    1.5,
+    2.68
+   ],
+   "holdout": {
+    "days": 353,
+    "avg_picks": 93.0,
+    "hit": 42.5,
+    "lift": 7.92,
+    "t_lift": 15.9,
+    "ctrl": 2.49,
+    "t_ctrl": 5.7,
+    "mae_cost": -1.0
+   }
+  },
+  {
+   "cond": "乾淨 & inst_f5>q80 & 上升結構",
+   "days": 961,
+   "avg_picks": 168.7,
+   "hit": 31.2,
+   "lift": -0.7,
+   "t_lift": -2.7,
+   "ctrl": 1.66,
+   "t_ctrl": 7.1,
+   "mae_cost": -0.72,
+   "fold_ctrl": [
+    0.55,
+    0.69,
+    3.7
+   ],
+   "holdout": {
+    "days": 355,
+    "avg_picks": 182.5,
+    "hit": 31.9,
+    "lift": -0.4,
+    "t_lift": -0.9,
+    "ctrl": 2.47,
+    "t_ctrl": 7.4,
+    "mae_cost": -0.59
+   }
+  },
+  {
+   "cond": "乾淨 & inst_f5>q80 & kd_k>q80",
+   "days": 960,
+   "avg_picks": 114.8,
+   "hit": 31.1,
+   "lift": -1.72,
+   "t_lift": -5.8,
+   "ctrl": 2.38,
+   "t_ctrl": 9.6,
+   "mae_cost": -0.84,
+   "fold_ctrl": [
+    0.84,
+    1.77,
+    4.49
+   ],
+   "holdout": {
+    "days": 355,
+    "avg_picks": 121.0,
+    "hit": 30.4,
+    "lift": -2.67,
+    "t_lift": -5.0,
+    "ctrl": 2.45,
+    "t_ctrl": 6.1,
+    "mae_cost": -0.8
+   }
+  },
+  {
+   "cond": "乾淨 & node_att_chg>q80 & rel_ret20>q80",
+   "days": 950,
+   "avg_picks": 60.2,
+   "hit": 40.8,
+   "lift": 8.76,
+   "t_lift": 29.0,
+   "ctrl": 2.68,
+   "t_ctrl": 10.2,
+   "mae_cost": -0.88,
+   "fold_ctrl": [
+    2.29,
+    2.43,
+    3.31
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 77.5,
+    "hit": 44.6,
+    "lift": 9.38,
+    "t_lift": 16.9,
+    "ctrl": 2.43,
+    "t_ctrl": 5.8,
+    "mae_cost": -0.73
+   }
+  },
+  {
+   "cond": "乾淨 & c_over_ma20>q80 & pe_chg20>q80",
+   "days": 944,
+   "avg_picks": 102.3,
+   "hit": 37.2,
+   "lift": 5.13,
+   "t_lift": 18.8,
+   "ctrl": 1.1,
+   "t_ctrl": 4.1,
+   "mae_cost": -1.14,
+   "fold_ctrl": [
+    1.18,
+    0.46,
+    1.66
+   ],
+   "holdout": {
+    "days": 354,
+    "avg_picks": 112.4,
+    "hit": 39.6,
+    "lift": 6.99,
+    "t_lift": 12.3,
+    "ctrl": 2.39,
+    "t_ctrl": 5.0,
+    "mae_cost": -0.73
+   }
+  },
+  {
+   "cond": "乾淨 & c_over_ma20>q80 & fg_chg5<q20",
+   "days": 193,
+   "avg_picks": 210.4,
+   "hit": 38.2,
+   "lift": 7.53,
+   "t_lift": 16.8,
+   "ctrl": 2.05,
+   "t_ctrl": 4.7,
+   "mae_cost": -1.5,
+   "fold_ctrl": [
+    2.06,
+    1.87,
+    2.26
+   ],
+   "holdout": {
+    "days": 76,
+    "avg_picks": 233.2,
+    "hit": 43.0,
+    "lift": 7.84,
+    "t_lift": 9.1,
+    "ctrl": 2.39,
+    "t_ctrl": 3.4,
+    "mae_cost": -1.21
+   }
+  },
+  {
+   "cond": "乾淨 & node_surge5>q80 & vol_trend>q80",
+   "days": 955,
+   "avg_picks": 71.5,
+   "hit": 37.7,
+   "lift": 4.76,
+   "t_lift": 14.5,
+   "ctrl": 1.91,
+   "t_ctrl": 6.1,
+   "mae_cost": -0.64,
+   "fold_ctrl": [
+    1.45,
+    2.82,
+    1.48
+   ],
+   "holdout": {
+    "days": 357,
+    "avg_picks": 89.6,
+    "hit": 43.0,
+    "lift": 6.6,
+    "t_lift": 11.7,
+    "ctrl": 2.3,
+    "t_ctrl": 4.3,
+    "mae_cost": -0.51
+   }
+  },
+  {
+   "cond": "乾淨 & kd_k>q80 & macd_hist>q80",
+   "days": 971,
+   "avg_picks": 165.5,
+   "hit": 36.9,
+   "lift": 4.31,
+   "t_lift": 17.3,
+   "ctrl": 1.86,
+   "t_ctrl": 8.0,
+   "mae_cost": -1.6,
+   "fold_ctrl": [
+    1.12,
+    1.76,
+    2.68
+   ],
+   "holdout": {
+    "days": 356,
+    "avg_picks": 188.6,
+    "hit": 37.4,
+    "lift": 4.57,
+    "t_lift": 10.5,
+    "ctrl": 2.29,
+    "t_ctrl": 6.0,
+    "mae_cost": -1.46
+   }
+  },
+  {
+   "cond": "乾淨 & dh_chg5>q80 & kd_k>q80",
+   "days": 945,
+   "avg_picks": 133.6,
+   "hit": 37.3,
+   "lift": 5.06,
+   "t_lift": 18.5,
+   "ctrl": 2.8,
+   "t_ctrl": 10.8,
+   "mae_cost": -1.58,
+   "fold_ctrl": [
+    3.39,
+    1.44,
+    3.63
+   ],
+   "holdout": {
+    "days": 355,
+    "avg_picks": 149.0,
+    "hit": 37.1,
+    "lift": 4.04,
+    "t_lift": 9.1,
+    "ctrl": 2.23,
+    "t_ctrl": 6.0,
+    "mae_cost": -1.51
+   }
+  },
+  {
+   "cond": "乾淨 & fg_chg5>q80 & dh_chg5>q80",
+   "days": 194,
+   "avg_picks": 571.8,
+   "hit": 39.2,
+   "lift": 5.15,
+   "t_lift": 17.6,
+   "ctrl": 1.39,
+   "t_ctrl": 6.3,
+   "mae_cost": -0.52,
+   "fold_ctrl": [
+    1.79,
+    1.41,
+    0.99
+   ],
+   "holdout": {
+    "days": 78,
+    "avg_picks": 690.3,
+    "hit": 41.0,
+    "lift": 5.82,
+    "t_lift": 10.9,
+    "ctrl": 2.22,
+    "t_ctrl": 6.4,
+    "mae_cost": -0.45
+   }
+  },
+  {
+   "cond": "乾淨 & inst_f5>q80 & dist_60d_high>q80",
+   "days": 947,
+   "avg_picks": 102.3,
+   "hit": 27.9,
+   "lift": -5.71,
+   "t_lift": -16.9,
+   "ctrl": 1.73,
+   "t_ctrl": 7.2,
+   "mae_cost": -0.63,
+   "fold_ctrl": [
+    0.65,
+    0.84,
+    3.63
+   ],
+   "holdout": {
+    "days": 357,
+    "avg_picks": 90.8,
+    "hit": 26.3,
+    "lift": -7.25,
+    "t_lift": -12.4,
+    "ctrl": 2.2,
+    "t_ctrl": 5.7,
+    "mae_cost": -0.49
+   }
+  },
+  {
+   "cond": "乾淨 & node_att_chg>q80 & pos52_chg20>q80",
+   "days": 880,
+   "avg_picks": 64.3,
+   "hit": 35.1,
+   "lift": 4.39,
+   "t_lift": 12.9,
+   "ctrl": 2.56,
+   "t_ctrl": 8.1,
+   "mae_cost": -0.92,
+   "fold_ctrl": [
+    2.75,
+    1.44,
+    3.52
+   ],
+   "holdout": {
+    "days": 358,
+    "avg_picks": 72.5,
+    "hit": 39.2,
+    "lift": 5.56,
+    "t_lift": 9.5,
+    "ctrl": 2.13,
+    "t_ctrl": 4.3,
+    "mae_cost": -0.59
+   }
+  },
+  {
+   "cond": "乾淨 & inst_f5_chg>q80 & c_over_ma20>q80",
+   "days": 955,
+   "avg_picks": 63.9,
+   "hit": 38.0,
+   "lift": 5.04,
+   "t_lift": 15.6,
+   "ctrl": 1.79,
+   "t_ctrl": 5.7,
+   "mae_cost": -1.17,
+   "fold_ctrl": [
+    0.87,
+    1.37,
+    3.09
+   ],
+   "holdout": {
+    "days": 353,
+    "avg_picks": 84.4,
+    "hit": 39.4,
+    "lift": 5.86,
+    "t_lift": 11.1,
+    "ctrl": 2.13,
+    "t_ctrl": 4.6,
+    "mae_cost": -0.99
+   }
+  },
+  {
+   "cond": "乾淨 & rel_ret20>q80 & macd_hist>q80",
+   "days": 951,
+   "avg_picks": 131.0,
+   "hit": 40.3,
+   "lift": 7.69,
+   "t_lift": 34.1,
+   "ctrl": 1.79,
+   "t_ctrl": 8.7,
+   "mae_cost": -1.52,
+   "fold_ctrl": [
+    1.28,
+    1.94,
+    2.13
+   ],
+   "holdout": {
+    "days": 357,
+    "avg_picks": 163.2,
+    "hit": 42.6,
+    "lift": 8.37,
+    "t_lift": 18.6,
+    "ctrl": 2.13,
+    "t_ctrl": 5.6,
+    "mae_cost": -1.24
+   }
+  },
+  {
+   "cond": "乾淨 & c_over_ma20>q80 & macd_hist>q80",
+   "days": 971,
+   "avg_picks": 187.6,
+   "hit": 39.8,
+   "lift": 7.15,
+   "t_lift": 31.6,
+   "ctrl": 1.4,
+   "t_ctrl": 6.4,
+   "mae_cost": -1.58,
+   "fold_ctrl": [
+    0.89,
+    1.37,
+    1.95
+   ],
+   "holdout": {
+    "days": 357,
+    "avg_picks": 229.5,
+    "hit": 41.0,
+    "lift": 8.34,
+    "t_lift": 18.2,
+    "ctrl": 2.09,
+    "t_ctrl": 5.2,
+    "mae_cost": -1.33
+   }
+  },
+  {
+   "cond": "乾淨 & vol_ratio>q80 & inst_f5>q80",
+   "days": 969,
+   "avg_picks": 72.7,
+   "hit": 32.5,
+   "lift": 0.67,
+   "t_lift": 2.7,
+   "ctrl": 2.17,
+   "t_ctrl": 9.3,
+   "mae_cost": -1.05,
+   "fold_ctrl": [
+    1.6,
+    1.95,
+    2.94
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 92.7,
+    "hit": 36.1,
+    "lift": 1.16,
+    "t_lift": 2.8,
+    "ctrl": 2.07,
+    "t_ctrl": 6.1,
+    "mae_cost": -0.97
+   }
+  },
+  {
+   "cond": "乾淨 & vol_ratio>q80 & kd_k>q80",
+   "days": 971,
+   "avg_picks": 114.1,
+   "hit": 35.8,
+   "lift": 2.68,
+   "t_lift": 10.5,
+   "ctrl": 2.98,
+   "t_ctrl": 12.5,
+   "mae_cost": -1.63,
+   "fold_ctrl": [
+    3.24,
+    2.09,
+    3.61
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 106.9,
+    "hit": 36.7,
+    "lift": 2.04,
+    "t_lift": 3.4,
+    "ctrl": 2.06,
+    "t_ctrl": 4.6,
+    "mae_cost": -1.55
+   }
+  },
+  {
+   "cond": "乾淨 & node_surge5>q80 & ret5_accel>q80",
+   "days": 914,
+   "avg_picks": 91.4,
+   "hit": 40.9,
+   "lift": 8.71,
+   "t_lift": 23.6,
+   "ctrl": 1.95,
+   "t_ctrl": 5.5,
+   "mae_cost": -0.86,
+   "fold_ctrl": [
+    0.74,
+    3.19,
+    1.91
+   ],
+   "holdout": {
+    "days": 344,
+    "avg_picks": 138.4,
+    "hit": 46.4,
+    "lift": 9.89,
+    "t_lift": 17.7,
+    "ctrl": 2.05,
+    "t_ctrl": 4.3,
+    "mae_cost": -0.69
+   }
+  },
+  {
+   "cond": "乾淨 & vol_ratio>q80 & 上升結構",
+   "days": 966,
+   "avg_picks": 170.9,
+   "hit": 35.2,
+   "lift": 3.14,
+   "t_lift": 14.0,
+   "ctrl": 2.57,
+   "t_ctrl": 11.8,
+   "mae_cost": -1.35,
+   "fold_ctrl": [
+    3.1,
+    1.39,
+    3.23
+   ],
+   "holdout": {
+    "days": 359,
+    "avg_picks": 158.2,
+    "hit": 37.0,
+    "lift": 3.3,
+    "t_lift": 7.2,
+    "ctrl": 2.01,
+    "t_ctrl": 5.4,
+    "mae_cost": -1.33
+   }
+  },
+  {
+   "cond": "乾淨 & vol_ratio>q80 & c_over_ma20>q80",
+   "days": 971,
+   "avg_picks": 137.4,
+   "hit": 39.8,
+   "lift": 7.31,
+   "t_lift": 32.0,
+   "ctrl": 2.49,
+   "t_ctrl": 10.7,
+   "mae_cost": -1.91,
+   "fold_ctrl": [
+    2.61,
+    1.73,
+    3.12
+   ],
+   "holdout": {
+    "days": 359,
+    "avg_picks": 141.7,
+    "hit": 42.1,
+    "lift": 7.69,
+    "t_lift": 15.4,
+    "ctrl": 1.98,
+    "t_ctrl": 4.6,
+    "mae_cost": -1.83
+   }
+  },
+  {
+   "cond": "乾淨 & vol_trend_chg>q80 & inst_streak>q80",
+   "days": 959,
+   "avg_picks": 43.4,
+   "hit": 33.5,
+   "lift": 1.3,
+   "t_lift": 4.1,
+   "ctrl": 2.04,
+   "t_ctrl": 7.0,
+   "mae_cost": -0.98,
+   "fold_ctrl": [
+    1.36,
+    1.69,
+    3.05
+   ],
+   "holdout": {
+    "days": 357,
+    "avg_picks": 46.6,
+    "hit": 35.9,
+    "lift": 1.58,
+    "t_lift": 2.9,
+    "ctrl": 1.97,
+    "t_ctrl": 4.1,
+    "mae_cost": -0.9
+   }
+  },
+  {
+   "cond": "乾淨 & atr_pct_chg>q80 & dist_60d_high>q80",
+   "days": 943,
+   "avg_picks": 50.1,
+   "hit": 36.1,
+   "lift": 2.58,
+   "t_lift": 6.8,
+   "ctrl": 3.56,
+   "t_ctrl": 11.0,
+   "mae_cost": -1.4,
+   "fold_ctrl": [
+    3.28,
+    3.12,
+    4.26
+   ],
+   "holdout": {
+    "days": 345,
+    "avg_picks": 42.4,
+    "hit": 34.8,
+    "lift": 0.52,
+    "t_lift": 0.7,
+    "ctrl": 1.97,
+    "t_ctrl": 3.6,
+    "mae_cost": -1.36
+   }
+  },
+  {
+   "cond": "乾淨 & vol_ratio>q80 & macd_hist>q80",
+   "days": 971,
+   "avg_picks": 108.6,
+   "hit": 38.3,
+   "lift": 6.02,
+   "t_lift": 25.0,
+   "ctrl": 1.32,
+   "t_ctrl": 5.7,
+   "mae_cost": -1.95,
+   "fold_ctrl": [
+    0.46,
+    1.6,
+    1.92
+   ],
+   "holdout": {
+    "days": 356,
+    "avg_picks": 129.8,
+    "hit": 41.3,
+    "lift": 7.35,
+    "t_lift": 16.7,
+    "ctrl": 1.95,
+    "t_ctrl": 5.0,
+    "mae_cost": -1.79
+   }
+  },
+  {
+   "cond": "乾淨 & node_att_chg>q80 & vol_ratio>q80",
+   "days": 971,
+   "avg_picks": 67.3,
+   "hit": 36.0,
+   "lift": 3.99,
+   "t_lift": 14.5,
+   "ctrl": 2.31,
+   "t_ctrl": 8.9,
+   "mae_cost": -0.94,
+   "fold_ctrl": [
+    2.27,
+    1.83,
+    2.83
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 79.3,
+    "hit": 40.2,
+    "lift": 4.81,
+    "t_lift": 10.6,
+    "ctrl": 1.91,
+    "t_ctrl": 4.6,
+    "mae_cost": -0.93
+   }
+  },
+  {
+   "cond": "乾淨 & vol_trend>q80 & inst_f5>q80",
+   "days": 965,
+   "avg_picks": 57.8,
+   "hit": 32.7,
+   "lift": 0.58,
+   "t_lift": 2.0,
+   "ctrl": 2.14,
+   "t_ctrl": 8.0,
+   "mae_cost": -0.8,
+   "fold_ctrl": [
+    1.73,
+    1.81,
+    2.86
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 70.3,
+    "hit": 36.5,
+    "lift": 0.81,
+    "t_lift": 1.9,
+    "ctrl": 1.9,
+    "t_ctrl": 5.0,
+    "mae_cost": -0.85
+   }
+  },
+  {
+   "cond": "乾淨 & c_over_ma20>q80 & 上升結構",
+   "days": 966,
+   "avg_picks": 266.6,
+   "hit": 39.6,
+   "lift": 7.19,
+   "t_lift": 33.5,
+   "ctrl": 2.1,
+   "t_ctrl": 9.8,
+   "mae_cost": -1.25,
+   "fold_ctrl": [
+    2.22,
+    1.3,
+    2.79
+   ],
+   "holdout": {
+    "days": 359,
+    "avg_picks": 277.9,
+    "hit": 40.5,
+    "lift": 7.3,
+    "t_lift": 15.5,
+    "ctrl": 1.89,
+    "t_ctrl": 4.9,
+    "mae_cost": -1.08
+   }
+  },
+  {
+   "cond": "乾淨 & rel_ret20>q80 & kd_k>q80",
+   "days": 951,
+   "avg_picks": 121.0,
+   "hit": 39.5,
+   "lift": 6.14,
+   "t_lift": 22.8,
+   "ctrl": 3.2,
+   "t_ctrl": 14.2,
+   "mae_cost": -1.51,
+   "fold_ctrl": [
+    3.2,
+    2.27,
+    4.13
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 131.7,
+    "hit": 39.1,
+    "lift": 4.17,
+    "t_lift": 6.5,
+    "ctrl": 1.88,
+    "t_ctrl": 4.0,
+    "mae_cost": -1.46
+   }
+  },
+  {
+   "cond": "乾淨 & inst_f5>q80 & inst_streak>q80",
+   "days": 969,
+   "avg_picks": 141.9,
+   "hit": 31.2,
+   "lift": -0.43,
+   "t_lift": -2.2,
+   "ctrl": 1.22,
+   "t_ctrl": 7.7,
+   "mae_cost": -0.49,
+   "fold_ctrl": [
+    0.11,
+    0.86,
+    2.7
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 166.9,
+    "hit": 34.3,
+    "lift": 0.72,
+    "t_lift": 2.3,
+    "ctrl": 1.86,
+    "t_ctrl": 7.9,
+    "mae_cost": -0.36
+   }
+  },
+  {
+   "cond": "乾淨 & kd_k>q80 & fg_chg5<q20",
+   "days": 193,
+   "avg_picks": 196.7,
+   "hit": 29.9,
+   "lift": -1.79,
+   "t_lift": -3.6,
+   "ctrl": 1.84,
+   "t_ctrl": 4.8,
+   "mae_cost": -0.89,
+   "fold_ctrl": [
+    2.1,
+    1.55,
+    1.9
+   ],
+   "holdout": {
+    "days": 76,
+    "avg_picks": 190.8,
+    "hit": 30.7,
+    "lift": -2.57,
+    "t_lift": -3.0,
+    "ctrl": 1.84,
+    "t_ctrl": 3.2,
+    "mae_cost": -0.68
+   }
+  },
+  {
+   "cond": "乾淨 & vol_ratio>q80 & rel_ret20>q80",
+   "days": 951,
+   "avg_picks": 95.9,
+   "hit": 40.1,
+   "lift": 7.74,
+   "t_lift": 30.7,
+   "ctrl": 2.88,
+   "t_ctrl": 12.5,
+   "mae_cost": -1.78,
+   "fold_ctrl": [
+    2.95,
+    2.26,
+    3.44
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 106.5,
+    "hit": 42.5,
+    "lift": 7.28,
+    "t_lift": 14.0,
+    "ctrl": 1.8,
+    "t_ctrl": 4.5,
+    "mae_cost": -1.76
+   }
+  },
+  {
+   "cond": "乾淨 & node_surge5>q80 & vol_trend_chg>q80",
+   "days": 959,
+   "avg_picks": 70.5,
+   "hit": 37.6,
+   "lift": 4.25,
+   "t_lift": 13.1,
+   "ctrl": 1.58,
+   "t_ctrl": 5.0,
+   "mae_cost": -0.56,
+   "fold_ctrl": [
+    0.89,
+    2.63,
+    1.2
+   ],
+   "holdout": {
+    "days": 358,
+    "avg_picks": 88.8,
+    "hit": 41.9,
+    "lift": 6.08,
+    "t_lift": 11.2,
+    "ctrl": 1.79,
+    "t_ctrl": 3.6,
+    "mae_cost": -0.54
+   }
+  },
+  {
+   "cond": "乾淨 & vol_trend_chg>q80 & inst_f5>q80",
+   "days": 964,
+   "avg_picks": 62.3,
+   "hit": 32.7,
+   "lift": 0.54,
+   "t_lift": 2.0,
+   "ctrl": 1.62,
+   "t_ctrl": 6.6,
+   "mae_cost": -0.69,
+   "fold_ctrl": [
+    0.66,
+    1.47,
+    2.7
+   ],
+   "holdout": {
+    "days": 358,
+    "avg_picks": 77.5,
+    "hit": 35.0,
+    "lift": 0.99,
+    "t_lift": 2.2,
+    "ctrl": 1.77,
+    "t_ctrl": 4.7,
+    "mae_cost": -0.81
+   }
+  },
+  {
+   "cond": "乾淨 & ret5_accel>q80 & pos52_chg20>q80",
+   "days": 885,
+   "avg_picks": 81.8,
+   "hit": 37.7,
+   "lift": 6.78,
+   "t_lift": 23.7,
+   "ctrl": 1.54,
+   "t_ctrl": 5.3,
+   "mae_cost": -1.7,
+   "fold_ctrl": [
+    1.88,
+    0.12,
+    2.69
+   ],
+   "holdout": {
+    "days": 355,
+    "avg_picks": 100.5,
+    "hit": 41.9,
+    "lift": 7.42,
+    "t_lift": 14.7,
+    "ctrl": 1.72,
+    "t_ctrl": 3.9,
+    "mae_cost": -1.43
+   }
+  },
+  {
+   "cond": "乾淨 & ret5_accel>q80 & 上升結構",
+   "days": 959,
+   "avg_picks": 128.9,
+   "hit": 39.2,
+   "lift": 7.28,
+   "t_lift": 27.9,
+   "ctrl": 1.54,
+   "t_ctrl": 5.9,
+   "mae_cost": -1.55,
+   "fold_ctrl": [
+    1.27,
+    0.65,
+    2.69
+   ],
+   "holdout": {
+    "days": 353,
+    "avg_picks": 144.5,
+    "hit": 42.0,
+    "lift": 7.97,
+    "t_lift": 17.6,
+    "ctrl": 1.71,
+    "t_ctrl": 4.3,
+    "mae_cost": -1.37
+   }
+  },
+  {
+   "cond": "乾淨 & rel_ret20>q80 & c_over_ma20>q80",
+   "days": 951,
+   "avg_picks": 189.0,
+   "hit": 41.2,
+   "lift": 8.82,
+   "t_lift": 42.8,
+   "ctrl": 2.41,
+   "t_ctrl": 12.0,
+   "mae_cost": -1.3,
+   "fold_ctrl": [
+    2.58,
+    1.81,
+    2.86
+   ],
+   "holdout": {
+    "days": 359,
+    "avg_picks": 208.7,
+    "hit": 42.9,
+    "lift": 8.37,
+    "t_lift": 18.5,
+    "ctrl": 1.7,
+    "t_ctrl": 4.4,
+    "mae_cost": -1.21
+   }
+  },
+  {
+   "cond": "乾淨 & pos52_chg20>q80 & vol_ratio>q80",
+   "days": 892,
+   "avg_picks": 105.5,
+   "hit": 34.5,
+   "lift": 3.5,
+   "t_lift": 12.4,
+   "ctrl": 2.29,
+   "t_ctrl": 8.6,
+   "mae_cost": -1.63,
+   "fold_ctrl": [
+    3.06,
+    0.6,
+    3.39
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 105.1,
+    "hit": 38.4,
+    "lift": 3.99,
+    "t_lift": 7.0,
+    "ctrl": 1.68,
+    "t_ctrl": 3.8,
+    "mae_cost": -1.52
+   }
+  },
+  {
+   "cond": "乾淨 & ret5_accel>q80 & c_over_ma20>q80",
+   "days": 961,
+   "avg_picks": 118.6,
+   "hit": 40.7,
+   "lift": 8.09,
+   "t_lift": 32.6,
+   "ctrl": 1.54,
+   "t_ctrl": 6.0,
+   "mae_cost": -1.92,
+   "fold_ctrl": [
+    0.73,
+    1.26,
+    2.59
+   ],
+   "holdout": {
+    "days": 356,
+    "avg_picks": 141.1,
+    "hit": 43.2,
+    "lift": 8.71,
+    "t_lift": 18.7,
+    "ctrl": 1.67,
+    "t_ctrl": 4.0,
+    "mae_cost": -1.79
+   }
+  },
+  {
+   "cond": "乾淨 & c_over_ma20>q80 & inst_f5_chg<q20",
+   "days": 947,
+   "avg_picks": 47.3,
+   "hit": 39.0,
+   "lift": 6.44,
+   "t_lift": 18.7,
+   "ctrl": 1.56,
+   "t_ctrl": 4.7,
+   "mae_cost": -1.13,
+   "fold_ctrl": [
+    2.39,
+    0.28,
+    2.03
+   ],
+   "holdout": {
+    "days": 354,
+    "avg_picks": 66.5,
+    "hit": 39.7,
+    "lift": 7.18,
+    "t_lift": 11.8,
+    "ctrl": 1.59,
+    "t_ctrl": 3.0,
+    "mae_cost": -1.03
+   }
+  },
+  {
+   "cond": "乾淨 & vol_ratio>q80 & dist_60d_high>q80",
+   "days": 952,
+   "avg_picks": 114.0,
+   "hit": 31.2,
+   "lift": -2.66,
+   "t_lift": -8.8,
+   "ctrl": 2.53,
+   "t_ctrl": 11.3,
+   "mae_cost": -1.13,
+   "fold_ctrl": [
+    2.67,
+    1.45,
+    3.47
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 93.3,
+    "hit": 30.9,
+    "lift": -4.15,
+    "t_lift": -6.6,
+    "ctrl": 1.58,
+    "t_ctrl": 3.7,
+    "mae_cost": -1.01
+   }
+  },
+  {
+   "cond": "乾淨 & dh_chg5>q80 & vol_ratio>q80",
+   "days": 947,
+   "avg_picks": 123.1,
+   "hit": 38.0,
+   "lift": 6.17,
+   "t_lift": 28.1,
+   "ctrl": 2.03,
+   "t_ctrl": 9.4,
+   "mae_cost": -1.73,
+   "fold_ctrl": [
+    2.47,
+    1.03,
+    2.63
+   ],
+   "holdout": {
+    "days": 358,
+    "avg_picks": 142.9,
+    "hit": 40.6,
+    "lift": 6.11,
+    "t_lift": 15.4,
+    "ctrl": 1.54,
+    "t_ctrl": 4.5,
+    "mae_cost": -1.67
+   }
+  },
+  {
+   "cond": "乾淨 & pos52_chg20>q80 & c_over_ma20>q80",
+   "days": 892,
+   "avg_picks": 178.8,
+   "hit": 37.4,
+   "lift": 6.56,
+   "t_lift": 26.6,
+   "ctrl": 2.18,
+   "t_ctrl": 9.1,
+   "mae_cost": -1.35,
+   "fold_ctrl": [
+    2.91,
+    0.58,
+    3.25
+   ],
+   "holdout": {
+    "days": 359,
+    "avg_picks": 204.1,
+    "hit": 39.2,
+    "lift": 6.09,
+    "t_lift": 12.2,
+    "ctrl": 1.53,
+    "t_ctrl": 3.6,
+    "mae_cost": -1.09
+   }
+  },
+  {
+   "cond": "乾淨 & vol_trend>q80 & kd_k>q80",
+   "days": 971,
+   "avg_picks": 117.1,
+   "hit": 36.2,
+   "lift": 3.06,
+   "t_lift": 12.3,
+   "ctrl": 2.53,
+   "t_ctrl": 10.9,
+   "mae_cost": -1.47,
+   "fold_ctrl": [
+    2.52,
+    1.75,
+    3.31
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 108.4,
+    "hit": 36.6,
+    "lift": 2.16,
+    "t_lift": 3.4,
+    "ctrl": 1.53,
+    "t_ctrl": 3.2,
+    "mae_cost": -1.4
+   }
+  },
+  {
+   "cond": "乾淨 & dh_chg5>q80 & 上升結構",
+   "days": 947,
+   "avg_picks": 175.3,
+   "hit": 36.8,
+   "lift": 5.68,
+   "t_lift": 23.7,
+   "ctrl": 1.89,
+   "t_ctrl": 8.4,
+   "mae_cost": -1.35,
+   "fold_ctrl": [
+    2.81,
+    0.31,
+    2.63
+   ],
+   "holdout": {
+    "days": 355,
+    "avg_picks": 199.8,
+    "hit": 38.8,
+    "lift": 5.55,
+    "t_lift": 13.4,
+    "ctrl": 1.51,
+    "t_ctrl": 4.4,
+    "mae_cost": -1.24
+   }
+  },
+  {
+   "cond": "乾淨 & fg_chg5>q80 & kd_k>q80",
+   "days": 194,
+   "avg_picks": 429.1,
+   "hit": 34.2,
+   "lift": -1.47,
+   "t_lift": -3.5,
+   "ctrl": 1.46,
+   "t_ctrl": 4.5,
+   "mae_cost": -0.54,
+   "fold_ctrl": [
+    1.34,
+    0.51,
+    2.56
+   ],
+   "holdout": {
+    "days": 78,
+    "avg_picks": 389.5,
+    "hit": 32.5,
+    "lift": -2.39,
+    "t_lift": -2.6,
+    "ctrl": 1.49,
+    "t_ctrl": 2.4,
+    "mae_cost": -0.65
+   }
+  },
+  {
+   "cond": "乾淨 & dist_60d_high>q80 & 上升結構",
+   "days": 952,
+   "avg_picks": 258.0,
+   "hit": 29.4,
+   "lift": -4.2,
+   "t_lift": -16.3,
+   "ctrl": 2.3,
+   "t_ctrl": 12.7,
+   "mae_cost": -0.64,
+   "fold_ctrl": [
+    2.01,
+    1.44,
+    3.43
+   ],
+   "holdout": {
+    "days": 359,
+    "avg_picks": 198.7,
+    "hit": 27.7,
+    "lift": -6.21,
+    "t_lift": -11.6,
+    "ctrl": 1.48,
+    "t_ctrl": 4.3,
+    "mae_cost": -0.54
+   }
+  },
+  {
+   "cond": "乾淨 & dh_chg5>q80 & macd_hist>q80",
+   "days": 944,
+   "avg_picks": 142.5,
+   "hit": 38.5,
+   "lift": 6.3,
+   "t_lift": 25.2,
+   "ctrl": 0.96,
+   "t_ctrl": 4.0,
+   "mae_cost": -1.79,
+   "fold_ctrl": [
+    0.11,
+    0.76,
+    1.94
+   ],
+   "holdout": {
+    "days": 355,
+    "avg_picks": 189.8,
+    "hit": 40.3,
+    "lift": 6.71,
+    "t_lift": 18.0,
+    "ctrl": 1.47,
+    "t_ctrl": 4.7,
+    "mae_cost": -1.46
+   }
+  },
+  {
+   "cond": "乾淨 & dh_chg5>q80 & c_over_ma20>q80",
+   "days": 947,
+   "avg_picks": 159.5,
+   "hit": 39.7,
+   "lift": 7.59,
+   "t_lift": 33.5,
+   "ctrl": 1.69,
+   "t_ctrl": 7.6,
+   "mae_cost": -1.73,
+   "fold_ctrl": [
+    2.15,
+    0.69,
+    2.25
+   ],
+   "holdout": {
+    "days": 356,
+    "avg_picks": 191.7,
+    "hit": 41.0,
+    "lift": 7.55,
+    "t_lift": 18.0,
+    "ctrl": 1.39,
+    "t_ctrl": 3.8,
+    "mae_cost": -1.59
+   }
+  },
+  {
+   "cond": "乾淨 & dist_60d_high>q80 & kd_k>q80",
+   "days": 952,
+   "avg_picks": 166.8,
+   "hit": 30.0,
+   "lift": -4.52,
+   "t_lift": -15.1,
+   "ctrl": 1.95,
+   "t_ctrl": 9.3,
+   "mae_cost": -0.72,
+   "fold_ctrl": [
+    1.47,
+    0.7,
+    3.65
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 135.4,
+    "hit": 28.5,
+    "lift": -6.2,
+    "t_lift": -9.0,
+    "ctrl": 1.37,
+    "t_ctrl": 3.0,
+    "mae_cost": -0.46
+   }
+  },
+  {
+   "cond": "乾淨 & pos52_chg20>q80 & dist_60d_high>q80",
+   "days": 891,
+   "avg_picks": 145.7,
+   "hit": 29.3,
+   "lift": -2.55,
+   "t_lift": -8.9,
+   "ctrl": 2.41,
+   "t_ctrl": 10.7,
+   "mae_cost": -0.92,
+   "fold_ctrl": [
+    2.11,
+    1.04,
+    3.99
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 124.9,
+    "hit": 30.3,
+    "lift": -4.2,
+    "t_lift": -6.4,
+    "ctrl": 1.3,
+    "t_ctrl": 2.9,
+    "mae_cost": -0.87
+   }
+  },
+  {
+   "cond": "乾淨 & vol_trend>q80 & dist_60d_high>q80",
+   "days": 952,
+   "avg_picks": 105.5,
+   "hit": 31.6,
+   "lift": -2.5,
+   "t_lift": -7.9,
+   "ctrl": 2.54,
+   "t_ctrl": 10.7,
+   "mae_cost": -1.02,
+   "fold_ctrl": [
+    2.62,
+    1.64,
+    3.37
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 83.5,
+    "hit": 29.8,
+    "lift": -4.75,
+    "t_lift": -7.2,
+    "ctrl": 1.27,
+    "t_ctrl": 2.7,
+    "mae_cost": -0.92
+   }
+  },
+  {
+   "cond": "乾淨 & inst_f5_chg>q80 & 上升結構",
+   "days": 956,
+   "avg_picks": 120.7,
+   "hit": 30.9,
+   "lift": -1.18,
+   "t_lift": -4.6,
+   "ctrl": 0.95,
+   "t_ctrl": 4.1,
+   "mae_cost": -0.58,
+   "fold_ctrl": [
+    0.33,
+    0.35,
+    2.14
+   ],
+   "holdout": {
+    "days": 354,
+    "avg_picks": 136.1,
+    "hit": 32.3,
+    "lift": -0.36,
+    "t_lift": -0.8,
+    "ctrl": 1.26,
+    "t_ctrl": 3.5,
+    "mae_cost": -0.36
+   }
+  },
+  {
+   "cond": "乾淨 & dh_chg5>q80 & rel_ret20>q80",
+   "days": 947,
+   "avg_picks": 104.5,
+   "hit": 40.3,
+   "lift": 8.41,
+   "t_lift": 34.5,
+   "ctrl": 1.9,
+   "t_ctrl": 8.5,
+   "mae_cost": -1.67,
+   "fold_ctrl": [
+    2.1,
+    1.08,
+    2.55
+   ],
+   "holdout": {
+    "days": 358,
+    "avg_picks": 130.6,
+    "hit": 42.7,
+    "lift": 7.7,
+    "t_lift": 16.0,
+    "ctrl": 1.25,
+    "t_ctrl": 3.2,
+    "mae_cost": -1.52
+   }
+  },
+  {
+   "cond": "乾淨 & node_att_chg>q80 & vol_trend>q80",
+   "days": 971,
+   "avg_picks": 68.9,
+   "hit": 35.8,
+   "lift": 3.65,
+   "t_lift": 14.0,
+   "ctrl": 1.03,
+   "t_ctrl": 4.1,
+   "mae_cost": -0.63,
+   "fold_ctrl": [
+    0.24,
+    1.57,
+    1.29
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 78.7,
+    "hit": 40.5,
+    "lift": 5.22,
+    "t_lift": 10.9,
+    "ctrl": 1.21,
+    "t_ctrl": 2.7,
+    "mae_cost": -0.54
+   }
+  },
+  {
+   "cond": "乾淨 & inst_f5_chg>q80 & rel_ret20>q80",
+   "days": 951,
+   "avg_picks": 51.2,
+   "hit": 36.8,
+   "lift": 4.74,
+   "t_lift": 15.2,
+   "ctrl": 1.7,
+   "t_ctrl": 6.5,
+   "mae_cost": -0.61,
+   "fold_ctrl": [
+    0.73,
+    2.3,
+    2.0
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 71.6,
+    "hit": 38.9,
+    "lift": 4.43,
+    "t_lift": 8.6,
+    "ctrl": 1.17,
+    "t_ctrl": 3.0,
+    "mae_cost": -0.53
+   }
+  },
+  {
+   "cond": "乾淨 & vol_trend_chg>q80 & c_over_ma20>q80",
+   "days": 966,
+   "avg_picks": 119.5,
+   "hit": 39.3,
+   "lift": 6.55,
+   "t_lift": 28.0,
+   "ctrl": 1.73,
+   "t_ctrl": 7.4,
+   "mae_cost": -1.62,
+   "fold_ctrl": [
+    1.55,
+    1.7,
+    1.93
+   ],
+   "holdout": {
+    "days": 357,
+    "avg_picks": 123.5,
+    "hit": 40.3,
+    "lift": 6.98,
+    "t_lift": 15.6,
+    "ctrl": 1.17,
+    "t_ctrl": 2.9,
+    "mae_cost": -1.62
+   }
+  },
+  {
+   "cond": "乾淨 & vol_trend_chg>q80 & kd_k>q80",
+   "days": 966,
+   "avg_picks": 102.0,
+   "hit": 35.4,
+   "lift": 2.08,
+   "t_lift": 8.2,
+   "ctrl": 2.33,
+   "t_ctrl": 10.0,
+   "mae_cost": -1.4,
+   "fold_ctrl": [
+    2.43,
+    1.92,
+    2.63
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 95.0,
+    "hit": 35.2,
+    "lift": 1.13,
+    "t_lift": 1.8,
+    "ctrl": 1.16,
+    "t_ctrl": 2.5,
+    "mae_cost": -1.44
+   }
+  },
+  {
+   "cond": "乾淨 & vol_trend>q80 & c_over_ma20>q80",
+   "days": 971,
+   "avg_picks": 145.8,
+   "hit": 39.5,
+   "lift": 6.92,
+   "t_lift": 30.5,
+   "ctrl": 2.05,
+   "t_ctrl": 9.0,
+   "mae_cost": -1.47,
+   "fold_ctrl": [
+    1.98,
+    1.8,
+    2.39
+   ],
+   "holdout": {
+    "days": 359,
+    "avg_picks": 145.0,
+    "hit": 40.9,
+    "lift": 6.81,
+    "t_lift": 13.9,
+    "ctrl": 1.16,
+    "t_ctrl": 2.7,
+    "mae_cost": -1.45
+   }
+  },
+  {
+   "cond": "乾淨 & ret5_accel>q80 & vol_ratio>q80",
+   "days": 961,
+   "avg_picks": 101.2,
+   "hit": 39.6,
+   "lift": 7.32,
+   "t_lift": 30.6,
+   "ctrl": 1.64,
+   "t_ctrl": 6.6,
+   "mae_cost": -1.87,
+   "fold_ctrl": [
+    1.21,
+    1.37,
+    2.32
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 116.9,
+    "hit": 42.7,
+    "lift": 7.21,
+    "t_lift": 14.7,
+    "ctrl": 1.06,
+    "t_ctrl": 2.3,
+    "mae_cost": -1.81
+   }
+  },
+  {
+   "cond": "乾淨 & vol_trend>q80 & rel_ret20>q80",
+   "days": 951,
+   "avg_picks": 103.3,
+   "hit": 40.0,
+   "lift": 7.25,
+   "t_lift": 30.0,
+   "ctrl": 2.12,
+   "t_ctrl": 9.6,
+   "mae_cost": -1.31,
+   "fold_ctrl": [
+    2.25,
+    1.85,
+    2.28
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 112.1,
+    "hit": 41.3,
+    "lift": 6.69,
+    "t_lift": 13.5,
+    "ctrl": 1.05,
+    "t_ctrl": 2.8,
+    "mae_cost": -1.32
+   }
+  },
+  {
+   "cond": "乾淨 & kd_k>q80 & 上升結構",
+   "days": 966,
+   "avg_picks": 239.9,
+   "hit": 32.4,
+   "lift": -0.47,
+   "t_lift": -2.1,
+   "ctrl": 2.2,
+   "t_ctrl": 11.4,
+   "mae_cost": -1.03,
+   "fold_ctrl": [
+    2.04,
+    1.26,
+    3.28
+   ],
+   "holdout": {
+    "days": 359,
+    "avg_picks": 223.5,
+    "hit": 31.5,
+    "lift": -1.94,
+    "t_lift": -3.6,
+    "ctrl": 1.05,
+    "t_ctrl": 2.5,
+    "mae_cost": -0.92
+   }
+  },
+  {
+   "cond": "乾淨 & inst_f5_chg>q80 & kd_k>q80",
+   "days": 946,
+   "avg_picks": 82.9,
+   "hit": 30.2,
+   "lift": -2.78,
+   "t_lift": -9.2,
+   "ctrl": 1.74,
+   "t_ctrl": 6.8,
+   "mae_cost": -0.65,
+   "fold_ctrl": [
+    0.78,
+    1.4,
+    2.97
+   ],
+   "holdout": {
+    "days": 356,
+    "avg_picks": 87.0,
+    "hit": 29.8,
+    "lift": -4.27,
+    "t_lift": -7.8,
+    "ctrl": 0.99,
+    "t_ctrl": 2.4,
+    "mae_cost": -0.71
+   }
+  },
+  {
+   "cond": "乾淨 & pos52_chg20>q80 & vol_trend>q80",
+   "days": 891,
+   "avg_picks": 113.2,
+   "hit": 34.7,
+   "lift": 3.48,
+   "t_lift": 12.6,
+   "ctrl": 1.72,
+   "t_ctrl": 6.5,
+   "mae_cost": -1.28,
+   "fold_ctrl": [
+    2.27,
+    0.39,
+    2.62
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 109.9,
+    "hit": 37.8,
+    "lift": 3.68,
+    "t_lift": 6.3,
+    "ctrl": 0.96,
+    "t_ctrl": 2.1,
+    "mae_cost": -1.11
+   }
+  },
+  {
+   "cond": "乾淨 & fg_chg5>q80 & rel_ret20>q80",
+   "days": 194,
+   "avg_picks": 302.2,
+   "hit": 41.1,
+   "lift": 6.71,
+   "t_lift": 15.8,
+   "ctrl": 1.75,
+   "t_ctrl": 5.7,
+   "mae_cost": -0.64,
+   "fold_ctrl": [
+    1.79,
+    1.36,
+    2.13
+   ],
+   "holdout": {
+    "days": 78,
+    "avg_picks": 344.5,
+    "hit": 41.2,
+    "lift": 5.97,
+    "t_lift": 5.9,
+    "ctrl": 0.93,
+    "t_ctrl": 1.6,
+    "mae_cost": -0.7
+   }
+  },
+  {
+   "cond": "乾淨 & vol_trend_chg>q80 & dist_60d_high>q80",
+   "days": 950,
+   "avg_picks": 89.2,
+   "hit": 30.2,
+   "lift": -3.99,
+   "t_lift": -12.6,
+   "ctrl": 2.03,
+   "t_ctrl": 9.0,
+   "mae_cost": -0.94,
+   "fold_ctrl": [
+    1.99,
+    1.55,
+    2.56
+   ],
+   "holdout": {
+    "days": 357,
+    "avg_picks": 71.0,
+    "hit": 28.5,
+    "lift": -5.93,
+    "t_lift": -9.3,
+    "ctrl": 0.89,
+    "t_ctrl": 1.9,
+    "mae_cost": -0.88
+   }
+  },
+  {
+   "cond": "乾淨 & ret5_accel>q80 & rel_ret20>q80",
+   "days": 951,
+   "avg_picks": 96.5,
+   "hit": 41.4,
+   "lift": 9.17,
+   "t_lift": 37.6,
+   "ctrl": 1.91,
+   "t_ctrl": 7.9,
+   "mae_cost": -1.61,
+   "fold_ctrl": [
+    1.47,
+    1.59,
+    2.64
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 112.7,
+    "hit": 44.3,
+    "lift": 8.59,
+    "t_lift": 16.8,
+    "ctrl": 0.88,
+    "t_ctrl": 2.1,
+    "mae_cost": -1.53
+   }
+  },
+  {
+   "cond": "乾淨 & vol_trend_chg>q80 & rel_ret20>q80",
+   "days": 951,
+   "avg_picks": 80.4,
+   "hit": 39.3,
+   "lift": 6.78,
+   "t_lift": 26.7,
+   "ctrl": 1.89,
+   "t_ctrl": 8.3,
+   "mae_cost": -1.45,
+   "fold_ctrl": [
+    1.76,
+    1.61,
+    2.29
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 90.0,
+    "hit": 41.1,
+    "lift": 6.39,
+    "t_lift": 12.9,
+    "ctrl": 0.84,
+    "t_ctrl": 2.2,
+    "mae_cost": -1.48
+   }
+  },
+  {
+   "cond": "乾淨 & vol_trend>q80 & 上升結構",
+   "days": 966,
+   "avg_picks": 192.0,
+   "hit": 35.6,
+   "lift": 3.2,
+   "t_lift": 14.7,
+   "ctrl": 1.74,
+   "t_ctrl": 8.2,
+   "mae_cost": -0.9,
+   "fold_ctrl": [
+    1.97,
+    0.96,
+    2.29
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 174.6,
+    "hit": 37.0,
+    "lift": 2.99,
+    "t_lift": 5.9,
+    "ctrl": 0.84,
+    "t_ctrl": 2.1,
+    "mae_cost": -0.9
+   }
+  },
+  {
+   "cond": "乾淨 & vol_trend_chg>q80 & pos52_chg20>q80",
+   "days": 890,
+   "avg_picks": 89.2,
+   "hit": 33.6,
+   "lift": 2.44,
+   "t_lift": 8.4,
+   "ctrl": 1.46,
+   "t_ctrl": 5.4,
+   "mae_cost": -1.36,
+   "fold_ctrl": [
+    1.41,
+    0.59,
+    2.36
+   ],
+   "holdout": {
+    "days": 359,
+    "avg_picks": 88.9,
+    "hit": 36.4,
+    "lift": 2.95,
+    "t_lift": 5.3,
+    "ctrl": 0.77,
+    "t_ctrl": 1.8,
+    "mae_cost": -1.25
+   }
+  },
+  {
+   "cond": "乾淨 & rel_ret20>q80 & 上升結構",
+   "days": 951,
+   "avg_picks": 244.4,
+   "hit": 39.4,
+   "lift": 7.03,
+   "t_lift": 34.0,
+   "ctrl": 2.03,
+   "t_ctrl": 11.7,
+   "mae_cost": -0.86,
+   "fold_ctrl": [
+    2.13,
+    1.74,
+    2.21
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 271.2,
+    "hit": 40.4,
+    "lift": 5.61,
+    "t_lift": 12.6,
+    "ctrl": 0.76,
+    "t_ctrl": 2.4,
+    "mae_cost": -0.84
+   }
+  },
+  {
+   "cond": "乾淨 & vol_trend_chg>q80 & 上升結構",
+   "days": 965,
+   "avg_picks": 159.2,
+   "hit": 34.6,
+   "lift": 2.37,
+   "t_lift": 11.2,
+   "ctrl": 1.58,
+   "t_ctrl": 7.8,
+   "mae_cost": -0.94,
+   "fold_ctrl": [
+    1.8,
+    0.94,
+    2.02
+   ],
+   "holdout": {
+    "days": 356,
+    "avg_picks": 149.6,
+    "hit": 35.8,
+    "lift": 2.35,
+    "t_lift": 5.1,
+    "ctrl": 0.67,
+    "t_ctrl": 1.7,
+    "mae_cost": -0.97
+   }
+  },
+  {
+   "cond": "乾淨 & rel_ret20>q80 & inst_f5_chg<q20",
+   "days": 951,
+   "avg_picks": 50.6,
+   "hit": 37.3,
+   "lift": 5.3,
+   "t_lift": 17.9,
+   "ctrl": 1.42,
+   "t_ctrl": 5.9,
+   "mae_cost": -0.52,
+   "fold_ctrl": [
+    1.68,
+    1.04,
+    1.56
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 72.5,
+    "hit": 38.9,
+    "lift": 4.54,
+    "t_lift": 9.3,
+    "ctrl": 0.63,
+    "t_ctrl": 1.7,
+    "mae_cost": -0.62
+   }
+  },
+  {
+   "cond": "乾淨 & atr_pct_chg>q80 & inst_streak>q80",
+   "days": 938,
+   "avg_picks": 30.6,
+   "hit": 38.5,
+   "lift": 6.1,
+   "t_lift": 15.0,
+   "ctrl": 1.75,
+   "t_ctrl": 4.6,
+   "mae_cost": -0.58,
+   "fold_ctrl": [
+    0.12,
+    1.01,
+    4.0
+   ],
+   "holdout": {
+    "days": 350,
+    "avg_picks": 36.0,
+    "hit": 45.7,
+    "lift": 5.65,
+    "t_lift": 8.8,
+    "ctrl": 0.45,
+    "t_ctrl": 0.8,
+    "mae_cost": -0.53
+   }
+  },
+  {
+   "cond": "乾淨 & ret5_accel>q80 & dh_chg5>q80",
+   "days": 947,
+   "avg_picks": 191.0,
+   "hit": 39.2,
+   "lift": 6.96,
+   "t_lift": 33.3,
+   "ctrl": 0.82,
+   "t_ctrl": 4.1,
+   "mae_cost": -1.31,
+   "fold_ctrl": [
+    0.56,
+    0.56,
+    1.33
+   ],
+   "holdout": {
+    "days": 358,
+    "avg_picks": 239.7,
+    "hit": 41.9,
+    "lift": 6.29,
+    "t_lift": 15.3,
+    "ctrl": 0.44,
+    "t_ctrl": 1.3,
+    "mae_cost": -1.2
+   }
+  },
+  {
+   "cond": "乾淨 & vol_trend_chg>q80 & dh_chg5>q80",
+   "days": 947,
+   "avg_picks": 118.6,
+   "hit": 37.7,
+   "lift": 5.44,
+   "t_lift": 25.1,
+   "ctrl": 1.15,
+   "t_ctrl": 5.5,
+   "mae_cost": -1.33,
+   "fold_ctrl": [
+    1.2,
+    0.71,
+    1.55
+   ],
+   "holdout": {
+    "days": 357,
+    "avg_picks": 134.0,
+    "hit": 39.3,
+    "lift": 5.22,
+    "t_lift": 12.9,
+    "ctrl": 0.37,
+    "t_ctrl": 1.1,
+    "mae_cost": -1.36
+   }
+  },
+  {
+   "cond": "乾淨 & ret5_accel>q80 & vol_trend>q80",
+   "days": 961,
+   "avg_picks": 93.1,
+   "hit": 39.0,
+   "lift": 6.76,
+   "t_lift": 28.2,
+   "ctrl": 1.16,
+   "t_ctrl": 4.6,
+   "mae_cost": -1.57,
+   "fold_ctrl": [
+    0.78,
+    0.88,
+    1.8
+   ],
+   "holdout": {
+    "days": 358,
+    "avg_picks": 109.8,
+    "hit": 41.4,
+    "lift": 6.37,
+    "t_lift": 13.7,
+    "ctrl": 0.36,
+    "t_ctrl": 0.8,
+    "mae_cost": -1.51
+   }
+  },
+  {
+   "cond": "乾淨 & dh_chg5>q80 & vol_trend>q80",
+   "days": 947,
+   "avg_picks": 111.2,
+   "hit": 37.7,
+   "lift": 5.83,
+   "t_lift": 27.4,
+   "ctrl": 1.57,
+   "t_ctrl": 7.4,
+   "mae_cost": -1.42,
+   "fold_ctrl": [
+    2.21,
+    0.63,
+    1.92
+   ],
+   "holdout": {
+    "days": 358,
+    "avg_picks": 130.4,
+    "hit": 39.4,
+    "lift": 5.01,
+    "t_lift": 11.5,
+    "ctrl": 0.36,
+    "t_ctrl": 0.9,
+    "mae_cost": -1.39
+   }
+  },
+  {
+   "cond": "乾淨 & atr_pct_chg>q80 & kd_k>q80",
+   "days": 964,
+   "avg_picks": 53.2,
+   "hit": 39.8,
+   "lift": 6.51,
+   "t_lift": 19.5,
+   "ctrl": 2.79,
+   "t_ctrl": 8.7,
+   "mae_cost": -1.6,
+   "fold_ctrl": [
+    2.27,
+    1.88,
+    4.19
+   ],
+   "holdout": {
+    "days": 359,
+    "avg_picks": 52.6,
+    "hit": 39.6,
+    "lift": 4.22,
+    "t_lift": 5.5,
+    "ctrl": 0.15,
+    "t_ctrl": 0.2,
+    "mae_cost": -1.5
+   }
+  },
+  {
+   "cond": "乾淨 & inst_f5_chg>q80 & dist_60d_high>q80",
+   "days": 948,
+   "avg_picks": 74.0,
+   "hit": 26.1,
+   "lift": -7.65,
+   "t_lift": -22.8,
+   "ctrl": 1.1,
+   "t_ctrl": 4.6,
+   "mae_cost": -0.38,
+   "fold_ctrl": [
+    0.33,
+    0.43,
+    2.5
+   ],
+   "holdout": {
+    "days": 355,
+    "avg_picks": 67.8,
+    "hit": 24.0,
+    "lift": -10.06,
+    "t_lift": -16.2,
+    "ctrl": 0.05,
+    "t_ctrl": 0.1,
+    "mae_cost": -0.26
+   }
+  },
+  {
+   "cond": "乾淨 & vol_ratio>q80 & fg_chg5<q20",
+   "days": 193,
+   "avg_picks": 334.6,
+   "hit": 29.9,
+   "lift": -0.47,
+   "t_lift": -1.6,
+   "ctrl": 0.98,
+   "t_ctrl": 4.0,
+   "mae_cost": -0.64,
+   "fold_ctrl": [
+    1.67,
+    0.69,
+    0.6
+   ],
+   "holdout": {
+    "days": 76,
+    "avg_picks": 330.7,
+    "hit": 31.1,
+    "lift": -1.5,
+    "t_lift": -2.7,
+    "ctrl": 0.03,
+    "t_ctrl": 0.1,
+    "mae_cost": -0.87
+   }
+  },
+  {
+   "cond": "乾淨 & vol_trend_chg>q80 & vol_ratio>q80",
+   "days": 966,
+   "avg_picks": 160.7,
+   "hit": 33.6,
+   "lift": 1.39,
+   "t_lift": 7.9,
+   "ctrl": 0.75,
+   "t_ctrl": 4.6,
+   "mae_cost": -0.91,
+   "fold_ctrl": [
+    1.12,
+    0.32,
+    0.81
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 173.4,
+    "hit": 35.8,
+    "lift": 0.82,
+    "t_lift": 2.7,
+    "ctrl": -0.04,
+    "t_ctrl": -0.1,
+    "mae_cost": -0.99
+   }
+  },
+  {
+   "cond": "乾淨 & pos52_chg20>q80 & rel_ret20>q80",
+   "days": 892,
+   "avg_picks": 175.0,
+   "hit": 37.6,
+   "lift": 6.24,
+   "t_lift": 27.6,
+   "ctrl": 1.66,
+   "t_ctrl": 8.4,
+   "mae_cost": -0.91,
+   "fold_ctrl": [
+    2.63,
+    0.22,
+    2.38
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 210.5,
+    "hit": 38.9,
+    "lift": 4.1,
+    "t_lift": 8.0,
+    "ctrl": -0.14,
+    "t_ctrl": -0.4,
+    "mae_cost": -0.76
+   }
+  },
+  {
+   "cond": "乾淨 & vol_ratio>q80 & vol_trend>q80",
+   "days": 971,
+   "avg_picks": 171.0,
+   "hit": 33.9,
+   "lift": 1.64,
+   "t_lift": 9.1,
+   "ctrl": 1.05,
+   "t_ctrl": 6.2,
+   "mae_cost": -0.95,
+   "fold_ctrl": [
+    1.52,
+    0.53,
+    1.09
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 184.8,
+    "hit": 36.1,
+    "lift": 0.61,
+    "t_lift": 2.0,
+    "ctrl": -0.15,
+    "t_ctrl": -0.5,
+    "mae_cost": -0.98
+   }
+  },
+  {
+   "cond": "乾淨 & atr_pct_chg>q80 & c_over_ma20>q80",
+   "days": 966,
+   "avg_picks": 97.1,
+   "hit": 40.1,
+   "lift": 7.96,
+   "t_lift": 30.7,
+   "ctrl": 1.75,
+   "t_ctrl": 6.7,
+   "mae_cost": -1.12,
+   "fold_ctrl": [
+    0.96,
+    1.98,
+    2.29
+   ],
+   "holdout": {
+    "days": 358,
+    "avg_picks": 102.0,
+    "hit": 42.6,
+    "lift": 6.52,
+    "t_lift": 11.5,
+    "ctrl": -0.75,
+    "t_ctrl": -1.5,
+    "mae_cost": -1.1
+   }
+  },
+  {
+   "cond": "乾淨 & atr_pct_chg>q80 & rel_ret20>q80",
+   "days": 951,
+   "avg_picks": 101.6,
+   "hit": 40.6,
+   "lift": 8.76,
+   "t_lift": 36.6,
+   "ctrl": 1.52,
+   "t_ctrl": 6.8,
+   "mae_cost": -0.78,
+   "fold_ctrl": [
+    0.82,
+    1.76,
+    1.94
+   ],
+   "holdout": {
+    "days": 360,
+    "avg_picks": 112.3,
+    "hit": 43.8,
+    "lift": 7.16,
+    "t_lift": 13.8,
+    "ctrl": -1.17,
+    "t_ctrl": -2.9,
+    "mae_cost": -0.82
+   }
+  },
+  {
+   "cond": "乾淨 & pos52_chg20>q80 & atr_pct_chg>q80",
+   "days": 889,
+   "avg_picks": 79.0,
+   "hit": 37.2,
+   "lift": 6.24,
+   "t_lift": 21.5,
+   "ctrl": 1.3,
+   "t_ctrl": 4.6,
+   "mae_cost": -0.86,
+   "fold_ctrl": [
+    1.36,
+    0.57,
+    1.98
+   ],
+   "holdout": {
+    "days": 359,
+    "avg_picks": 87.7,
+    "hit": 39.6,
+    "lift": 4.18,
+    "t_lift": 6.7,
+    "ctrl": -1.7,
+    "t_ctrl": -3.3,
+    "mae_cost": -0.72
+   }
+  }
+ ]
+}

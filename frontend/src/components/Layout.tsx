@@ -13,6 +13,7 @@ const NAV: NavItem[] = [
   { to: "/flow", label: "籌碼動向", icon: "💰", enabled: true },
   { to: "/holdings", label: "我的持股", icon: "💼", enabled: true },
   { to: "/watchlists", label: "觀察清單", icon: "⭐", enabled: true },
+  { to: "/lab", label: "策略室", icon: "🧪", enabled: true },
   { to: "/settings", label: "設定", icon: "⚙️", enabled: true },
 ];
 

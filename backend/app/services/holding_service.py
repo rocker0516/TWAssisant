@@ -44,6 +44,41 @@ def position_from_txns(txns: list[models.Transaction]) -> Position:
     return Position(shares=shares, avg_cost=avg_cost, realized_pnl=round(realized, 0), total_buy_shares=bought)
 
 
+def _capture_entry_snapshot(
+    session: Session, stock_id: str, track: str, date_: date
+) -> dict | None:
+    """凍結建倉當下該軌最新 Score（≤ 建倉日），供之後論點對照。查無評分回 None。"""
+    sc = session.execute(
+        select(models.Score)
+        .where(
+            models.Score.stock_id == stock_id,
+            models.Score.track == track,
+            models.Score.date <= date_,
+        )
+        .order_by(models.Score.date.desc())
+        .limit(1)
+    ).scalars().first()
+    if sc is None:
+        return None
+    close = session.execute(
+        select(models.DailyPrice.close)
+        .where(models.DailyPrice.stock_id == stock_id, models.DailyPrice.date <= date_)
+        .order_by(models.DailyPrice.date.desc())
+        .limit(1)
+    ).scalar()
+    return {
+        "score_date": sc.date.isoformat(),
+        "total_score": sc.total_score,
+        "passed_filter": sc.passed_filter,
+        "passed_styles": sc.passed_styles,
+        "reasons": sc.reasons,
+        "buy_low": sc.buy_low,
+        "buy_high": sc.buy_high,
+        "stop_loss": sc.stop_loss,
+        "close": close,
+    }
+
+
 class HoldingService:
     def create(
         self,
@@ -65,6 +100,7 @@ class HoldingService:
             track=track,
             status="open",
             opened_date=date_,
+            entry_snapshot=_capture_entry_snapshot(session, stock_id, track, date_),
             stop_loss_override=stop_loss_override,
             trail_trigger_override=trail_trigger_override,
             trail_pullback_override=trail_pullback_override,

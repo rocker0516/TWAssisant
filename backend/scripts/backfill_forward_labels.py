@@ -18,7 +18,7 @@ import time
 
 import numpy as np
 
-_DB = __file__.rsplit("/scripts/", 1)[0] + "/data/twa.db"
+_DB = __file__.replace("\\", "/").rsplit("/scripts/", 1)[0] + "/data/twa.db"
 _H = 30
 
 
@@ -34,8 +34,16 @@ def main() -> None:
             mfe30 REAL NOT NULL,        -- 後30交易日最高漲幅 %
             mae30 REAL,                 -- 後30交易日最深回落 %
             ret30 REAL,                 -- 第30交易日收盤報酬 %
+            mfe10 REAL,                 -- 後10交易日最高漲幅 %（10日碰到率目標用）
+            mae10 REAL,                 -- 後10交易日最深回落 %
             PRIMARY KEY (stock_id, date)
         )""")
+    # 既有表補欄（冪等）
+    for col in ("mfe10", "mae10"):
+        try:
+            cur.execute(f"ALTER TABLE forward_labels ADD COLUMN {col} REAL")
+        except sqlite3.OperationalError:
+            pass
     cur.execute("CREATE INDEX IF NOT EXISTS idx_forward_labels_date ON forward_labels(date)")
 
     sids = [r[0] for r in cur.execute(
@@ -71,17 +79,22 @@ def main() -> None:
             mae = (np.nanmin(flo) / entry - 1.0) * 100.0 if not np.isnan(flo).all() else None
             c30 = closes[p + 1 + _H]
             ret = (c30 / entry - 1.0) * 100.0 if not np.isnan(c30) else None
+            fhi10, flo10 = fhi[:10], flo[:10]
+            mfe10 = (np.nanmax(fhi10) / entry - 1.0) * 100.0 if not np.isnan(fhi10).all() else None
+            mae10 = (np.nanmin(flo10) / entry - 1.0) * 100.0 if not np.isnan(flo10).all() else None
             batch.append((sid, dates[p], round(float(entry), 4), round(float(mfe), 2),
                           round(float(mae), 2) if mae is not None else None,
-                          round(float(ret), 2) if ret is not None else None))
+                          round(float(ret), 2) if ret is not None else None,
+                          round(float(mfe10), 2) if mfe10 is not None else None,
+                          round(float(mae10), 2) if mae10 is not None else None))
         if len(batch) >= 50_000:
-            cur.executemany("INSERT OR REPLACE INTO forward_labels VALUES (?,?,?,?,?,?)", batch)
+            cur.executemany("INSERT OR REPLACE INTO forward_labels VALUES (?,?,?,?,?,?,?,?)", batch)
             con.commit()
             total += len(batch)
             batch = []
             print(f"  [{si+1}/{len(sids)}] 已寫 {total:,} 列  ({time.time()-t0:.0f}s)")
     if batch:
-        cur.executemany("INSERT OR REPLACE INTO forward_labels VALUES (?,?,?,?,?,?)", batch)
+        cur.executemany("INSERT OR REPLACE INTO forward_labels VALUES (?,?,?,?,?,?,?,?)", batch)
         con.commit()
         total += len(batch)
     print(f"完成：寫入 {total:,} 列，{time.time()-t0:.0f}s")
@@ -89,10 +102,11 @@ def main() -> None:
     for row in cur.execute("""
         SELECT min(date), max(date), count(*), count(DISTINCT stock_id),
                round(avg(mfe30),2), round(avg(mae30),2),
-               sum(mfe30 >= 10.0) * 100.0 / count(*)
+               sum(mfe30 >= 10.0) * 100.0 / count(*),
+               sum(mfe10 >= 10.0) * 100.0 / count(*)
         FROM forward_labels"""):
         print(f"檢核：{row[0]} ~ {row[1]}，{row[2]:,} 列 / {row[3]} 檔，"
-              f"avg mfe30={row[4]}% avg mae30={row[5]}%，全市場摸+10%基率={row[6]:.1f}%")
+              f"avg mfe30={row[4]}% avg mae30={row[5]}%，30日摸+10%基率={row[6]:.1f}%，10日={row[7]:.1f}%")
     con.close()
 
 

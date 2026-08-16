@@ -10,6 +10,30 @@ export type RecommendationItem = components["schemas"]["RecommendationItem"] & {
   prob_n?: number | null;
   prob_cond?: string | null;
   prob_mae?: number | null; // 同條件歷史平均最深回撤%
+  vol_ratio?: number | null; // 量增比 vol_ma5/vol_ma20（共振徽章：爆發×量增/故事×量縮）
+  attention?: string | null; // 注意/處置動能徽章：punish（處置10日內/執行中）/ notice（近5日列注意）
+  ml_consensus?: boolean | null; // ML 共識：GBM 模型也排前20%（holdout 交集命中 ~34% vs 單獨 ~30%）
+  attention_tags?: string[] | null; // 完整旗標集（可同時 punish+notice；精確組合篩選用）
+  target_zone?: LongTargetZone | null; // 長線軌限定：目標區間（12 個月參考）
+  graduation?: LongGraduation | null; // 長線軌限定：畢業條件狀態
+};
+// 長線軌目標區間：基準錨=法人目標價（analyst）或 PE 河流中位帶（pe_river）
+export type LongTargetZone = {
+  basis: "analyst" | "pe_river";
+  base: number;
+  upside_pct?: number | null;
+  low?: number | null; // 保守：PE 河流中位帶
+  high?: number | null; // 樂觀：PE 河流上緣帶
+  analyst_target?: number | null;
+  analyst_date?: string | null;
+  analyst_count?: number | null;
+  hit: boolean;
+};
+// 長線軌畢業條件（重新審視訊號，非停損）
+export type LongGraduation = {
+  hit_target: boolean;
+  streak_months?: number | null; // 魚齡：連續營收 YoY>0 月數
+  mom12_pct?: number | null; // 近 12 月漲幅 %
 };
 export type RecommendationDetail = components["schemas"]["RecommendationDetail"];
 export type RecommendationLookbackResponse = components["schemas"]["RecommendationLookbackResponse"];
@@ -37,16 +61,60 @@ export type HoldingHistoryResponse = components["schemas"]["HoldingHistoryRespon
 export type HoldingPoint = components["schemas"]["HoldingPoint"];
 export type ChipHistoryResponse = components["schemas"]["ChipHistoryResponse"];
 export type ChipPoint = components["schemas"]["ChipPoint"];
+export type FundamentalHistoryResponse = components["schemas"]["FundamentalHistoryResponse"];
+export type DividendsResponse = components["schemas"]["DividendsResponse"];
+export type PeRiverResponse = components["schemas"]["PeRiverResponse"];
+export type IndustryChainResponse = components["schemas"]["IndustryChainResponse"];
 export type ScoreDTO = components["schemas"]["ScoreDTO"];
 export type HoldingsResponse = components["schemas"]["HoldingsResponse"];
-export type HoldingItem = components["schemas"]["HoldingItem"];
+// openapi 型別未重跑，手補進場快照/論點欄（後端 schemas.HoldingItem 已回）
+export type HoldingItem = components["schemas"]["HoldingItem"] & {
+  entry_snapshot?: EntrySnapshot | null;
+  thesis?: ThesisStatus | null;
+};
+// 建倉當下 Score 凍結副本
+export type EntrySnapshot = {
+  score_date: string;
+  total_score: number | null;
+  passed_filter: boolean | null;
+  passed_styles: string[] | null;
+  reasons: string[] | null;
+  buy_low: number | null;
+  buy_high: number | null;
+  stop_loss: number | null;
+  close: number | null;
+};
+// 進場論點追蹤（intact/weakening/broken/unknown）
+export type ThesisStatus = {
+  status: "intact" | "weakening" | "broken" | "unknown";
+  entry_score: number | null;
+  latest_score: number | null;
+  latest_passed_filter: boolean | null;
+  messages: string[];
+};
 export type HoldingCreate = components["schemas"]["HoldingCreate"];
 export type TransactionCreate = components["schemas"]["TransactionCreate"];
 export type HoldingPatch = components["schemas"]["HoldingPatch"];
 export type SectorList = components["schemas"]["SectorList"];
-export type SectorItem = components["schemas"]["SectorItem"];
+// openapi 型別未重跑，手補資金移動欄（後端 schemas.SectorItem 已回）
+export type SectorItem = components["schemas"]["SectorItem"] & {
+  turnover_chg5?: number | null; // 成交佔比 vs 前5日均（個百分點，+=資金移入）
+};
 export type SectorDetail = components["schemas"]["SectorDetail"];
-export type SectorConstituent = components["schemas"]["SectorConstituent"];
+// openapi 型別未重跑，手補細分聚合欄（後端 schemas.SectorConstituent 已回）
+export type SectorConstituent = components["schemas"]["SectorConstituent"] & {
+  mom5_pct?: number | null;   // 近 5 交易日漲跌 %
+  mom20_pct?: number | null;  // 近 20 交易日漲跌 %
+  above_ma20?: boolean | null; // 站上月線
+  inst_net5?: number | null;  // 近 5 日三大法人淨買超（張）
+  inst_net20?: number | null; // 近 20 日三大法人淨買超（張）
+  rev_yoy?: number | null;    // 最新月營收年增 %
+};
+// SectorDetail 手補大盤同期動能（細分相對強弱基準）
+export type SectorDetailExtra = components["schemas"]["SectorDetail"] & {
+  market_mom5?: number | null;
+  market_mom20?: number | null;
+};
 export type OverviewResponse = components["schemas"]["OverviewResponse"];
 export type IntelResponse = components["schemas"]["IntelResponse"];
 export type IntelEvent = components["schemas"]["IntelEvent"];
@@ -100,6 +168,8 @@ async function getJson<T>(path: string): Promise<T> {
 
 // 波段風格：pop=會噴(硬篩+前N%)；explosive=爆發(極高波動+上揚月線，純門檻篩)
 export type WaveStyle = "pop" | "explosive" | "strong" | "story" | "crash";
+// 策略室限定：注意/處置事件策略（推薦頁風格篩選不含）
+export type LabStyle = WaveStyle | "punish" | "notice";
 
 export type TagComboStats = {
   generated_at?: string;
@@ -319,6 +389,170 @@ export function useChipHistory(stockId: string | undefined, days = 120) {
     queryKey: ["chip-history", stockId, days],
     queryFn: () => getJson<ChipHistoryResponse>(`/stocks/${stockId}/chip-history?days=${days}`),
     enabled: !!stockId,
+  });
+}
+
+export function useFundamentalHistory(stockId: string | undefined) {
+  return useQuery({
+    queryKey: ["fundamental-history", stockId],
+    queryFn: () => getJson<FundamentalHistoryResponse>(`/stocks/${stockId}/fundamental-history`),
+    enabled: !!stockId,
+  });
+}
+
+export function useDividends(stockId: string | undefined) {
+  return useQuery({
+    queryKey: ["dividends", stockId],
+    queryFn: () => getJson<DividendsResponse>(`/stocks/${stockId}/dividends`),
+    enabled: !!stockId,
+    staleTime: 24 * 60 * 60 * 1000, // 股利資料一天內不重打（後端已 30 天快取）
+  });
+}
+
+export function usePeRiver(stockId: string | undefined) {
+  return useQuery({
+    queryKey: ["pe-river", stockId],
+    queryFn: () => getJson<PeRiverResponse>(`/stocks/${stockId}/pe-river`),
+    enabled: !!stockId,
+  });
+}
+
+// 本淨比河流圖：後端與 PE 河流共用回應結構（pe_levels/current_pe 欄位承載 PB 值）
+export function usePbRiver(stockId: string | undefined) {
+  return useQuery({
+    queryKey: ["pb-river", stockId],
+    queryFn: () => getJson<PeRiverResponse>(`/stocks/${stockId}/pb-river`),
+    enabled: !!stockId,
+  });
+}
+
+// openapi 型別未重跑，手寫（對應後端 schemas.TechSummaryResponse）
+export type TechSummaryResponse = {
+  stock_id: string;
+  date?: string | null;
+  kd_k?: number | null;
+  kd_d?: number | null;
+  macd?: number | null;
+  macd_signal?: number | null;
+  macd_hist?: number | null;
+  bias_20?: number | null;
+  bias_60?: number | null;
+  beta?: number | null;
+  high_52w?: number | null;
+  low_52w?: number | null;
+  dist_high_pct?: number | null;
+  dist_low_pct?: number | null;
+  volatility_pct?: number | null;
+};
+
+// openapi 型別未重跑，手寫（對應後端 schemas.FinancialStatementsResponse）
+export type FinStatementQuarter = {
+  label: string;
+  cash?: number | null;
+  current_assets?: number | null;
+  total_assets?: number | null;
+  current_liab?: number | null;
+  total_liab?: number | null;
+  equity?: number | null;
+  inventories?: number | null;
+  receivables?: number | null;
+  debt_ratio?: number | null;
+  current_ratio?: number | null;
+  bps?: number | null;
+  op_cf?: number | null;
+  inv_cf?: number | null;
+  fin_cf?: number | null;
+  capex?: number | null;
+  fcf?: number | null;
+};
+export type FinancialStatementsResponse = {
+  stock_id: string;
+  quarters: FinStatementQuarter[];
+};
+
+export function useFinancialStatements(stockId: string | undefined) {
+  return useQuery({
+    queryKey: ["financial-statements", stockId],
+    queryFn: () => getJson<FinancialStatementsResponse>(`/stocks/${stockId}/financial-statements`),
+    enabled: !!stockId,
+    staleTime: 24 * 60 * 60 * 1000, // 財報一天內不重打（後端已 30 天快取）
+  });
+}
+
+// openapi 型別未重跑，手寫（對應後端 schemas.FearGreedResponse）
+export type FearGreedComponent = {
+  key: string;
+  label: string;
+  desc?: string | null;
+  score: number;
+  value?: number | null;
+};
+export type UsFearGreed = {
+  score: number;
+  rating: string;
+  label: string;
+  prev_close?: number | null;
+  prev_week?: number | null;
+  prev_month?: number | null;
+  prev_year?: number | null;
+  history: { date: string; score: number }[];
+};
+export type FearGreedResponse = {
+  date?: string | null;
+  score?: number | null;
+  label?: string | null;
+  components: FearGreedComponent[];
+  history: { date: string; score: number }[];
+  us?: UsFearGreed | null;
+};
+
+export function useFearGreed() {
+  return useQuery({
+    queryKey: ["fear-greed"],
+    queryFn: () => getJson<FearGreedResponse>("/market/fear-greed"),
+    staleTime: 60 * 60 * 1000, // 日更資料，一小時內不重打
+  });
+}
+
+// openapi 型別未重跑，手寫（對應後端 schemas.AttentionResponse）
+export type AttentionEntry = {
+  date: string;
+  kind: string; // notice / punish
+  times?: number | null;
+  begin_date?: string | null;
+  end_date?: string | null;
+  reason?: string | null;
+};
+export type AttentionResponse = {
+  stock_id: string;
+  status?: string | null; // punish / notice / null
+  punish_end?: string | null;
+  notice_count_30d: number;
+  entries: AttentionEntry[];
+};
+
+export function useAttention(stockId: string | undefined) {
+  return useQuery({
+    queryKey: ["attention", stockId],
+    queryFn: () => getJson<AttentionResponse>(`/stocks/${stockId}/attention`),
+    enabled: !!stockId,
+  });
+}
+
+export function useTechSummary(stockId: string | undefined) {
+  return useQuery({
+    queryKey: ["tech-summary", stockId],
+    queryFn: () => getJson<TechSummaryResponse>(`/stocks/${stockId}/tech-summary`),
+    enabled: !!stockId,
+  });
+}
+
+export function useIndustryChain(stockId: string | undefined) {
+  return useQuery({
+    queryKey: ["industry-chain", stockId],
+    queryFn: () => getJson<IndustryChainResponse>(`/stocks/${stockId}/industry-chain`),
+    enabled: !!stockId,
+    staleTime: 24 * 60 * 60 * 1000, // 產業鏈為慢變資料
   });
 }
 
@@ -649,5 +883,183 @@ export function useCornerReview(enabled: boolean) {
     queryFn: () => getJson<CornerReviewResponse>(`/corners/review`),
     staleTime: 5 * 60_000,
     enabled,
+  });
+}
+
+// ─────────── 策略室（模擬倉 / 勝率分析 / 敏感度）───────────
+
+export type PaperPosition = {
+  stock_id: string; name: string;
+  signal_date: string; entry_date: string; entry_price: number;
+  stop_price: number; target_price: number;
+  status: "open" | "closed";
+  exit_date: string | null; exit_price: number | null;
+  exit_reason: "stop" | "target" | "timeout" | null;
+  return_pct: number | null; days_held: number;
+  score: number | null; prob_hit: number | null;
+};
+export type PaperSimStats = {
+  trades: number; closed: number; open: number; wins: number;
+  win_rate: number | null; avg_return_pct: number | null;
+  total_return_pct: number | null; open_unrealized_pct: number | null;
+  avg_days_held: number | null; max_drawdown_pct: number | null;
+};
+export type PaperSimResponse = {
+  since: string | null; today_date: string | null;
+  style: LabStyle; prob_min: number; top_n: number;
+  hold_days: number; stop_pct: number; target_pct: number;
+  stats: PaperSimStats;
+  equity: { date: string; cum_return_pct: number }[];
+  positions: PaperPosition[];
+};
+
+export type PaperSimParams = {
+  since?: string; style?: LabStyle; probMin?: number;
+  topN?: number; holdDays?: number; stopPct?: number;
+};
+
+export function usePaperSimulate(p: PaperSimParams) {
+  const params = new URLSearchParams();
+  if (p.since) params.set("since", p.since);
+  if (p.style) params.set("style", p.style);
+  if (p.probMin != null) params.set("prob_min", String(p.probMin));
+  if (p.topN != null) params.set("top_n", String(p.topN));
+  if (p.holdDays != null) params.set("hold_days", String(p.holdDays));
+  if (p.stopPct != null) params.set("stop_pct", String(p.stopPct));
+  return useQuery({
+    queryKey: ["paper-sim", p],
+    queryFn: () => getJson<PaperSimResponse>(`/paper/simulate?${params}`),
+    staleTime: 5 * 60_000,
+  });
+}
+
+export type LookbackGroupStat = {
+  key: string; n: number; hit_count: number; hit_rate: number | null;
+  avg_return_pct: number | null; avg_mfe_pct: number | null; avg_mae_pct: number | null;
+};
+export type LookbackStatsResponse = {
+  since: string | null; today_date: string | null; min_age_days: number;
+  by_style: LookbackGroupStat[]; by_score_bin: LookbackGroupStat[];
+};
+
+export function useLookbackStats(since?: string) {
+  const q = since ? `?since=${since}` : "";
+  return useQuery({
+    queryKey: ["lookback-stats", since ?? "all"],
+    queryFn: () => getJson<LookbackStatsResponse>(`/recommendations/lookback/stats${q}`),
+    staleTime: 10 * 60_000,
+  });
+}
+
+// 標籤共存矩陣：matrix[i][j] = P(同時有 tags[j] | 已有 tags[i])，%
+// 精確組合鍵的標準順序（與後端 _COOC_TAGS 一致；組合鍵＝依此順序 join "+"）
+export const COMBO_TAG_ORDER = ["pop", "explosive", "strong", "story", "crash", "punish", "notice"] as const;
+export function comboKeyOf(tags: Iterable<string>): string {
+  const s = new Set(tags);
+  return COMBO_TAG_ORDER.filter((t) => s.has(t)).join("+");
+}
+// 策略室勾選的組合 → 進場推薦主清單篩選（localStorage 溝通）
+export const COMBO_FILTER_KEY = "comboFilters";
+export function readComboFilters(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(COMBO_FILTER_KEY) ?? "[]");
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
+export type TagComboStat = {
+  key: string;
+  n: number;
+  share_pct: number;
+  hit_rate?: number | null;
+  avg_ret_pct?: number | null;
+  avg_mfe_pct?: number | null;
+  avg_mae_pct?: number | null;
+};
+export type CooccurrenceResponse = {
+  since?: string | null;
+  today_date?: string | null;
+  tags: string[];
+  counts: Record<string, number>;
+  matrix: (number | null)[][];
+  combos: TagComboStat[];
+};
+
+export function useTagCooccurrence(since?: string) {
+  const q = since ? `?since=${since}` : "";
+  return useQuery({
+    queryKey: ["tag-cooccurrence", since ?? "all"],
+    queryFn: () => getJson<CooccurrenceResponse>(`/recommendations/lookback/cooccurrence${q}`),
+    staleTime: 10 * 60_000,
+  });
+}
+
+export type ComboSample = {
+  date: string;
+  stock_id: string;
+  name: string;
+  hit?: boolean | null;
+  ret_pct?: number | null;
+  mfe_pct?: number | null;
+  mae_pct?: number | null;
+};
+export type ComboSamplesResponse = {
+  combo: string;
+  since?: string | null;
+  samples: ComboSample[];
+};
+
+export function useComboSamples(combo: string | null, since?: string) {
+  const q = new URLSearchParams();
+  if (combo) q.set("combo", combo);
+  if (since) q.set("since", since);
+  return useQuery({
+    queryKey: ["combo-samples", combo, since ?? "all"],
+    queryFn: () => getJson<ComboSamplesResponse>(`/recommendations/lookback/cooccurrence/samples?${q}`),
+    enabled: !!combo,
+    staleTime: 10 * 60_000,
+  });
+}
+
+export type SignalDecayPoint = { ym: string; n: number; hit?: number | null; lift?: number | null };
+export type SignalDecaySeries = {
+  key: string;
+  points: SignalDecayPoint[];
+  hit_all?: number | null;
+  lift_all?: number | null;
+  hit_recent?: number | null;
+  lift_recent?: number | null;
+};
+export type SignalDecayResponse = {
+  today_date?: string | null;
+  base: SignalDecayPoint[];
+  signals: SignalDecaySeries[];
+};
+
+export function useSignalDecay() {
+  return useQuery({
+    queryKey: ["signal-decay"],
+    queryFn: () => getJson<SignalDecayResponse>("/recommendations/signal-decay"),
+    staleTime: 60 * 60_000,
+  });
+}
+
+export type SensitivityPoint = {
+  prob_min: number; n: number; avg_daily_n: number | null;
+  hit_count: number; hit_rate: number | null; avg_return_pct: number | null;
+};
+export type SensitivityResponse = {
+  since: string | null; today_date: string | null; min_age_days: number;
+  points: SensitivityPoint[];
+};
+
+export function useLookbackSensitivity(since?: string) {
+  const q = since ? `?since=${since}` : "";
+  return useQuery({
+    queryKey: ["lookback-sensitivity", since ?? "all"],
+    queryFn: () => getJson<SensitivityResponse>(`/recommendations/lookback/sensitivity${q}`),
+    staleTime: 10 * 60_000,
   });
 }

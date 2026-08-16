@@ -19,7 +19,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, __file__.rsplit("/scripts/", 1)[0])
+sys.path.insert(0, __file__.replace("\\", "/").rsplit("/scripts/", 1)[0])
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 from pop_condition_judge import _CACHE  # noqa: E402
 from app.engines.corner_defs import ATOM_SPECS, eval_atom  # noqa: E402
@@ -29,7 +29,7 @@ FLOOR_MIN, MINE_N_MIN, MINE_YEARS_MIN = 70.0, 200, 3
 JACCARD_MAX = 0.5
 KEEP = 30
 ANCHORS = ("atr>6", "atr>8", "atr>10")
-_OUT = __file__.rsplit("/scripts/", 1)[0] + "/data/corners.json"
+_OUT = __file__.replace("\\", "/").rsplit("/scripts/", 1)[0] + "/data/corners.json"
 
 
 def main() -> None:

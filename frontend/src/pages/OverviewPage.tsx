@@ -3,7 +3,8 @@ import { DndContext, type DragEndEvent, PointerSensor, useSensor, useSensors } f
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Link } from "react-router-dom";
-import { useOverview, useSettings, useUpdateSettings, type OverviewResponse } from "../api/client";
+import { useFearGreed, useOverview, useSettings, useUpdateSettings, type OverviewResponse } from "../api/client";
+import { FearGreedCard } from "../components/FearGreedCard";
 import { Markdown } from "../components/Markdown";
 import { changeColor, fmtNum, fmtPct, scoreColor, trendColor, TRACK_LABELS } from "../lib/format";
 
@@ -112,6 +113,7 @@ function SortableWidget({ id, edit, hidden, onToggle, data }: {
 
 export default function OverviewPage() {
   const { data } = useOverview();
+  const { data: fearGreed } = useFearGreed();
   const { data: settings } = useSettings();
   const update = useUpdateSettings();
   const [edit, setEdit] = useState(false);
@@ -171,6 +173,8 @@ export default function OverviewPage() {
           </div>
         </div>
       )}
+
+      {fearGreed && fearGreed.score != null && <FearGreedCard data={fearGreed} />}
 
       {data.market_note && !edit && (
         <div className="mb-5 rounded-xl border border-edge bg-panel p-4">

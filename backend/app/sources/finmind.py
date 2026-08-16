@@ -249,6 +249,96 @@ class FinMindSource(
         out["dividend_yield"] = pd.to_numeric(df.get("dividend_yield"), errors="coerce")
         return out[schemas.VALUATION_COLS]
 
+    def fetch_dividends(self, stock_id: str, start: date) -> pd.DataFrame:
+        """股利政策（TaiwanStockDividend，逐檔）。免 token 可用（低速層）。
+
+        現金/股票股利 = 盈餘分配 + 法定盈餘公積 兩欄加總（資本公積現金歸在
+        CashStatutorySurplus）。欄位對齊 DIVIDEND_COLS。
+        """
+        df = self._data("TaiwanStockDividend", start, data_id=stock_id)
+        if df.empty:
+            return pd.DataFrame(columns=schemas.DIVIDEND_COLS)
+
+        def _d(col: str) -> pd.Series:
+            return pd.to_datetime(df.get(col), errors="coerce").dt.date
+
+        out = pd.DataFrame()
+        out["stock_id"] = df["stock_id"].astype(str)
+        out["period"] = df["year"].astype(str)
+        out["cash"] = (
+            pd.to_numeric(df.get("CashEarningsDistribution"), errors="coerce").fillna(0)
+            + pd.to_numeric(df.get("CashStatutorySurplus"), errors="coerce").fillna(0)
+        )
+        out["stock"] = (
+            pd.to_numeric(df.get("StockEarningsDistribution"), errors="coerce").fillna(0)
+            + pd.to_numeric(df.get("StockStatutorySurplus"), errors="coerce").fillna(0)
+        )
+        out["cash_ex_date"] = _d("CashExDividendTradingDate")
+        out["pay_date"] = _d("CashDividendPaymentDate")
+        # 同 period 多列（董事會→股東會進度）取最後公告
+        out = out.drop_duplicates(subset=["stock_id", "period"], keep="last")
+        return out[schemas.DIVIDEND_COLS]
+
+    # ── 財務報表（資產負債表 + 現金流量表；逐檔懶抓，個股頁快取用）──
+
+    # FinMind type 英文鍵（穩定）→ 本地欄名。_per 結尾為占比欄，不取。
+    _BS_TYPES = {
+        "CashAndCashEquivalents": "cash",
+        "CurrentAssets": "current_assets",
+        "TotalAssets": "total_assets",
+        "CurrentLiabilities": "current_liab",
+        "Liabilities": "total_liab",
+        "Equity": "equity",
+        "Inventories": "inventories",
+        "AccountsReceivableNet": "receivables",
+    }
+    _CF_TYPES = {
+        "CashFlowsFromOperatingActivities": "op_cf",
+        "CashProvidedByInvestingActivities": "inv_cf",
+        "CashFlowsProvidedFromFinancingActivities": "fin_cf",
+        "PropertyAndPlantAndEquipment": "capex",
+    }
+    _FS_COLS = ["stock_id", "year", "quarter",
+                *_BS_TYPES.values(), *_CF_TYPES.values()]
+
+    def fetch_financial_statements(self, stock_id: str, start: date) -> pd.DataFrame:
+        """資產負債表（期末餘額）＋現金流量表（單季化）→ 一列一季，金額單位：元。
+
+        兩 dataset 均為長格式（一列一科目）；現金流量為年度累計制，
+        逐年由 Q1 差分還原單季（Q1 即累計首季，保留原值）。
+        """
+        bs = self._data("TaiwanStockBalanceSheet", start, data_id=stock_id)
+        cf = self._data("TaiwanStockCashFlowsStatement", start, data_id=stock_id)
+
+        def _pivot(df: pd.DataFrame, mapping: dict[str, str]) -> pd.DataFrame:
+            if df.empty or "type" not in df.columns:
+                return pd.DataFrame()
+            sub = df[df["type"].isin(mapping)]
+            if sub.empty:
+                return pd.DataFrame()
+            wide = sub.pivot_table(index="date", columns="type", values="value", aggfunc="first")
+            return wide.rename(columns=mapping)
+
+        out = _pivot(bs, self._BS_TYPES).join(_pivot(cf, self._CF_TYPES), how="outer").reset_index()
+        if out.empty:
+            return pd.DataFrame(columns=self._FS_COLS)
+
+        dt = pd.to_datetime(out["date"], errors="coerce")
+        out["year"] = dt.dt.year
+        out["quarter"] = dt.dt.month.map({3: 1, 6: 2, 9: 3, 12: 4})
+        out = out.dropna(subset=["year", "quarter"]).astype({"year": int, "quarter": int})
+        out = out.sort_values(["year", "quarter"])
+        # 現金流量累計 → 單季：同年內與前一季差分；Q1（或該年首見季）保留累計原值
+        for col in self._CF_TYPES.values():
+            if col in out.columns:
+                single = out.groupby("year")[col].diff()
+                out[col] = single.where(single.notna(), out[col])
+        out["stock_id"] = stock_id
+        for col in self._FS_COLS:  # 缺科目（如金融業無存貨）補 None
+            if col not in out.columns:
+                out[col] = None
+        return out[self._FS_COLS]
+
     # ── NewsProvider（TaiwanStockNews：個股新聞）──
     #
     # 注意：TaiwanStockNews「一次只給一天」（帶 end_date 會 400），且整市場（不帶 data_id）

@@ -42,6 +42,17 @@ def _roc_date(s: str) -> date | None:
     except ValueError:
         return None
 
+def _ad_date(s: str) -> date | None:
+    """西元日期 '19501229' → date(1950,12,29)。t187ap03 的成立/上市日期為西元制。"""
+    s = str(s).strip().replace("/", "")
+    if len(s) != 8 or not s.isdigit():
+        return None
+    try:
+        return date(int(s[:4]), int(s[4:6]), int(s[6:]))
+    except ValueError:
+        return None
+
+
 _UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 
 
@@ -519,6 +530,32 @@ class TwseSource(BaseSource, PriceProvider, ChipProvider, FundamentalProvider, N
         if not rows:
             return pd.DataFrame(columns=schemas.ETF_PROFILE_COLS)
         return pd.DataFrame(rows)[schemas.ETF_PROFILE_COLS]
+
+    # ── 公司基本資料（t187ap03_L，openapi 全快照）──
+
+    def fetch_company_profiles(
+        self, start: date | None = None, end: date | None = None,
+        stock_ids: list[str] | None = None,
+    ) -> pd.DataFrame:
+        """上市公司基本資料（董事長/總經理/實收資本額/發行股數/成立日期/網址）。全快照。"""
+        rows: list[dict] = []
+        for r in self._openapi_list("/opendata/t187ap03_L"):
+            sid = str(r.get("公司代號", "")).strip()
+            if not sid:
+                continue
+            rows.append({
+                "stock_id": sid,
+                "chairman": (r.get("董事長") or "").strip() or None,
+                "president": (r.get("總經理") or "").strip() or None,
+                "capital": _num(r.get("實收資本額")),
+                "issued_shares": _num(r.get("已發行普通股數或TDR原股發行股數")),
+                "established_date": _ad_date(r.get("成立日期") or ""),
+                "listed_date": _ad_date(r.get("上市日期") or ""),
+                "website": (r.get("網址") or "").strip() or None,
+            })
+        if not rows:
+            return pd.DataFrame(columns=schemas.COMPANY_PROFILE_COLS)
+        return pd.DataFrame(rows)[schemas.COMPANY_PROFILE_COLS]
 
     # ── NewsProvider（重大訊息 + 處置股，皆 TWSE OpenAPI 免費）──
 

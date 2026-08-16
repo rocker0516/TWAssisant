@@ -15,14 +15,14 @@ from datetime import date
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, __file__.rsplit("/scripts/", 1)[0])
+sys.path.insert(0, __file__.replace("\\", "/").rsplit("/scripts/", 1)[0])
 from pop_condition_judge import _CACHE, _build_cache  # noqa: E402
 from app.engines.rules.wave import (  # noqa: E402
     CRASH_ATR_MIN, CRASH_MKT_BIAS60, EXPLOSIVE_ATR_MIN,
     STORY_ATR_MIN, STORY_PB_MIN, STORY_PE_MIN, STRONG_OVER_MA20, STRONG_POS_MIN,
 )
 
-_OUT = __file__.rsplit("/scripts/", 1)[0] + "/data/tag_combo_stats.json"
+_OUT = __file__.replace("\\", "/").rsplit("/scripts/", 1)[0] + "/data/tag_combo_stats.json"
 _MIN_VOL = 500 * 1000
 
 

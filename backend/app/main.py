@@ -25,6 +25,7 @@ from .api.routes_corners import router as corners_router
 from .api.routes_flow import router as flow_router
 from .api.routes_holdings import router as holdings_router
 from .api.routes_intel import router as intel_router
+from .api.routes_lab import router as lab_router
 from .api.routes_overview import router as overview_router
 from .api.routes_sectors import router as sectors_router
 from .api.routes_settings import router as settings_router
@@ -55,6 +56,7 @@ app.include_router(watchlists_router)
 app.include_router(settings_router)
 app.include_router(assistant_router)
 app.include_router(corners_router)
+app.include_router(lab_router)
 
 
 @app.on_event("startup")

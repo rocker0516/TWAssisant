@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 
 from ..engines.corners import CornerEngine
 from ..engines.exit_engine import ExitEngine
@@ -84,6 +84,12 @@ class FetchStep(PipelineStep):
         # 1b) ETF 身分資料（追蹤指數/類型/含國外/發行單位數，TWSE 全快照）
         results["etf_profile"] = self._fetch_etf_profiles(session, known_ids)
 
+        # 1c) 公司基本資料（董事長/股本/發行股數，上市+上櫃全快照）
+        results["company_profile"] = self._fetch_company_profiles(session, known_ids)
+
+        # 1d) 產業價值鏈成員（ic.tpex.org.tw，慢變 → 7 天內抓過即跳過）
+        results["industry_chain"] = self._fetch_industry_chains(session, known_ids)
+
         # 2) 增量抓
         for key, capability, repo_cls, method, lookback in self._INCREMENTAL:
             results[key] = self._fetch_dataset(
@@ -154,6 +160,47 @@ class FetchStep(PipelineStep):
             return {"status": "empty"}
         df = df[df["stock_id"].astype(str).isin(known_ids)]
         n = repo.EtfProfileRepository().upsert_many(session, _records(df))
+        session.flush()
+        return {"status": "ok", "rows": n}
+
+    # ── 公司基本資料（上市 t187ap03_L + 上櫃 mopsfin_t187ap03_O，全快照）──
+
+    def _fetch_company_profiles(self, session, known_ids: set[str]) -> dict:
+        frames = []
+        errors = []
+        for source_name in ("twse", "tpex"):
+            try:
+                frames.append(registry.get_source(source_name).fetch_company_profiles())
+            except SourceError as exc:
+                errors.append(f"{source_name}:{exc.reason}")
+        df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+        if df.empty:
+            return {"status": "error", "reason": ";".join(errors)} if errors else {"status": "empty"}
+        df = df[df["stock_id"].astype(str).isin(known_ids)]
+        n = repo.CompanyProfileRepository().upsert_many(session, _records(df))
+        session.flush()
+        return {"status": "ok", "rows": n, "errors": errors or None}
+
+    # ── 產業價值鏈（40 鏈頁逐頁爬，慢變資料 7 天更新一次）──
+
+    def _fetch_industry_chains(self, session, known_ids: set[str]) -> dict:
+        from datetime import datetime
+
+        last = session.execute(
+            select(func.max(models.IndustryChainMember.updated_at))
+        ).scalar()
+        if last is not None and (datetime.now() - last).days < 7:
+            return {"status": "ok", "rows": 0, "note": "up_to_date"}
+        try:
+            df = registry.get_source("tpex_ic").fetch_industry_chains()
+        except SourceError as exc:
+            return {"status": "error", "reason": exc.reason}
+        if df.empty:
+            return {"status": "empty"}
+        df = df[df["stock_id"].astype(str).isin(known_ids)]
+        # 全快照 → 先清後寫，成員異動不殘留
+        session.execute(delete(models.IndustryChainMember))
+        n = repo.IndustryChainRepository().upsert_many(session, _records(df))
         session.flush()
         return {"status": "ok", "rows": n}
 
@@ -271,6 +318,53 @@ class TargetPriceStep(PipelineStep):
                 best[key] = r
         n = repo.TargetPriceRepository().upsert_many(session, list(best.values()))
         return {"ok": True, "rows": n}
+
+
+class AttentionStep(PipelineStep):
+    """注意/處置股名單（TWSE+TPEX 官方公告）。抓近 7 日窗增量 upsert。非必要。"""
+
+    name = "attention"
+    required = False
+
+    def run(self, ctx: PipelineContext) -> dict:
+        from ..sources import attention
+
+        session = ctx.session
+        try:
+            rows = attention.fetch_range(ctx.trading_date - timedelta(days=7), ctx.trading_date)
+        except Exception as exc:  # 官方端點偶發異常，明日再補（7 日窗自帶重疊）
+            return {"ok": False, "reason": str(exc)[:120]}
+        valid_ids = set(session.execute(select(models.Stock.id)).scalars().all())
+        rows = [r for r in rows if r["stock_id"] in valid_ids]
+        n = repo.AttentionRepository().upsert_many(session, rows)
+        return {"ok": True, "rows": n}
+
+
+class MLConsensusStep(PipelineStep):
+    """ML 共識確認器日更推論（scripts/build_ml_consensus.py infer）。
+
+    子行程執行（特徵重建吃記憶體，不進 uvicorn 行程）；模型檔不存在或失敗
+    只記 reason——推薦卡的共識徽章遇日期不符自動隱藏，無害降級。非必要。
+    """
+
+    name = "ml_consensus"
+    required = False
+
+    def run(self, ctx: PipelineContext) -> dict:
+        import subprocess
+        import sys as _sys
+        from pathlib import Path
+
+        base = Path(__file__).resolve().parents[2]
+        if not (base / "data" / "ml_consensus_model.joblib").exists():
+            return {"ok": False, "reason": "model not trained (run scripts/build_ml_consensus.py train)"}
+        r = subprocess.run(
+            [_sys.executable, str(base / "scripts" / "build_ml_consensus.py"), "infer"],
+            cwd=base, capture_output=True, text=True, timeout=1200,
+        )
+        if r.returncode != 0:
+            return {"ok": False, "reason": (r.stderr or r.stdout)[-200:]}
+        return {"ok": True}
 
 
 class ScoringStep(PipelineStep):

@@ -23,6 +23,19 @@ const STYLE_TAGS: Record<string, { label: string; cls: string; title: string }> 
     title: "大盤崩跌日限定：逆勢強勢/故事股＋波幅>6%（回測命中~68%）" },
 };
 
+// 長線畢業條件配色：回測毒性單調 → 黃/紅為「重新審視」訊號（非停損）
+function fishAgeClass(n: number): string {
+  if (n > 18) return "bg-red-500/15 text-red-300";
+  if (n > 12) return "bg-amber-500/15 text-amber-300";
+  return "bg-emerald-500/10 text-emerald-300";
+}
+
+function mom12Class(pct: number): string {
+  if (pct > 200) return "bg-red-500/15 text-red-300";
+  if (pct > 80) return "bg-amber-500/15 text-amber-300";
+  return "bg-gray-500/10 text-gray-400";
+}
+
 function toneClass(tone: NarrativeTone): string {
   if (tone === "neg") return "text-amber-400";
   if (tone === "pos") return "text-gray-300";
@@ -70,6 +83,40 @@ export function RecommendationCard({
               {STYLE_TAGS[t].label}
             </span>
           ))}
+          {/* 共振徽章（2026-08 標籤×量能挖掘，train/holdout 雙段驗證）：
+              爆發×量增 命中 67%/52%（vs 爆發整體 56%/40%）；故事×量縮 56%/51%（vs 49%/36%） */}
+          {tags.includes("explosive") && item.vol_ratio != null && item.vol_ratio > 1.5 && (
+            <span title={`爆發標籤＋5日均量/20日均量=${item.vol_ratio}（>1.5）：歷史雙段命中 67%/52%，比爆發整體高 10pp+`}
+              className="rounded bg-red-500/20 px-1.5 py-0.5 text-xs font-medium text-red-200">
+              ⚡量增共振
+            </span>
+          )}
+          {tags.includes("story") && item.vol_ratio != null && item.vol_ratio < 0.8 && (
+            <span title={`故事股標籤＋量縮（量比=${item.vol_ratio}<0.8，籌碼惜售）：歷史雙段命中 56%/51%，比故事股整體穩定`}
+              className="rounded bg-violet-500/20 px-1.5 py-0.5 text-xs font-medium text-violet-200">
+              🤫量縮惜售
+            </span>
+          )}
+          {/* 注意/處置動能徽章（2026-08 判官驗證，train/holdout 雙段 + ATR桶控波動）：
+              處置後10日 命中61%/71%、控波動+16~19pp；注意×上升結構 +5~7pp。回檔亦深（MAE -19%），非無風險 */}
+          {item.ml_consensus === true && (
+            <span title="ML 共識：46 特徵 GBM 模型也將其排入硬篩內前 20%——四因子×ML 交集實證 holdout 命中 ~34%（單獨 ~30-31%）"
+              className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-xs font-medium text-emerald-300">
+              🤝共識
+            </span>
+          )}
+          {item.attention === "punish" && (
+            <span title="處置公告後10日內/執行中：實證命中 61%/71%（控波動後 +16pp）——分盤交易壓不住動能；但平均最深回檔 -19%，波動極大"
+              className="rounded bg-fuchsia-500/20 px-1.5 py-0.5 text-xs font-medium text-fuchsia-300">
+              🔥處置動能
+            </span>
+          )}
+          {item.attention === "notice" && (
+            <span title="近5日列注意股：熱錢聚集；上升結構下實證控波動後 +5~7pp，惟典型回檔亦放大"
+              className="rounded bg-amber-500/20 px-1.5 py-0.5 text-xs font-medium text-amber-300">
+              ⚡注意動能
+            </span>
+          )}
         </div>
         <div className="text-right">
           <div className="font-semibold tabular-nums">{fmtNum(item.close)}</div>
@@ -81,7 +128,7 @@ export function RecommendationCard({
       {item.prob_hit != null ? (
         <div
           className="flex items-baseline gap-3"
-          title={`同條件（${item.prob_cond ?? ""}）2021 起歷史：隔日最高價進場、30 交易日內摸 +10% 的比率，n=${(item.prob_n ?? 0).toLocaleString()}。歷史條件機率，非保證`}
+          title={`同條件（${item.prob_cond ?? ""}）2021 起歷史：隔日最高價進場、10 交易日內碰到 +10% 的比率，n=${(item.prob_n ?? 0).toLocaleString()}。歷史條件機率，非保證`}
         >
           <span
             className={`text-3xl font-bold tabular-nums leading-none ${
@@ -91,7 +138,7 @@ export function RecommendationCard({
             ~{Math.round(item.prob_hit)}%
           </span>
           <div className="min-w-0 text-xs leading-snug">
-            <div className="text-gray-300">30 日內摸 +10% 的歷史機率</div>
+            <div className="text-gray-300">10 日內碰到 +10% 的歷史機率</div>
             <div className="text-muted">
               {item.prob_cond}　·　n={(item.prob_n ?? 0).toLocaleString()}
               {item.prob_mae != null && (
@@ -102,9 +149,76 @@ export function RecommendationCard({
             </div>
           </div>
         </div>
+      ) : item.target_zone ? (
+        /* 目標主區塊（長線軌）：基準錨上漲空間；區間細節在下方「目標區間」欄 */
+        <div
+          className="flex items-baseline gap-3"
+          title={
+            item.target_zone.basis === "analyst"
+              ? "FactSet 法人共識目標價中位相對現價的空間。法人評等在循環頂點最樂觀（落後指標），搭配下方畢業條件一起看；非保證"
+              : "無法人報告，改以 PE 河流中位帶（估值回到歷史常態）推算。估值推算非保證"
+          }
+        >
+          <span
+            className={`text-3xl font-bold tabular-nums leading-none ${
+              (item.target_zone.upside_pct ?? 0) >= 30
+                ? "text-up"
+                : (item.target_zone.upside_pct ?? 0) >= 10
+                  ? "text-amber-300"
+                  : "text-gray-400"
+            }`}
+          >
+            {item.target_zone.upside_pct != null ? fmtPct(item.target_zone.upside_pct) : "—"}
+          </span>
+          <div className="min-w-0 text-xs leading-snug">
+            <div className="text-gray-300">
+              目標 {fmtNum(item.target_zone.base)}（
+              {item.target_zone.basis === "analyst" ? "法人目標價中位" : "估值推算"}）的空間
+            </div>
+            <div className="text-muted">
+              {item.target_zone.basis === "analyst" && item.target_zone.analyst_count != null
+                ? `${item.target_zone.analyst_count} 位分析師　·　`
+                : item.target_zone.basis === "pe_river"
+                  ? "PE 河流中位帶　·　"
+                  : ""}
+              參考期間 12 個月
+            </div>
+          </div>
+        </div>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-y-1">
           <ScoreDisplay total={item.total_score} subScores={item.sub_scores} />
+        </div>
+      )}
+
+      {/* 畢業條件（長線軌）：不設停損，這排是「該重新審視這條魚了嗎」 */}
+      {item.graduation && (
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="text-muted">畢業條件</span>
+          {item.graduation.hit_target && (
+            <span
+              className="rounded bg-rose-500/15 px-1.5 py-0.5 font-medium text-rose-300"
+              title="現價/期間高點已觸及基準目標——這條魚釣到了，重新評估是否續抱"
+            >
+              🎣 已達標
+            </span>
+          )}
+          {item.graduation.streak_months != null && (
+            <span
+              className={`rounded px-1.5 py-0.5 font-medium ${fishAgeClass(item.graduation.streak_months)}`}
+              title="連續營收年增為正的月數。回測：12 月見頂、19 月以上相對宇宙 −5.5pp（老魚是毒）"
+            >
+              🐟 魚齡 {item.graduation.streak_months} 月
+            </span>
+          )}
+          {item.graduation.mom12_pct != null && (
+            <span
+              className={`rounded px-1.5 py-0.5 font-medium ${mom12Class(item.graduation.mom12_pct)}`}
+              title="近 12 月漲幅。回測：漲幅 80~200% 相對宇宙 −8.2pp、200%+ −20.9pp（魚已被釣走）"
+            >
+              📈 已漲 {fmtPct(item.graduation.mom12_pct)}
+            </span>
+          )}
         </div>
       )}
 
@@ -194,13 +308,24 @@ export function RecommendationCard({
             {fmtNum(item.buy_low)} ~ {fmtNum(item.buy_high)}
           </div>
         </div>
-        <div>
-          <div className="text-xs text-muted">參考停損</div>
-          <div className="tabular-nums">
-            {fmtNum(item.stop_loss)}{" "}
-            <span className="text-down">({fmtPct(item.loss_pct)})</span>
+        {item.track === "long" ? (
+          <div title="保守=PE 河流中位帶（估值回常態）、樂觀=上緣帶（估值走到歷史高檔）。長線軌不設停損，以畢業條件檢視">
+            <div className="text-xs text-muted">目標區間（保守~樂觀）</div>
+            <div className="tabular-nums">
+              {item.target_zone?.low != null && item.target_zone?.high != null
+                ? `${fmtNum(item.target_zone.low)} ~ ${fmtNum(item.target_zone.high)}`
+                : "—"}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div>
+            <div className="text-xs text-muted">參考停損</div>
+            <div className="tabular-nums">
+              {fmtNum(item.stop_loss)}{" "}
+              <span className="text-down">({fmtPct(item.loss_pct)})</span>
+            </div>
+          </div>
+        )}
       </div>
 
       <ReasonChips reasons={item.reasons} />

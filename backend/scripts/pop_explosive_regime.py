@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 from sqlalchemy import func, select
 
-sys.path.insert(0, __file__.rsplit("/scripts/", 1)[0])
+sys.path.insert(0, __file__.replace("\\", "/").rsplit("/scripts/", 1)[0])
 
 from app.engines.rules.wave import EXPLOSIVE_ATR_MIN  # noqa: E402
 from app.storage import models  # noqa: E402

@@ -2,7 +2,7 @@
 
 格子 = 波動帶(絕對 ATR%) × 會噴分數帶(全市場百分位) × 大盤狀態(乖離季線)。
 量尺依挖掘定論：ATR/大盤=絕對（機制軸）、分數本身已是相對排名。
-對 forward_labels 全期（2021-01~最新）統計每格「隔日高錨 30 交易日內摸 +10%」
+對 forward_labels 全期（2021-01~最新）統計每格「隔日高錨 10 交易日內碰到 +10%」
 命中率；serve 時 n<150 的格子逐層回退（去大盤 → 去波動 → 全域）。
 描述性統計非新回測；歷史條件機率≠保證。
 用法：.venv/bin/python scripts/build_prob_table.py
@@ -15,11 +15,11 @@ import sys
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, __file__.rsplit("/scripts/", 1)[0])
+sys.path.insert(0, __file__.replace("\\", "/").rsplit("/scripts/", 1)[0])
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 from pop_condition_judge import _CACHE, _build_cache  # noqa: E402
 
-_OUT = __file__.rsplit("/scripts/", 1)[0] + "/data/prob_table.json"
+_OUT = __file__.replace("\\", "/").rsplit("/scripts/", 1)[0] + "/data/prob_table.json"
 _MIN_VOL = 500 * 1000
 
 # 帶界定義（serve 端 routes.py 用同一份，存進 json）
@@ -49,6 +49,9 @@ def main() -> None:
     m["s_bin"] = pd.cut(m["score"], SCORE_BINS, labels=SCORE_LABELS, right=False)
     m["a_bin"] = pd.cut(m["atr_pct"] * 100, ATR_BINS, labels=ATR_LABELS, right=False)
     m["m_bin"] = pd.cut(m["mkt_bias60"], MKT_BINS, labels=MKT_LABELS, right=False)
+    # 2026-08 定版：推薦目標改為「10 日內碰到 +10%」（資金周轉導向；30日窗見 hit 欄）
+    m["hit"] = m["hit10"]
+    m["mae30"] = m["mae10"]  # 卡片顯示的同條件回撤也對齊 10 日窗
     m = m.dropna(subset=["s_bin", "a_bin", "m_bin", "hit"])
 
     def cells(keys: list[str]) -> dict:

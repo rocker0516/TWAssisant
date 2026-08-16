@@ -233,6 +233,89 @@ class FinancialQuarter(Base):
     roe: Mapped[float | None] = mapped_column(Float)
 
 
+class AttentionListing(Base):
+    """注意股（notice）／處置股（punish）名單（TWSE + TPEX 官方公告）。
+
+    使用者實證觀點：被列入者常帶上漲動能（熱錢聚集的果），故此表同時供
+    「動能標籤驗證」與個股頁狀態徽章；PK = (stock_id, date, kind)。
+    """
+
+    __tablename__ = "attention_listings"
+
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    date: Mapped[date_] = mapped_column(Date, primary_key=True)      # 公告日
+    kind: Mapped[str] = mapped_column(String(8), primary_key=True)   # notice / punish
+    times: Mapped[int | None] = mapped_column(Integer)               # 累計次數
+    begin_date: Mapped[date_ | None] = mapped_column(Date)           # 處置起（notice 為 None）
+    end_date: Mapped[date_ | None] = mapped_column(Date)             # 處置迄
+    reason: Mapped[str | None] = mapped_column(String(200))          # 條款/原因摘要
+
+
+class IndexConstituentEvent(Base):
+    """TIP 指數定審成分股納入/刪除事件（sources/tip_index.py 解析技術通知 PDF）。
+
+    僅涵蓋台灣指數公司自編指數（00919/00929/00932 等追蹤標的）；
+    0050/0056（富時合編）與 00878（MSCI）不在此源。
+    """
+
+    __tablename__ = "index_constituent_events"
+
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    index_name: Mapped[str] = mapped_column(String(80), primary_key=True)
+    announce_date: Mapped[date_] = mapped_column(Date, primary_key=True)
+    action: Mapped[str] = mapped_column(String(8), primary_key=True)  # add / remove
+    effective_date: Mapped[date_ | None] = mapped_column(Date)
+    title: Mapped[str | None] = mapped_column(String(120))
+
+
+class FinancialStatementQuarter(Base):
+    """資產負債表（期末時點）＋現金流量表（單季化）關鍵科目。
+
+    來源 FinMind TaiwanStockBalanceSheet / TaiwanStockCashFlowsStatement（逐檔），
+    採「個股頁首讀懶抓＋30 天過期重抓」快取，不做全市場回補。金額單位：元。
+    """
+
+    __tablename__ = "financial_statements"
+
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    year: Mapped[int] = mapped_column(Integer, primary_key=True)
+    quarter: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # 資產負債表（期末餘額）
+    cash: Mapped[float | None] = mapped_column(Float)             # 現金及約當現金
+    current_assets: Mapped[float | None] = mapped_column(Float)   # 流動資產合計
+    total_assets: Mapped[float | None] = mapped_column(Float)     # 資產總額
+    current_liab: Mapped[float | None] = mapped_column(Float)     # 流動負債合計
+    total_liab: Mapped[float | None] = mapped_column(Float)       # 負債總額
+    equity: Mapped[float | None] = mapped_column(Float)           # 權益總額
+    inventories: Mapped[float | None] = mapped_column(Float)      # 存貨
+    receivables: Mapped[float | None] = mapped_column(Float)      # 應收帳款淨額
+    # 現金流量表（累計制已差分為單季）
+    op_cf: Mapped[float | None] = mapped_column(Float)    # 營業活動現金流
+    inv_cf: Mapped[float | None] = mapped_column(Float)   # 投資活動現金流
+    fin_cf: Mapped[float | None] = mapped_column(Float)   # 籌資活動現金流
+    capex: Mapped[float | None] = mapped_column(Float)    # 取得不動產廠房設備（資本支出）
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class EtfIndexEvent(Base):
+    """TIP 指數定期審核成分股異動（ETF 成分效應事件研究用）。
+
+    來源 taiwanindex.com.tw 技術通知 PDF（sources/tip_index.py）。
+    涵蓋 TIP 自編指數（00878/00919/00929/00932/00940 等追蹤指數）；0050/0056 屬富時合編不在內。
+    """
+
+    __tablename__ = "etf_index_events"
+
+    file_id: Mapped[int] = mapped_column(Integer, primary_key=True)   # 技術通知檔案 id
+    stock_id: Mapped[str] = mapped_column(String(10), primary_key=True)
+    action: Mapped[str] = mapped_column(String(6), primary_key=True)  # add / remove
+    index_name: Mapped[str | None] = mapped_column(String(80))
+    stock_name: Mapped[str | None] = mapped_column(String(30))
+    announce_date: Mapped[date_ | None] = mapped_column(Date, index=True)  # 檔案日期（公告日）
+    effective_date: Mapped[date_ | None] = mapped_column(Date, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class Valuation(Base):
     """估值（本益比 / 股價淨值比 / 殖利率）。PK = (stock_id, date)。"""
 
@@ -260,6 +343,62 @@ class EtfProfile(Base):
     has_foreign: Mapped[bool | None] = mapped_column(Boolean)   # 是否含國外成分股
     units: Mapped[float | None] = mapped_column(Float)          # 發行單位數
     etf_listed_date: Mapped[date_ | None] = mapped_column(Date)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class CompanyProfile(Base):
+    """公司基本資料（TWSE t187ap03_L / TPEx mopsfin_t187ap03_O 全快照）。PK = stock_id。
+
+    董監層資訊 + 股本/發行股數（× 收盤價 ≈ 市值）。ETF 無此資料。
+    """
+
+    __tablename__ = "company_profile"
+
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    chairman: Mapped[str | None] = mapped_column(String(50))       # 董事長
+    president: Mapped[str | None] = mapped_column(String(50))      # 總經理
+    capital: Mapped[float | None] = mapped_column(Float)           # 實收資本額（元）
+    issued_shares: Mapped[float | None] = mapped_column(Float)     # 已發行普通股數（股）
+    established_date: Mapped[date_ | None] = mapped_column(Date)   # 成立日期
+    listed_date: Mapped[date_ | None] = mapped_column(Date)        # 上市/上櫃日期（stocks.listed_date 為來源資料日不可靠）
+    website: Mapped[str | None] = mapped_column(String(200))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class IndustryChainMember(Base):
+    """產業價值鏈成員（ic.tpex.org.tw 官方平台，全快照）。
+
+    一公司可屬多鏈多節點（如鴻海）。node_name = 最細分類（子節點；無子節點時＝主節點），
+    作為個股「業務標籤」與類股內細分依據。
+    """
+
+    __tablename__ = "industry_chain_members"
+
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    chain_id: Mapped[str] = mapped_column(String(8), primary_key=True)   # 如 D000
+    node_id: Mapped[str] = mapped_column(String(8), primary_key=True)    # 如 D330
+    chain_name: Mapped[str] = mapped_column(String(30))                  # 半導體
+    stream: Mapped[str | None] = mapped_column(String(6))                # 上游/中游/下游
+    main_node: Mapped[str | None] = mapped_column(String(40))            # IC/晶圓製造
+    node_name: Mapped[str | None] = mapped_column(String(40), index=True)  # 晶圓製造
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class Dividend(Base):
+    """股利政策（FinMind TaiwanStockDividend，個股頁首讀懶抓快取）。
+
+    PK = (stock_id, period)。period = 股利所屬期間字串（如 '114年' / '114年第4季'）。
+    cash/stock 單位＝元/股（盈餘+公積加總）。
+    """
+
+    __tablename__ = "dividends"
+
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    period: Mapped[str] = mapped_column(String(20), primary_key=True)
+    cash: Mapped[float | None] = mapped_column(Float)              # 現金股利（元/股）
+    stock: Mapped[float | None] = mapped_column(Float)             # 股票股利（元/股）
+    cash_ex_date: Mapped[date_ | None] = mapped_column(Date)       # 除息交易日
+    pay_date: Mapped[date_ | None] = mapped_column(Date)           # 現金發放日
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
@@ -430,6 +569,10 @@ class Holding(Base):
     stop_loss_override: Mapped[float | None] = mapped_column(Float)
     trail_trigger_override: Mapped[float | None] = mapped_column(Float)
     trail_pullback_override: Mapped[float | None] = mapped_column(Float)
+
+    # 進場理由快照：建倉當下該軌最新 Score 的凍結副本（date/total_score/passed_filter/
+    # reasons/buy_low/buy_high/stop_loss/close）。之後與最新分數對照＝論點是否還成立。
+    entry_snapshot: Mapped[dict | None] = mapped_column(JSON)
 
     note: Mapped[str | None] = mapped_column(Text)
 

@@ -22,6 +22,7 @@ from .combined import CombinedMarketSource, CombinedNewsSource
 from .taifex import TaifexSource
 from .tdcc import TdccSource
 from .tpex import TpexSource
+from .tpex_ic import TpexIcSource
 from .twse import TwseSource
 
 # 來源名稱 → 類別
@@ -31,6 +32,7 @@ _SOURCE_CLASSES: dict[str, type[BaseSource]] = {
     "twse": TwseSource,
     "tpex": TpexSource,
     "tdcc": TdccSource,
+    "tpex_ic": TpexIcSource,
     "taifex": TaifexSource,
     "twmarket": CombinedMarketSource,
     "twnews": CombinedNewsSource,

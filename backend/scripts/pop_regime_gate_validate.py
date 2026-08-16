@@ -22,7 +22,7 @@ from datetime import date as _date
 import numpy as np
 from sqlalchemy import select
 
-sys.path.insert(0, __file__.rsplit("/scripts/", 1)[0])
+sys.path.insert(0, __file__.replace("\\", "/").rsplit("/scripts/", 1)[0])
 from app.storage import models  # noqa: E402
 from app.storage.database import SessionLocal  # noqa: E402
 

@@ -8,7 +8,7 @@ const MA_COLORS: Record<string, string> = { ma5: "#eab308", ma20: "#38bdf8", ma6
 const SUPPORT_COLOR = "#16a34a"; // 支撐：綠
 const RESIST_COLOR = "#e11d48"; // 壓力：紅
 
-export function KLineChart({ candles, levels = [], marks = [], targetPrice = null }: { candles: Candle[]; levels?: LevelDTO[]; marks?: MarkDTO[]; targetPrice?: number | null }) {
+export function KLineChart({ candles, levels = [], marks = [], targetPrice = null, focusDate = null }: { candles: Candle[]; levels?: LevelDTO[]; marks?: MarkDTO[]; targetPrice?: number | null; focusDate?: string | null }) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -81,10 +81,20 @@ export function KLineChart({ candles, levels = [], marks = [], targetPrice = nul
       });
     }
 
-    // 推薦標記：金✓=30日內達標（達標日另標「達標 +X%」）、灰✗=未達標、藍…=評估中（口徑同回看）
-    if (marks.length > 0) {
+    // 推薦標記：金✓=10日內碰+10%（達標日另標「達標 +X%」）、灰✗=未達標、藍…=評估中（口徑同回看）
+    {
       const times = new Set(candles.map((c) => c.date));
       const markers: SeriesMarker<Time>[] = [];
+      // 策略室樣本跳轉：標「訊號日」並把視窗定位到該日前後
+      if (focusDate && times.has(focusDate)) {
+        markers.push({
+          time: focusDate as Time,
+          position: "belowBar",
+          shape: "arrowUp",
+          color: "#38bdf8",
+          text: "🔎 訊號日",
+        });
+      }
       for (const m of marks) {
         if (times.has(m.date)) {
           markers.push({
@@ -106,12 +116,18 @@ export function KLineChart({ candles, levels = [], marks = [], targetPrice = nul
         }
       }
       markers.sort((a, b) => String(a.time).localeCompare(String(b.time)));
-      candleSeries.setMarkers(markers);
+      if (markers.length > 0) candleSeries.setMarkers(markers);
     }
 
-    chart.timeScale().fitContent();
+    // 有 focusDate：視窗鎖定訊號日前後 ±45 根；否則整段收合
+    const fi = focusDate ? candles.findIndex((c) => c.date >= focusDate) : -1;
+    if (fi >= 0) {
+      chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, fi - 45), to: Math.min(candles.length - 1, fi + 45) });
+    } else {
+      chart.timeScale().fitContent();
+    }
     return () => chart.remove();
-  }, [candles, levels, marks, targetPrice]);
+  }, [candles, levels, marks, targetPrice, focusDate]);
 
   return <div ref={ref} className="h-[420px] w-full" />;
 }
