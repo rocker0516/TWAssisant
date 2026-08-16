@@ -58,6 +58,9 @@ _COLUMN_ADDITIONS: dict[str, dict[str, str]] = {
         "strict_filter": "BOOLEAN",  # 當日原始硬篩（波段遲滯狀態機隔日回看用）
     },
     "indicators": {"ma120": "FLOAT", "ma240": "FLOAT"},  # 半年線/年線（長期支撐）
+    "company_profile": {"listed_date": "DATE"},  # 正確上市/上櫃日（t187ap03）
+    "holdings": {"entry_snapshot": "JSON"},  # 進場理由快照（論點追蹤）
+
 }
 
 

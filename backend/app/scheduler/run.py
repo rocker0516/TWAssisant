@@ -13,15 +13,18 @@ from datetime import date, datetime
 from ..storage.database import init_db
 from .pipeline import DailyPipeline
 from .steps import (
+    AttentionStep,
     CornerStep,
     ExitStep,
     FetchStep,
     IndicatorStep,
+    MLConsensusStep,
     NewsStep,
     NotifyStep,
     PoppableEfficacyStep,
     ScoringStep,
     SectorStep,
+    TargetPriceStep,
 )
 from .trading_calendar import is_trading_day, resolve_trading_date
 
@@ -32,8 +35,9 @@ def build_pipeline() -> DailyPipeline:
     # 會噴成效回測放最後：純歷史回測、非必要，掛了不影響當日推薦/通知。
     return DailyPipeline(
         steps=[
-            FetchStep(), IndicatorStep(), SectorStep(), NewsStep(),
-            ScoringStep(), CornerStep(), ExitStep(), NotifyStep(),
+            FetchStep(), IndicatorStep(), SectorStep(), NewsStep(), TargetPriceStep(),
+            AttentionStep(),
+            ScoringStep(), MLConsensusStep(), CornerStep(), ExitStep(), NotifyStep(),
             PoppableEfficacyStep(),
         ]
     )
@@ -48,8 +52,9 @@ def build_backfill_pipeline() -> DailyPipeline:
     """
     return DailyPipeline(
         steps=[
-            FetchStep(), IndicatorStep(), SectorStep(), NewsStep(),
-            ScoringStep(), CornerStep(), ExitStep(),
+            FetchStep(), IndicatorStep(), SectorStep(), NewsStep(), TargetPriceStep(),
+            AttentionStep(),
+            ScoringStep(), MLConsensusStep(), CornerStep(), ExitStep(),
         ]
     )
 

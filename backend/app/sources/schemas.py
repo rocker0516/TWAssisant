@@ -60,3 +60,17 @@ HOLDING_COLS = ["stock_id", "date", "big_pct", "over1000_pct", "small_pct", "hol
 EVENT_COLS = ["stock_id", "date", "category", "title", "summary", "is_risk", "source", "url"]
 
 ETF_PROFILE_COLS = ["stock_id", "fund_type", "track_index", "has_foreign", "units", "etf_listed_date"]
+
+# 產業價值鏈成員（ic.tpex.org.tw 全快照）。一公司可屬多鏈多節點。
+INDUSTRY_CHAIN_COLS = [
+    "stock_id", "chain_id", "chain_name", "stream", "main_node", "node_id", "node_name",
+]
+
+# 股利政策（FinMind TaiwanStockDividend 逐檔）。cash/stock 單位＝元/股。
+DIVIDEND_COLS = ["stock_id", "period", "cash", "stock", "cash_ex_date", "pay_date"]
+
+# 公司基本資料（t187ap03 全快照）。capital 單位＝元、issued_shares 單位＝股。
+COMPANY_PROFILE_COLS = [
+    "stock_id", "chairman", "president", "capital", "issued_shares",
+    "established_date", "listed_date", "website",
+]

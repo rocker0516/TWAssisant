@@ -1,7 +1,11 @@
 """高確信角落影子軌端點（實驗）。
 
-角落定義=data/corners.json（挖掘凍結產物，30 個、分年地板≥70%），
-訊號=corner_signals（每日盤後 CornerStep 寫入）。純觀察層：與排序無關。
+角落定義=data/corners.json（挖掘凍結產物，30 個），訊號=corner_signals
+（每日盤後 CornerStep 寫入）。純觀察層：與排序無關。
+
+結算窗跟著 corners.json 的 target 走：2026-08 目標定版為「10 日內碰到 +10%」，
+角落已依此重挖（地板隨基率下移），回看端點同步改 10 日窗——用 30 日窗量 10 日
+挖出來的地板，命中率必然虛高。
 """
 
 from __future__ import annotations
@@ -20,6 +24,7 @@ from .deps import get_session
 router = APIRouter(prefix="/corners", tags=["corners"])
 
 _FAMILY_LABEL = {"crash": "深崩期", "dip": "回檔期", "allweather": "全天候"}
+_REVIEW_WINDOW = 10  # 結算窗（交易日）；與 corners.json target=hit10 同口徑
 
 
 class CornerStockOut(BaseModel):
@@ -89,15 +94,17 @@ def corner_signals(
     recent = [{"date": str(r.date), "signals": r.signals, "corners": r.corners}
               for r in recent_rows]
 
-    note = ("高確信角落（實驗中）：條件由 2021~24 反推挖掘、分年地板≥70%，"
-            "2025~26 軟檢查通過；forward 驗證累積中，多數日子無訊號屬正常"
-            "（低波動期＝空手）。與推薦排序無關。")
+    floors = [c["floor"] for c in corners] or [0.0]
+    note = (f"高確信角落（實驗中）：條件由 2021~24 反推挖掘、分年地板 "
+            f"{min(floors):.0f}~{max(floors):.0f}%（門檻依 10 日基率倍數搬移，"
+            f"非固定 70%），2025~26 軟檢查通過；forward 驗證累積中，"
+            "多數日子無訊號屬正常（低波動期＝空手）。與推薦排序無關。")
     return CornerSignalsResponse(
         date=d, evaluated=bool(rows) or bool(recent),
         total_corners=len(corners), fired=fired, recent=recent, note=note)
 
 
-# ── 回看結算：每筆訊號「隔日高錨、30 交易日內摸 +10%」實際命中 ──
+# ── 回看結算：每筆訊號「隔日高錨、_REVIEW_WINDOW 交易日內摸 +10%」實際命中 ──
 
 
 class CornerReviewRow(BaseModel):
@@ -106,7 +113,7 @@ class CornerReviewRow(BaseModel):
     family_label: str
     floor: float           # 挖掘窗地板（對照用）
     n: int                 # 影子期訊號筆數
-    matured: int           # 已滿窗（訊號後滿 30 交易日）——只有這些進命中率
+    matured: int           # 已滿窗（訊號後滿 _REVIEW_WINDOW 交易日）——只有這些進命中率
     hits: int
     hit_rate: float | None  # hits / matured（滿窗口徑，無提早結算偏差）
     pending: int           # 未滿窗
@@ -145,7 +152,7 @@ def corner_review(session: Session = Depends(get_session)) -> CornerReviewRespon
         .order_by(models.DailyPrice.stock_id, models.DailyPrice.date)).all(),
         columns=["stock_id", "date", "high"])
 
-    # 每檔：訊號日之後 1~30 個交易日的最高價 / 隔日高（進場錨）/ 經過天數
+    # 每檔：訊號日之後 1~_REVIEW_WINDOW 個交易日的最高價 / 隔日高（進場錨）/ 經過天數
     out = {}
     for sid, g in px.groupby("stock_id", sort=False):
         dates = g["date"].tolist()
@@ -160,7 +167,7 @@ def corner_review(session: Session = Depends(get_session)) -> CornerReviewRespon
             ent.append(None); mfe.append(None); elapsed.append(0)
             continue
         entry = highs[k + 1]
-        win = [h for h in highs[k + 1:k + 31] if h is not None]
+        win = [h for h in highs[k + 1:k + 1 + _REVIEW_WINDOW] if h is not None]
         ent.append(entry)
         mfe.append(max(win) / entry if entry and win else None)
         elapsed.append(len(dates) - 1 - k)
@@ -168,9 +175,9 @@ def corner_review(session: Session = Depends(get_session)) -> CornerReviewRespon
     sigs["mfe"] = mfe
     sigs["elapsed"] = elapsed
     sigs["hit"] = (sigs["mfe"] >= 1.10).fillna(False)
-    # 滿窗才結算：只用「訊號後已滿 30 交易日」的 cohort 算命中率。
+    # 滿窗才結算：只用「訊號後已走滿 _REVIEW_WINDOW 交易日」的 cohort 算命中率。
     # 若把「提早摸到 +10%」也提前結算，贏家先進分母、輸家還掛著 → 命中率必然灌水。
-    sigs["matured"] = sigs["elapsed"] >= 31
+    sigs["matured"] = sigs["elapsed"] >= _REVIEW_WINDOW + 1
 
     def _agg(df) -> dict:
         mat = df[df["matured"]]
@@ -202,10 +209,11 @@ def corner_review(session: Session = Depends(get_session)) -> CornerReviewRespon
     ][-30:]
     by_day.reverse()
 
-    note = ("結算口徑＝訊號隔日最高價進場、之後 30 個交易日內曾摸 +10%（與挖掘同口徑）；"
-            "命中率只算「已滿 30 交易日」的訊號（避免贏家提早結算的灌水偏差），"
-            "未滿窗但已先摸到的另列供參考。2026-06-11 起的訊號在挖掘資料之外，"
-            "屬真 out-of-sample。整體列已去重（同股同日多角落只算一次）。")
+    note = (f"結算口徑＝訊號隔日最高價進場、之後 {_REVIEW_WINDOW} 個交易日內曾摸 +10%"
+            f"（與 corners.json target=hit10 同口徑）；命中率只算「已滿 {_REVIEW_WINDOW} "
+            "交易日」的訊號（避免贏家提早結算的灌水偏差），未滿窗但已先摸到的另列供參考。"
+            "2026-06-11 起的訊號在挖掘資料之外，屬真 out-of-sample。"
+            "整體列已去重（同股同日多角落只算一次）。")
     return CornerReviewResponse(
         as_of=as_of, oos_from="2026-06-11", overall_unique=_agg(uniq),
         by_corner=by_corner, by_day=by_day, note=note)

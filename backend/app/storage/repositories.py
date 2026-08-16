@@ -139,12 +139,44 @@ class FinancialQuarterRepository(BaseRepository[models.FinancialQuarter]):
     model = models.FinancialQuarter
 
 
+class EtfIndexEventRepository(BaseRepository[models.EtfIndexEvent]):
+    model = models.EtfIndexEvent
+
+
+class IndexEventRepository(BaseRepository[models.IndexConstituentEvent]):
+    model = models.IndexConstituentEvent
+
+
+class AttentionRepository(BaseRepository[models.AttentionListing]):
+    model = models.AttentionListing
+
+
+class FinancialStatementRepository(BaseRepository[models.FinancialStatementQuarter]):
+    model = models.FinancialStatementQuarter
+
+
 class ValuationRepository(BaseRepository[models.Valuation]):
     model = models.Valuation
 
 
+class TargetPriceRepository(BaseRepository[models.TargetPrice]):
+    model = models.TargetPrice
+
+
 class EtfProfileRepository(BaseRepository[models.EtfProfile]):
     model = models.EtfProfile
+
+
+class CompanyProfileRepository(BaseRepository[models.CompanyProfile]):
+    model = models.CompanyProfile
+
+
+class DividendRepository(BaseRepository[models.Dividend]):
+    model = models.Dividend
+
+
+class IndustryChainRepository(BaseRepository[models.IndustryChainMember]):
+    model = models.IndustryChainMember
 
 
 class PipelineRunRepository(BaseRepository[models.PipelineRun]):
