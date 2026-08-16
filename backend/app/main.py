@@ -166,8 +166,9 @@ def trigger_pipeline(background: BackgroundTasks) -> dict:
 # dev 時前端跑 Vite(:5173) 用 /api 代理；打包後 dist 存在，這裡就接手，
 # 使用者只需開一個 :8000 就能看整個 App。dist 不存在（純開發）則完全略過。
 _DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+_SPA_MODE = _DIST.exists()  # 打包模式：後端兼服務 SPA（登入牆的「殼放行」只在此模式才成立）
 
-if _DIST.exists():
+if _SPA_MODE:
     _INDEX = _DIST / "index.html"
 
     @app.middleware("http")
@@ -206,12 +207,17 @@ async def _require_login(request: Request, call_next):
     if request.method == "OPTIONS":  # CORS preflight（dev）交給 CORS middleware
         return await call_next(request)
     path = request.scope["path"]
-    normalized = path[4:] or "/" if path == "/api" or path.startswith("/api/") else path
+    is_api = path == "/api" or path.startswith("/api/")
+    normalized = (path[4:] or "/") if is_api else path
     if normalized in _AUTH_EXEMPT or path.startswith("/assets/"):
         return await call_next(request)
+    # SPA 殼放行：僅限「打包模式 + 非 /api 的 GET 導覽」，讓前端 router 自己導去 /login。
+    # 判斷依據必須是路徑，不能是 Accept —— header 由客戶端控制，拿它當授權依據
+    # 會被 `curl -H "Accept: text/html" /api/...` 整道繞過（曾為實際漏洞）。
+    # dev（無 dist）沒有 SPA 殼可回，故不放行，一律驗 token。
     accept = request.headers.get("accept", "")
-    if request.method == "GET" and "text/html" in accept:
-        return await call_next(request)  # SPA 殼放行，資料仍受保護
+    if _SPA_MODE and not is_api and request.method == "GET" and "text/html" in accept:
+        return await call_next(request)
     if auth.verify_token(request.cookies.get(auth.SESSION_COOKIE)):
         return await call_next(request)
     from fastapi.responses import JSONResponse
