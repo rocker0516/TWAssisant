@@ -19,6 +19,7 @@ from .schemas import (
     HoldingPatch,
     HoldingsResponse,
     HoldingsSummary,
+    ThesisStatus,
     TransactionCreate,
     TransactionDTO,
 )
@@ -54,6 +55,45 @@ def _close_change(session: Session, stock_id: str, td: date) -> tuple[float | No
     return close, round((close - rows[1]) / rows[1] * 100, 2)
 
 
+def _eval_thesis(session: Session, h: models.Holding) -> ThesisStatus | None:
+    """進場論點是否還成立：進場快照分數 vs 該軌最新分數 + 硬篩狀態。
+
+    broken＝硬篩掉了且分數明顯崩（<進場×0.85）；weakening＝硬篩掉或分數下滑（<×0.9）。
+    無快照或無最新評分＝unknown（不誤導）。
+    """
+    snap = h.entry_snapshot
+    if not snap or snap.get("total_score") is None:
+        return None
+    latest = session.execute(
+        select(models.Score)
+        .where(models.Score.stock_id == h.stock_id, models.Score.track == h.track)
+        .order_by(models.Score.date.desc())
+        .limit(1)
+    ).scalars().first()
+    entry_score = float(snap["total_score"])
+    if latest is None or latest.total_score is None:
+        return ThesisStatus(status="unknown", entry_score=entry_score,
+                            latest_score=None, latest_passed_filter=None,
+                            messages=["查無最新評分"])
+    cur = float(latest.total_score)
+    passed = bool(latest.passed_filter)
+    msgs: list[str] = []
+    if not passed:
+        msgs.append("已不過硬篩")
+    if cur < entry_score * 0.9:
+        msgs.append(f"分數自進場 {entry_score:.1f} 降至 {cur:.1f}")
+    if not passed and cur < entry_score * 0.85:
+        status = "broken"
+        msgs.append("進場理由已失效，建議重新評估")
+    elif msgs:
+        status = "weakening"
+    else:
+        status = "intact"
+    return ThesisStatus(status=status, entry_score=round(entry_score, 2),
+                        latest_score=round(cur, 2), latest_passed_filter=passed,
+                        messages=msgs)
+
+
 def build_item(session: Session, h: models.Holding, td: date | None) -> HoldingItem:
     pos = _svc.position(session, h)
     stock = session.get(models.Stock, h.stock_id)
@@ -83,7 +123,10 @@ def build_item(session: Session, h: models.Holding, td: date | None) -> HoldingI
         light=st.light, level=st.level, signals=st.signals, hard_stop=st.hard_stop,
         highest=st.highest, drawdown_pct=st.drawdown_pct, trail_active=st.trail_active,
         stop_loss_override=h.stop_loss_override, trail_trigger_override=h.trail_trigger_override,
-        trail_pullback_override=h.trail_pullback_override, note=h.note,
+        trail_pullback_override=h.trail_pullback_override,
+        entry_snapshot=h.entry_snapshot,
+        thesis=_eval_thesis(session, h) if h.status == "open" else None,
+        note=h.note,
         transactions=[
             TransactionDTO(id=t.id, type=t.type, date=t.date, price=t.price, shares=t.shares,
                            fee=t.fee, tax=t.tax, note=t.note)

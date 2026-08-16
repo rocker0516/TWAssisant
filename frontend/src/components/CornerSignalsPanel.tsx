@@ -2,10 +2,16 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useCornerReview, useCornerSignals, type CornerFired } from "../api/client";
 
-/** 高確信角落影子軌（實驗）：30 個反推挖掘角落的當日亮燈區。
+/** 高確信角落影子軌（實驗）：30 個反推挖掘角落的當日亮燈。
  *
  * 純觀察層——與會噴排序無關；多數日子全空屬正常（低波動期＝空手）。
  * 家族：深崩期（大盤崩跌時的超賣高波動）/ 回檔期（大盤 20 日跌 4%+）/ 全天候。
+ *
+ * 兩個出口：
+ *   CornerSignalsStrip — 進場推薦頁主清單下方的獨立小分區，只在亮燈時渲染。
+ *     角落與會噴分數是兩套正交篩子，亮燈股多半不在推薦清單裡（近期 15 筆訊號
+ *     只有 2 筆落在清單上），所以獨立分區而非卡片徽章。
+ *   CornerLabSection — 實驗室完整版：年帶、近期訊號日、滿窗回看結算。
  */
 
 const FAMILY_STYLE: Record<CornerFired["family"], string> = {
@@ -22,9 +28,69 @@ function yearBand(c: CornerFired): string {
   return `${Math.round(Math.min(...hits))}~${Math.round(Math.max(...hits))}%`;
 }
 
-export function CornerSignalsPanel() {
+function StockChips({ c }: { c: CornerFired }) {
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-2">
+      {c.stocks.map((s) => (
+        <Link
+          key={s.stock_id}
+          to={`/stocks/${s.stock_id}`}
+          className="rounded-md border border-white/15 bg-black/20 px-2 py-0.5 text-xs hover:underline"
+        >
+          {s.name} <span className="opacity-60">{s.stock_id}</span>
+          {s.close != null ? <span className="ml-1 opacity-60">（{s.close} 元）</span> : null}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+/** 進場推薦頁：主清單下方的角落訊號分區。無訊號＝不佔版面。 */
+export function CornerSignalsStrip() {
   const { data } = useCornerSignals();
-  const [open, setOpen] = useState(true);
+  if (!data || data.fired.length === 0) return null;
+
+  const stockCount = new Set(data.fired.flatMap((c) => c.stocks.map((s) => s.stock_id))).size;
+
+  return (
+    <div className="mt-6 rounded-lg border border-violet-800/50 bg-violet-950/20 px-3.5 py-2.5 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-violet-300">◆ 高確信角落</span>
+        <span className="rounded border border-violet-700/50 px-1.5 py-0.5 text-[10px] text-violet-300">
+          實驗中
+        </span>
+        <span className="text-xs text-violet-200">
+          今日 <b>{data.fired.length}</b> 個角落亮燈 · <b>{stockCount}</b> 檔
+        </span>
+        <Link to="/lab" className="ml-auto text-xs text-muted hover:text-violet-300">
+          回看結算 →
+        </Link>
+      </div>
+
+      <div className="mt-2 space-y-2">
+        {data.fired.map((c) => (
+          <div key={c.id} className={`rounded-md border px-3 py-2 ${FAMILY_STYLE[c.family]}`}>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <b>{c.family_label}</b>
+              <span className="opacity-80">{c.atoms.join(" ∧ ")}</span>
+              <span className="ml-auto whitespace-nowrap">地板 {Math.round(c.floor)}%</span>
+            </div>
+            <StockChips c={c} />
+          </div>
+        ))}
+      </div>
+
+      <p className="mt-2 text-[11px] leading-relaxed text-muted">
+        獨立於會噴排序的觀察層——這些標的多半不在上方清單裡（兩套篩子正交）。
+        forward 驗證累積中，尚未取得推薦權。
+      </p>
+    </div>
+  );
+}
+
+/** 實驗室：角落完整檢視（年帶、近期訊號日、滿窗回看結算）。 */
+export function CornerLabSection() {
+  const { data } = useCornerSignals();
   const [showReview, setShowReview] = useState(false);
   const { data: review } = useCornerReview(showReview);
   if (!data) return null;
@@ -33,27 +99,21 @@ export function CornerSignalsPanel() {
   const stockCount = new Set(fired.flatMap((c) => c.stocks.map((s) => s.stock_id))).size;
 
   return (
-    <div className="mb-4 rounded-lg border border-violet-800/50 bg-violet-950/20 px-3.5 py-2.5 text-sm">
-      <button
-        onClick={() => setOpen((s) => !s)}
-        className="flex w-full items-center gap-2 text-left"
-      >
-        <span className="text-violet-300">◆ 高確信角落</span>
-        <span className="rounded border border-violet-700/50 px-1.5 py-0.5 text-[10px] text-violet-300">
+    <section className="mb-8">
+      <h2 className="mb-2 flex flex-wrap items-center gap-2 text-base font-semibold">
+        ◆ 高確信角落影子軌
+        <span className="rounded border border-violet-700/50 px-1.5 py-0.5 text-[10px] font-normal text-violet-300">
           實驗中
         </span>
-        {fired.length > 0 ? (
-          <span className="text-xs text-violet-200">
-            今日 <b>{fired.length}</b> 個角落亮燈 · <b>{stockCount}</b> 檔
-          </span>
-        ) : (
-          <span className="text-xs text-muted">今日無訊號（多數日子空手屬正常）</span>
-        )}
-        <span className="ml-auto text-xs text-muted">{open ? "收起" : "展開"}</span>
-      </button>
+        <span className="text-xs font-normal text-muted">
+          {fired.length > 0
+            ? `今日 ${fired.length} 個角落亮燈 · ${stockCount} 檔`
+            : "今日無訊號（多數日子空手屬正常）"}
+        </span>
+      </h2>
 
-      {open && (
-        <div className="mt-2 space-y-2">
+      <div className="rounded-xl border border-edge bg-panel px-3.5 py-3 text-sm">
+        <div className="space-y-2">
           {fired.map((c) => (
             <div key={c.id} className={`rounded-md border px-3 py-2 ${FAMILY_STYLE[c.family]}`}>
               <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -63,20 +123,10 @@ export function CornerSignalsPanel() {
                   歷史分年 {yearBand(c)}（地板 {Math.round(c.floor)}%）
                 </span>
               </div>
-              <div className="mt-1.5 flex flex-wrap gap-2">
-                {c.stocks.map((s) => (
-                  <Link
-                    key={s.stock_id}
-                    to={`/stocks/${s.stock_id}`}
-                    className="rounded-md border border-white/15 bg-black/20 px-2 py-0.5 text-xs hover:underline"
-                  >
-                    {s.name} <span className="opacity-60">{s.stock_id}</span>
-                    {s.close != null ? <span className="ml-1 opacity-60">（{s.close} 元）</span> : null}
-                  </Link>
-                ))}
-              </div>
+              <StockChips c={c} />
             </div>
           ))}
+
           <div className="text-[11px] leading-relaxed text-muted">
             {data.note}
             {data.recent.length > 0 && (
@@ -91,7 +141,7 @@ export function CornerSignalsPanel() {
             )}
           </div>
 
-          {/* 影子期回看：滿窗口徑結算（滿30交易日才進命中率，避免贏家提早結算灌水） */}
+          {/* 影子期回看：滿窗口徑結算（滿 10 交易日才進命中率，避免贏家提早結算灌水） */}
           <button
             onClick={() => setShowReview((s) => !s)}
             className="rounded-md border border-violet-700/50 px-2 py-1 text-xs text-violet-300 hover:bg-violet-900/30"
@@ -100,7 +150,7 @@ export function CornerSignalsPanel() {
           </button>
           {showReview && review && (
             <div className="space-y-2 text-xs">
-              <div className="rounded-md border border-edge bg-panel px-3 py-2 leading-relaxed">
+              <div className="rounded-md border border-edge bg-panel2 px-3 py-2 leading-relaxed">
                 整體（去重同股同日）：滿窗 <b>{review.overall_unique.matured}</b> 筆、命中{" "}
                 <b>{review.overall_unique.hits}</b>
                 {review.overall_unique.hit_rate != null && (
@@ -150,7 +200,7 @@ export function CornerSignalsPanel() {
             </div>
           )}
         </div>
-      )}
-    </div>
+      </div>
+    </section>
   );
 }

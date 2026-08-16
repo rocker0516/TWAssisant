@@ -138,6 +138,8 @@ def main(argv: list[str]) -> None:
         backfill_financials(start_year, ids)
 
     _log("全部完成。")
+    _log("提醒：既有 Score 是評分當下的資料算的，不會自動吸收新補的基本面——")
+    _log("　　　請接著跑 scripts/backfill_scores.py --start <受影響起日> --force 重算長線分數。")
 
 
 if __name__ == "__main__":

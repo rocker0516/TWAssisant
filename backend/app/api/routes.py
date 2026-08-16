@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import String, cast, func, or_, select
@@ -18,12 +18,31 @@ from ..llm.assistant import _etf_kind, _scale_label
 from ..llm.news_digest import stock_digest
 from .schemas import (
     Candle,
+    ChainNode,
+    ChainStream,
+    ChainStructure,
+    ChainTagDTO,
     ChipSummary,
     ChipHistoryResponse,
     ChipPoint,
+    CompanyProfileDTO,
+    IndustryChainResponse,
+    SectorBriefDTO,
+    DividendEntry,
+    DividendsResponse,
     EtfInfo,
     EventDTO,
+    AttentionEntry,
+    AttentionResponse,
+    FinancialStatementsResponse,
+    FinStatementQuarter,
+    PeRiverPoint,
+    PeRiverResponse,
+    TechSummaryResponse,
+    FundamentalHistoryResponse,
     FundamentalSummary,
+    QuarterPoint,
+    RevenuePoint,
     HoldingHistoryResponse,
     HoldingPoint,
     LevelDTO,
@@ -32,10 +51,16 @@ from .schemas import (
     LookbackDatePoint,
     LookbackReview,
     LookbackSummary,
+    LongGraduation,
+    LongTargetZone,
     OhlcvResponse,
     RecommendationItem,
     RecommendationList,
     RecommendationLookbackResponse,
+    RecommendationMark,
+    RecommendationMarksResponse,
+    TargetPriceEntry,
+    TargetPriceResponse,
     ScoreDTO,
     StockDetail,
     StockSearchItem,
@@ -145,17 +170,29 @@ def _to_item(
 _PROB_MIN_N = 150  # 格子樣本不足 → 逐層回退（去大盤 → 去波動 → 全域）
 
 
+_prob_cache: dict = {}
+
+
 def _prob_table() -> dict | None:
+    """條件機率查表（mtime 快取，與 _ml_consensus_picks 同款）。
+
+    原本是永久快取：重跑 build_prob_table.py 後不重啟後端就讀不到新表，
+    整站機率會停在舊口徑而且完全無聲。
+    """
     import json as _json
     from pathlib import Path as _Path
-    global _PROB_CACHE
-    try:
-        return _PROB_CACHE  # type: ignore[name-defined]
-    except NameError:
-        pass
+
     fp = _Path(__file__).resolve().parents[2] / "data" / "prob_table.json"
-    _PROB_CACHE = _json.loads(fp.read_text()) if fp.exists() else None
-    return _PROB_CACHE
+    if not fp.exists():
+        return None
+    mtime = fp.stat().st_mtime
+    if _prob_cache.get("mtime") != mtime:
+        try:
+            _prob_cache["data"] = _json.loads(fp.read_text(encoding="utf-8"))
+            _prob_cache["mtime"] = mtime
+        except (ValueError, OSError):
+            return _prob_cache.get("data")  # 讀壞了就沿用上一版，不要整站沒機率
+    return _prob_cache.get("data")
 
 
 def _bin_label(v: float, edges: list[float], labels: list[str]) -> str | None:
@@ -191,32 +228,207 @@ def _prob_lookup(score: float | None, atr_pct: float | None,
     return (gl["hit"], gl["n"], "全市場", gl.get("mae")) if gl else (None, None, None, None)
 
 
+_ml_consensus_cache: dict = {}
+
+
+def _ml_consensus_picks(d: date) -> set[str] | None:
+    """ML 共識圈選集（scripts/build_ml_consensus.py infer 產出；mtime 快取；日期不符回 None）。"""
+    import json as _json
+    from pathlib import Path as _Path
+
+    fp = _Path(__file__).resolve().parents[2] / "data" / "ml_consensus.json"
+    if not fp.exists():
+        return None
+    mtime = fp.stat().st_mtime
+    if _ml_consensus_cache.get("mtime") != mtime:
+        try:
+            _ml_consensus_cache["data"] = _json.loads(fp.read_text(encoding="utf-8"))
+            _ml_consensus_cache["mtime"] = mtime
+        except (ValueError, OSError):
+            return None
+    data = _ml_consensus_cache.get("data") or {}
+    if data.get("date") != d.isoformat():
+        return None
+    return set(data.get("picks") or [])
+
+
 def _attach_probabilities(session: Session, items: list[RecommendationItem], d: date) -> None:
     """批次補上每檔「同條件歷史命中率」（波動用當日 atr14/close，大盤用乖離季線）。"""
     if not items or _prob_table() is None:
         return
     ids = [it.stock_id for it in items]
     atr_rows = session.execute(
-        select(models.Indicator.stock_id, models.Indicator.atr14, models.DailyPrice.close)
+        select(models.Indicator.stock_id, models.Indicator.atr14, models.DailyPrice.close,
+               models.Indicator.vol_ma5, models.Indicator.vol_ma20)
         .join(models.DailyPrice,
               (models.DailyPrice.stock_id == models.Indicator.stock_id)
               & (models.DailyPrice.date == models.Indicator.date))
         .where(models.Indicator.date == d, models.Indicator.stock_id.in_(ids))
     ).all()
     atr_map = {sid: (atr / close if atr is not None and close else None)
-               for sid, atr, close in atr_rows}
+               for sid, atr, close, _v5, _v20 in atr_rows}
+    volr_map = {sid: (round(v5 / v20, 2) if v5 and v20 else None)
+                for sid, _atr, _close, v5, v20 in atr_rows}
     closes = session.execute(
         select(models.MarketIndex.close).where(models.MarketIndex.date <= d)
         .order_by(models.MarketIndex.date.desc()).limit(60)
     ).scalars().all()
     mkt_bias = ((closes[0] / (sum(closes) / len(closes)) - 1.0) * 100
                 if len(closes) >= 60 else None)
+    # 注意/處置動能旗標（判官雙段驗證：處置後10日 控波動+16pp；近21日窗涵蓋兩種判定）
+    att_map: dict[str, set[str]] = {}
+    for r in session.execute(
+        select(models.AttentionListing)
+        .where(models.AttentionListing.stock_id.in_(ids),
+               models.AttentionListing.date >= d - timedelta(days=21))
+    ).scalars().all():
+        if r.kind == "punish" and (
+            (r.begin_date and r.end_date and r.begin_date <= d <= r.end_date)
+            or (d - r.date).days <= 14  # 公告後 ~10 交易日
+        ):
+            att_map.setdefault(r.stock_id, set()).add("punish")
+        elif r.kind == "notice" and (d - r.date).days <= 7:  # ~5 交易日
+            att_map.setdefault(r.stock_id, set()).add("notice")
+
     for it in items:
         hit, n, cond, mae = _prob_lookup(it.total_score, atr_map.get(it.stock_id), mkt_bias)
         it.prob_hit = hit
         it.prob_n = n
         it.prob_cond = cond
         it.prob_mae = mae
+        it.vol_ratio = volr_map.get(it.stock_id)
+        flags = att_map.get(it.stock_id, set())
+        it.attention = "punish" if "punish" in flags else ("notice" if "notice" in flags else None)
+        it.attention_tags = sorted(flags)
+
+    ml_picks = _ml_consensus_picks(d)
+    if ml_picks is not None:
+        for it in items:
+            it.ml_consensus = it.stock_id in ml_picks
+
+
+# ── 長線軌目標區間＋畢業條件（推薦卡主區塊；參考期間 12 個月＝回測視窗）──
+
+_PE_RIVER_MIN_DAYS = 60  # 與 pe-river 端點同門檻：PE 史料不足一季不推估值帶
+
+
+def _pe_quantile(pes: list[float], p: float) -> float:
+    """已排序 PE 序列的線性內插分位數（同 pe-river 端點演算法）。"""
+    i = p * (len(pes) - 1)
+    lo, hi = int(i), min(int(i) + 1, len(pes) - 1)
+    return pes[lo] + (pes[hi] - pes[lo]) * (i - lo)
+
+
+def _long_target_zone(
+    session: Session, stock_id: str, close: float | None, d: date
+) -> LongTargetZone | None:
+    """目標區間：基準錨優先法人目標價（FactSet），無報告退 PE 河流中位帶（估值推算）。
+
+    保守/樂觀恆為 PE 中位/上緣分位 × 隱含 EPS（現價/現 PE）。長線硬篩②保 EPS>0，
+    但官方 PE 史料仍可能缺（新掛牌等）——兩錨皆缺回 None，卡片只顯示畢業條件。
+    """
+    if not close:
+        return None
+    pe_rows = session.execute(
+        select(models.Valuation.pe)
+        .where(models.Valuation.stock_id == stock_id, models.Valuation.date <= d,
+               models.Valuation.pe.is_not(None), models.Valuation.pe > 0)
+        .order_by(models.Valuation.date)
+    ).scalars().all()
+    low = high = None
+    if len(pe_rows) >= _PE_RIVER_MIN_DAYS:
+        eps_implied = close / pe_rows[-1]
+        pes = sorted(pe_rows)
+        q50, q90 = _pe_quantile(pes, 0.5), _pe_quantile(pes, 0.9)
+        # 離散度防呆：循環股虧損期 PE 飆百倍會把上緣撐到假數字（實測 q90 帶=現價 16 倍）
+        # → 分位差過大視為估值帶不可靠，不顯示（長線硬篩③理智線下的入選股通常不觸發）
+        if q50 > 0 and q90 / q50 <= 3:
+            low = round(q50 * eps_implied, 2)
+            high = round(q90 * eps_implied, 2)
+
+    tp = session.execute(
+        select(models.TargetPrice)
+        .where(models.TargetPrice.stock_id == stock_id)
+        .order_by(models.TargetPrice.date.desc())
+        .limit(1)
+    ).scalars().first()
+    if tp is not None:
+        max_high = session.execute(
+            select(func.max(models.DailyPrice.high))
+            .where(models.DailyPrice.stock_id == stock_id,
+                   models.DailyPrice.date >= tp.date, models.DailyPrice.date <= d)
+        ).scalar()
+        return LongTargetZone(
+            basis="analyst",
+            base=tp.target_price,
+            upside_pct=round((tp.target_price / close - 1) * 100, 1),
+            low=low,
+            high=high,
+            analyst_target=tp.target_price,
+            analyst_date=tp.date,
+            analyst_count=tp.analyst_count,
+            hit=bool(max_high is not None and max_high >= tp.target_price),
+        )
+    if low is None:
+        return None
+    return LongTargetZone(
+        basis="pe_river",
+        base=low,
+        upside_pct=round((low / close - 1) * 100, 1),
+        low=low,
+        high=high,
+        hit=close >= low,
+    )
+
+
+def _rev_streak_months(session: Session, stock_id: str) -> int | None:
+    """魚齡：由最新月往回數連續營收 YoY>0 月數（同 ctx.rev_consec_growth_months，缺月即斷）。"""
+    rows = session.execute(
+        select(models.RevenueMonthly.year, models.RevenueMonthly.month, models.RevenueMonthly.yoy)
+        .where(models.RevenueMonthly.stock_id == stock_id, models.RevenueMonthly.yoy.is_not(None))
+        .order_by(models.RevenueMonthly.year, models.RevenueMonthly.month)
+    ).all()
+    if not rows:
+        return None
+    n = 0
+    prev: tuple[int, int] | None = None
+    for y, m, yoy in reversed(rows):
+        ym = (int(y), int(m))
+        if prev is not None:
+            expect = (prev[0] - 1, 12) if prev[1] == 1 else (prev[0], prev[1] - 1)
+            if ym != expect:
+                break
+        if yoy <= 0:
+            break
+        n += 1
+        prev = ym
+    return n
+
+
+def _mom12_pct(session: Session, stock_id: str, d: date) -> float | None:
+    """近 12 月漲幅 %（同 FreshnessScore 口徑：246 交易日前收盤為基期，<120 日史料回 None）。"""
+    closes = session.execute(
+        select(models.DailyPrice.close)
+        .where(models.DailyPrice.stock_id == stock_id, models.DailyPrice.date <= d,
+               models.DailyPrice.close.is_not(None))
+        .order_by(models.DailyPrice.date.desc())
+        .limit(246)
+    ).scalars().all()
+    if len(closes) < 120 or not closes[-1]:
+        return None
+    return round((closes[0] / closes[-1] - 1) * 100, 1)
+
+
+def _attach_long_targets(session: Session, items: list[RecommendationItem], d: date) -> None:
+    """長線軌每檔補目標區間＋畢業條件（達標/魚齡/已漲幅；波段軌不呼叫）。"""
+    for it in items:
+        zone = _long_target_zone(session, it.stock_id, it.close, d)
+        it.target_zone = zone
+        it.graduation = LongGraduation(
+            hit_target=bool(zone and zone.hit),
+            streak_months=_rev_streak_months(session, it.stock_id),
+            mom12_pct=_mom12_pct(session, it.stock_id, d),
+        )
 
 
 @router.get("/recommendations/tag-stats")
@@ -227,7 +439,7 @@ def recommendation_tag_stats() -> dict:
     fp = _Path(__file__).resolve().parents[2] / "data" / "tag_combo_stats.json"
     if not fp.exists():
         return {"stats": {}}
-    return _json.loads(fp.read_text())
+    return _json.loads(fp.read_text(encoding="utf-8"))
 
 
 @router.get("/recommendations", response_model=RecommendationList)
@@ -285,6 +497,8 @@ def recommendations(
 
     if track == "wave":
         _attach_probabilities(session, items + near, d)
+    else:
+        _attach_long_targets(session, items + near, d)
     items.sort(key=lambda it: it.total_score or 0, reverse=True)
     near.sort(key=lambda it: it.total_score or 0, reverse=True)
     return RecommendationList(
@@ -360,6 +574,51 @@ def _lookback_review(
         days_to_pop=days_to_pop,
         days_elapsed=len(following),
     )
+
+
+_MARK_GAP = 5  # 推薦中斷 ≥5 個交易日視為新段落
+_MARK_HORIZON = 10  # 會噴觀察窗（2026-08 定版：10 日內碰到 +10%＝達標，資金周轉導向）
+
+
+def _mark_segments(
+    rec_dates: list[date], trade_dates: list[date], gap: int = _MARK_GAP
+) -> list[date]:
+    """連續推薦日合併成段落、回起始日。中斷（未推薦的交易日數）≥ gap 才算新段。"""
+    idx = {d: i for i, d in enumerate(trade_dates)}
+    starts: list[date] = []
+    prev_i: int | None = None
+    for d in rec_dates:
+        i = idx.get(d)
+        if i is None:
+            continue
+        if prev_i is None or (i - prev_i - 1) >= gap:
+            starts.append(d)
+        prev_i = i
+    return starts
+
+
+def _mark_status(
+    hit_pop: bool, days_to_pop: int | None, days_elapsed: int, horizon: int = _MARK_HORIZON
+) -> str:
+    """段落起始日的達標狀態：30 交易日內噴=hit；窗走完沒噴=miss；窗未走完=pending。"""
+    if hit_pop and days_to_pop is not None and days_to_pop <= horizon:
+        return "hit"
+    if days_elapsed >= horizon:
+        return "miss"
+    return "pending"
+
+
+def _tp_windows(
+    entries: list[tuple[date, float]], today: date
+) -> list[tuple[date, date, float]]:
+    """每筆目標價的有效期間：(生效日, 迄日, 目標價)。迄日＝下一筆生效日前一天；最新一筆到 today。"""
+    from datetime import timedelta
+
+    out: list[tuple[date, date, float]] = []
+    for i, (d, tp) in enumerate(entries):
+        end = entries[i + 1][0] - timedelta(days=1) if i + 1 < len(entries) else today
+        out.append((d, end, tp))
+    return out
 
 
 def _build_lookback_response(
@@ -796,16 +1055,37 @@ def stock_detail(stock_id: str, session: Session = Depends(get_session)) -> Stoc
         select(models.Valuation).where(models.Valuation.stock_id == stock_id)
         .order_by(models.Valuation.date.desc()).limit(1)
     ).scalars().first()
-    rev = session.execute(
+    rev_rows = session.execute(
         select(models.RevenueMonthly).where(models.RevenueMonthly.stock_id == stock_id)
-        .order_by(models.RevenueMonthly.year.desc(), models.RevenueMonthly.month.desc()).limit(1)
-    ).scalars().first()
-    fin = session.execute(
+        .order_by(models.RevenueMonthly.year.desc(), models.RevenueMonthly.month.desc()).limit(36)
+    ).scalars().all()
+    rev = rev_rows[0] if rev_rows else None
+    # 月營收 YoY 連續正成長月數（由最新月往回數）
+    rev_yoy_streak = 0
+    for r in rev_rows:
+        if r.yoy is not None and r.yoy > 0:
+            rev_yoy_streak += 1
+        else:
+            break
+    fin_rows = session.execute(
         select(models.FinancialQuarter).where(models.FinancialQuarter.stock_id == stock_id)
-        .order_by(models.FinancialQuarter.year.desc(), models.FinancialQuarter.quarter.desc()).limit(1)
-    ).scalars().first()
-    # EPS：優先用財報；無則以 收盤價/本益比 推導近4季 trailing EPS
-    eps = fin.eps if fin and fin.eps is not None else None
+        .order_by(models.FinancialQuarter.year.desc(), models.FinancialQuarter.quarter.desc()).limit(5)
+    ).scalars().all()
+    fin = fin_rows[0] if fin_rows else None
+    fin_prev = fin_rows[1] if len(fin_rows) >= 2 else None
+
+    def _pp(cur: float | None, prev: float | None) -> float | None:
+        return round(cur - prev, 2) if cur is not None and prev is not None else None
+
+    # 單季 EPS 年增：找去年同季
+    eps_yoy = None
+    if fin and fin.eps:
+        fin_ly = next((r for r in fin_rows if r.year == fin.year - 1 and r.quarter == fin.quarter), None)
+        if fin_ly and fin_ly.eps:
+            eps_yoy = round((fin.eps - fin_ly.eps) / abs(fin_ly.eps) * 100, 1)
+    # EPS（近4季）：財報單季 EPS 加總（不足 4 季用現有）；全缺則以 收盤價/本益比 推導
+    eps_vals = [r.eps for r in fin_rows[:4] if r.eps is not None]
+    eps = round(sum(eps_vals), 2) if eps_vals else None
     if eps is None and val and val.pe and val.pe > 0 and close:
         eps = round(close / val.pe, 2)
     fundamental = FundamentalSummary(
@@ -814,7 +1094,38 @@ def stock_detail(stock_id: str, session: Session = Depends(get_session)) -> Stoc
         dividend_yield=val.dividend_yield if val else None,
         eps=eps,
         revenue_yoy=rev.yoy if rev else None,
+        revenue_ym=f"{rev.year}/{rev.month:02d}" if rev else None,
+        month_revenue=round(rev.revenue / 1e5, 2) if rev and rev.revenue is not None else None,  # 千元→億
+        revenue_mom=rev.mom if rev else None,
+        fin_quarter=f"{fin.year}Q{fin.quarter}" if fin else None,
+        quarter_eps=fin.eps if fin else None,
+        gross_margin=fin.gross_margin if fin else None,
+        op_margin=fin.op_margin if fin else None,
+        net_margin=fin.net_margin if fin else None,
+        roe=fin.roe if fin else None,
+        gross_margin_qoq=_pp(fin.gross_margin if fin else None, fin_prev.gross_margin if fin_prev else None),
+        op_margin_qoq=_pp(fin.op_margin if fin else None, fin_prev.op_margin if fin_prev else None),
+        net_margin_qoq=_pp(fin.net_margin if fin else None, fin_prev.net_margin if fin_prev else None),
+        eps_yoy=eps_yoy,
+        rev_yoy_streak=rev_yoy_streak if rev_rows else None,
     )
+
+    profile = None
+    if not stock.is_etf:
+        cp = session.get(models.CompanyProfile, stock_id)
+        if cp or stock.industry_category:
+            profile = CompanyProfileDTO(
+                industry=stock.industry_category,
+                listed_date=cp.listed_date if cp else None,  # stocks.listed_date 為來源資料日，不可靠
+
+                established_date=cp.established_date if cp else None,
+                chairman=cp.chairman if cp else None,
+                president=cp.president if cp else None,
+                capital_billion=round(cp.capital / 1e8, 1) if cp and cp.capital else None,
+                market_cap_billion=round(cp.issued_shares * close / 1e8, 0)
+                if cp and cp.issued_shares and close else None,
+                website=cp.website if cp else None,
+            )
 
     etf_info = None
     if stock.is_etf:
@@ -829,6 +1140,32 @@ def stock_detail(stock_id: str, session: Session = Depends(get_session)) -> Stoc
                 scale_label=_scale_label(billion),
                 scale_billion=billion,
                 listed_date=prof.etf_listed_date,
+            )
+
+    # 產業鏈定位（業務標籤）
+    chain_rows = session.execute(
+        select(models.IndustryChainMember)
+        .where(models.IndustryChainMember.stock_id == stock_id)
+        .order_by(models.IndustryChainMember.chain_id, models.IndustryChainMember.node_id)
+    ).scalars().all()
+    chains = [
+        ChainTagDTO(chain_id=c.chain_id, chain_name=c.chain_name, stream=c.stream,
+                    main_node=c.main_node, node_name=c.node_name)
+        for c in chain_rows
+    ]
+
+    # 所屬類股健康度摘要
+    sector_brief = None
+    if sector is not None:
+        sd_date = session.execute(select(func.max(models.SectorDaily.date))).scalar()
+        sd = session.get(models.SectorDaily, {"sector_id": sector.id, "date": sd_date}) if sd_date else None
+        if sd is not None:
+            sector_brief = SectorBriefDTO(
+                sector_id=sector.id, name=sector.name, date=sd_date,
+                strength_score=sd.strength_score, trend_short=sd.trend_short,
+                trend_long=sd.trend_long, rotation_stage=sd.rotation_stage,
+                momentum_5=sd.momentum_5, momentum_20=sd.momentum_20,
+                foreign_net=sd.foreign_net,
             )
 
     events = session.execute(
@@ -852,6 +1189,9 @@ def stock_detail(stock_id: str, session: Session = Depends(get_session)) -> Stoc
         scores=scores,
         chip=chip,
         fundamental=fundamental,
+        profile=profile,
+        chains=chains,
+        sector_brief=sector_brief,
         etf=etf_info,
         events=[
             EventDTO(date=e.date, category=e.category, title=e.title, summary=e.summary,
@@ -891,6 +1231,100 @@ def stock_ohlcv(
         for p, i in reversed(rows)
     ]
     return OhlcvResponse(stock_id=stock_id, candles=candles)
+
+
+@router.get("/stocks/{stock_id}/recommendation-marks", response_model=RecommendationMarksResponse)
+def stock_recommendation_marks(
+    stock_id: str,
+    days: int = Query(120, ge=20, le=3000),
+    session: Session = Depends(get_session),
+) -> RecommendationMarksResponse:
+    """K 線推薦標記：波段軌被推薦的段落起始日 + 達標狀態（口徑同回看）。"""
+    today_d = _latest_score_date(session)
+    if today_d is None:
+        return RecommendationMarksResponse(stock_id=stock_id, marks=[])
+    rows = session.execute(
+        select(models.Score.date, models.Score.passed_filter, models.Score.passed_styles)
+        .where(models.Score.stock_id == stock_id, models.Score.track == "wave")
+        .order_by(models.Score.date)
+    ).all()
+    rec_dates = [r[0] for r in rows if r[1] or r[2]]  # 回看同口徑：過硬篩或有風格標籤
+    if not rec_dates:
+        return RecommendationMarksResponse(stock_id=stock_id, marks=[])
+    trade_dates = session.execute(
+        select(models.DailyPrice.date)
+        .where(models.DailyPrice.stock_id == stock_id, models.DailyPrice.date <= today_d)
+        .order_by(models.DailyPrice.date)
+    ).scalars().all()
+    visible = set(trade_dates[-days:])
+    marks: list[RecommendationMark] = []
+    for d0 in _mark_segments(rec_dates, trade_dates):
+        if d0 not in visible:
+            continue
+        rv = _lookback_review(session, stock_id, d0, today_d)
+        status = _mark_status(rv.hit_pop, rv.days_to_pop, rv.days_elapsed)
+        marks.append(
+            RecommendationMark(
+                date=d0,
+                status=status,
+                hit_date=rv.hit_pop_date if status == "hit" else None,
+                ret_pct=rv.mfe_pct if status == "hit" else None,
+            )
+        )
+    return RecommendationMarksResponse(stock_id=stock_id, marks=marks)
+
+
+@router.get("/stocks/{stock_id}/target-price", response_model=TargetPriceResponse)
+def stock_target_price(
+    stock_id: str,
+    session: Session = Depends(get_session),
+) -> TargetPriceResponse:
+    """FactSet 共識目標價：最新一筆＋歷次調整，每筆附有效期間內是否達標。"""
+    rows = session.execute(
+        select(models.TargetPrice)
+        .where(models.TargetPrice.stock_id == stock_id)
+        .order_by(models.TargetPrice.date)
+    ).scalars().all()
+    if not rows:
+        return TargetPriceResponse(stock_id=stock_id, latest=None, history=[])
+
+    today_d = session.execute(
+        select(func.max(models.DailyPrice.date)).where(models.DailyPrice.stock_id == stock_id)
+    ).scalar() or rows[-1].date
+    windows = _tp_windows([(r.date, r.target_price) for r in rows], today_d)
+
+    price_rows = session.execute(
+        select(models.DailyPrice.date, models.DailyPrice.high)
+        .where(
+            models.DailyPrice.stock_id == stock_id,
+            models.DailyPrice.date >= rows[0].date,
+            models.DailyPrice.high.isnot(None),
+        )
+        .order_by(models.DailyPrice.date)
+    ).all()
+    latest_close = session.execute(
+        select(models.DailyPrice.close)
+        .where(models.DailyPrice.stock_id == stock_id, models.DailyPrice.close.isnot(None))
+        .order_by(models.DailyPrice.date.desc())
+        .limit(1)
+    ).scalar()
+
+    entries: list[TargetPriceEntry] = []
+    for r, (start, end, tp) in zip(rows, windows):
+        hit_date = next((d for d, h in price_rows if start <= d <= end and h >= tp), None)
+        entries.append(
+            TargetPriceEntry(
+                date=r.date, target_price=r.target_price, prev_target=r.prev_target,
+                direction=r.direction, target_high=r.target_high, target_low=r.target_low,
+                analyst_count=r.analyst_count, rating_bull=r.rating_bull,
+                rating_neutral=r.rating_neutral, rating_bear=r.rating_bear,
+                eps_est=r.eps_est, hit=hit_date is not None, hit_date=hit_date,
+            )
+        )
+    latest = entries[-1]
+    if latest_close:
+        latest.upside_pct = round((latest.target_price / latest_close - 1) * 100, 2)
+    return TargetPriceResponse(stock_id=stock_id, latest=latest, history=list(reversed(entries)))
 
 
 @router.get("/stocks/{stock_id}/levels", response_model=LevelsResponse)
@@ -956,6 +1390,414 @@ def holding_history(
         ],
         backfilling=backfilling,
     )
+
+
+@router.get("/stocks/{stock_id}/industry-chain", response_model=IndustryChainResponse)
+def stock_industry_chain(
+    stock_id: str,
+    session: Session = Depends(get_session),
+) -> IndustryChainResponse:
+    """個股產業鏈上下游全景：所屬每條鏈的 上游/中游/下游 主節點與所在位置。"""
+    mine = session.execute(
+        select(models.IndustryChainMember).where(models.IndustryChainMember.stock_id == stock_id)
+    ).scalars().all()
+    if not mine:
+        return IndustryChainResponse(stock_id=stock_id, chains=[])
+
+    _ORDER = {"上游": 0, "中游": 1, "下游": 2}
+    chains: list[ChainStructure] = []
+    for cid in sorted({m.chain_id for m in mine}):
+        my_rows = [m for m in mine if m.chain_id == cid]
+        my_mains = {m.main_node for m in my_rows}
+        # 該鏈全體成員 → 主節點結構（各節點公司數）
+        rows = session.execute(
+            select(models.IndustryChainMember.stream, models.IndustryChainMember.main_node,
+                   func.count(func.distinct(models.IndustryChainMember.stock_id)),
+                   func.min(models.IndustryChainMember.node_id))
+            .where(models.IndustryChainMember.chain_id == cid,
+                   models.IndustryChainMember.main_node.is_not(None))
+            .group_by(models.IndustryChainMember.stream, models.IndustryChainMember.main_node)
+        ).all()
+        by_stream: dict[str, list[tuple[str, str, int]]] = {}
+        for stream, main_node, cnt, min_node in rows:
+            if stream:
+                by_stream.setdefault(stream, []).append((min_node, main_node, cnt))
+        streams = [
+            ChainStream(
+                stream=st,
+                nodes=[ChainNode(name=n, count=c, mine=n in my_mains)
+                       for _, n, c in sorted(by_stream[st])],
+            )
+            for st in sorted(by_stream, key=lambda s: _ORDER.get(s, 9))
+        ]
+        chains.append(ChainStructure(
+            chain_id=cid,
+            chain_name=my_rows[0].chain_name,
+            my_nodes=sorted({m.node_name for m in my_rows if m.node_name}),
+            streams=streams,
+        ))
+    return IndustryChainResponse(stock_id=stock_id, chains=chains)
+
+
+@router.get("/stocks/{stock_id}/dividends", response_model=DividendsResponse)
+def stock_dividends(
+    stock_id: str,
+    session: Session = Depends(get_session_write),
+) -> DividendsResponse:
+    """股利政策 + 填息判定。首讀懶抓 FinMind 落庫快取（30 天過期重抓）。"""
+    from datetime import datetime, timedelta as td_
+
+    rows = session.execute(
+        select(models.Dividend).where(models.Dividend.stock_id == stock_id)
+    ).scalars().all()
+    stale = not rows or all(
+        r.updated_at is None or datetime.now() - r.updated_at > td_(days=30) for r in rows
+    )
+    if stale:
+        from ..sources import registry
+        from ..sources.base import SourceError
+        from ..storage import repositories as repo_
+
+        try:
+            df = registry.get_source("finmind").fetch_dividends(stock_id, date(2020, 1, 1))
+            if not df.empty:
+                recs = df.astype(object).where(df.notna(), None).to_dict("records")
+                for r in recs:
+                    r["updated_at"] = datetime.now()
+                repo_.DividendRepository().upsert_many(session, recs)
+                session.flush()
+                rows = session.execute(
+                    select(models.Dividend).where(models.Dividend.stock_id == stock_id)
+                ).scalars().all()
+        except SourceError:
+            pass  # 來源失敗用既有快取（可能為空）
+
+    # 填息判定：除息前一交易日收盤 → 之後首次收盤 ≥ 該價的交易日數
+    ex_dates = [r.cash_ex_date for r in rows if r.cash_ex_date and (r.cash or 0) > 0]
+    price_rows: list[tuple[date, float]] = []
+    if ex_dates:
+        p_start = min(ex_dates) - timedelta(days=10)
+        price_rows = session.execute(
+            select(models.DailyPrice.date, models.DailyPrice.close)
+            .where(models.DailyPrice.stock_id == stock_id, models.DailyPrice.date >= p_start,
+                   models.DailyPrice.close.is_not(None))
+            .order_by(models.DailyPrice.date)
+        ).all()
+
+    def _fill(ex: date) -> tuple[int | None, bool | None]:
+        prev = next((p for d_, p in reversed(price_rows) if d_ < ex), None)
+        after = [(d_, p) for d_, p in price_rows if d_ >= ex]
+        if prev is None or not after:
+            return None, None
+        for i, (_, p) in enumerate(after):
+            if p >= prev:
+                return i + 1, True
+        return None, False  # 尚未填息
+
+    entries = []
+    for r in sorted(rows, key=lambda x: (x.cash_ex_date or date.min, x.period), reverse=True):
+        fill_days, filled = _fill(r.cash_ex_date) if r.cash_ex_date and (r.cash or 0) > 0 else (None, None)
+        entries.append(DividendEntry(
+            period=r.period, cash=r.cash, stock=r.stock,
+            cash_ex_date=r.cash_ex_date, pay_date=r.pay_date,
+            fill_days=fill_days, filled=filled,
+        ))
+
+    # 近 12 個月現金合計 + 以現價換算殖利率
+    cutoff = date.today() - timedelta(days=365)
+    cash_12m = sum(r.cash or 0 for r in rows if r.cash_ex_date and r.cash_ex_date >= cutoff) or None
+    yield_12m = None
+    if cash_12m:
+        last_close = session.execute(
+            select(models.DailyPrice.close).where(models.DailyPrice.stock_id == stock_id)
+            .order_by(models.DailyPrice.date.desc()).limit(1)
+        ).scalar()
+        if last_close:
+            yield_12m = round(cash_12m / last_close * 100, 2)
+    return DividendsResponse(
+        stock_id=stock_id,
+        entries=entries,
+        cash_12m=round(cash_12m, 2) if cash_12m else None,
+        yield_12m=yield_12m,
+    )
+
+
+def _valuation_river(stock_id: str, session: Session, metric) -> PeRiverResponse:
+    """估值河流圖共用邏輯：每日估值倍數（PE/PB）分位數 × 隱含基值 = 價格帶。"""
+    _LEVELS = (0.1, 0.3, 0.5, 0.7, 0.9)
+    rows = session.execute(
+        select(models.Valuation.date, metric, models.DailyPrice.close)
+        .join(models.DailyPrice, (models.DailyPrice.stock_id == models.Valuation.stock_id)
+              & (models.DailyPrice.date == models.Valuation.date))
+        .where(models.Valuation.stock_id == stock_id, metric.is_not(None),
+               metric > 0, models.DailyPrice.close.is_not(None))
+        .order_by(models.Valuation.date)
+    ).all()
+    if len(rows) < 60:  # 不足一季資料不畫
+        return PeRiverResponse(stock_id=stock_id, pe_levels=[], points=[], backfilling=True)
+
+    vals = sorted(v for _, v, _ in rows)
+
+    def _q(p: float) -> float:
+        i = p * (len(vals) - 1)
+        lo, hi = int(i), min(int(i) + 1, len(vals) - 1)
+        return round(vals[lo] + (vals[hi] - vals[lo]) * (i - lo), 2)
+
+    levels = [_q(p) for p in _LEVELS]
+    points = [
+        PeRiverPoint(date=d, close=close, bands=[round(lv * close / v, 2) for lv in levels])
+        for d, v, close in rows
+    ]
+    cur = rows[-1][1]
+    import bisect
+    pct = round(bisect.bisect_left(vals, cur) / len(vals) * 100, 1)
+    return PeRiverResponse(
+        stock_id=stock_id, pe_levels=levels, points=points,
+        current_pe=cur, pe_percentile=pct,
+        backfilling=len(rows) < 240,  # 未滿一年提示回補中
+    )
+
+
+@router.get("/stocks/{stock_id}/pe-river", response_model=PeRiverResponse)
+def stock_pe_river(
+    stock_id: str,
+    session: Session = Depends(get_session),
+) -> PeRiverResponse:
+    """本益比河流圖：官方每日 PE 反推隱含 EPS，PE 分位數 × EPS = 價格帶。"""
+    return _valuation_river(stock_id, session, models.Valuation.pe)
+
+
+@router.get("/stocks/{stock_id}/pb-river", response_model=PeRiverResponse)
+def stock_pb_river(
+    stock_id: str,
+    session: Session = Depends(get_session),
+) -> PeRiverResponse:
+    """本淨比河流圖：官方每日 PB 反推隱含每股淨值，PB 分位數 × BPS = 價格帶。"""
+    return _valuation_river(stock_id, session, models.Valuation.pb)
+
+
+@router.get("/stocks/{stock_id}/tech-summary", response_model=TechSummaryResponse)
+def stock_tech_summary(
+    stock_id: str,
+    session: Session = Depends(get_session),
+) -> TechSummaryResponse:
+    """技術指標摘要：KD/MACD/乖離現值 + Beta、52 週位置、年化波動。"""
+    ind = session.execute(
+        select(models.Indicator).where(models.Indicator.stock_id == stock_id)
+        .order_by(models.Indicator.date.desc()).limit(1)
+    ).scalar_one_or_none()
+
+    prices = list(reversed(session.execute(
+        select(models.DailyPrice.date, models.DailyPrice.close, models.DailyPrice.high, models.DailyPrice.low)
+        .where(models.DailyPrice.stock_id == stock_id, models.DailyPrice.close.is_not(None))
+        .order_by(models.DailyPrice.date.desc()).limit(250)
+    ).all()))
+
+    resp = TechSummaryResponse(stock_id=stock_id, date=ind.date if ind else None)
+    if ind:
+        resp.kd_k, resp.kd_d = ind.kd_k, ind.kd_d
+        resp.macd, resp.macd_signal, resp.macd_hist = ind.macd, ind.macd_signal, ind.macd_hist
+        resp.bias_20, resp.bias_60 = ind.bias_20, ind.bias_60
+
+    if len(prices) >= 20:
+        cur = prices[-1][1]
+        highs = [h if h is not None else c for _, c, h, _ in prices]
+        lows = [lo if lo is not None else c for _, c, _, lo in prices]
+        hi52, lo52 = max(highs), min(lows)
+        resp.high_52w, resp.low_52w = round(hi52, 2), round(lo52, 2)
+        if hi52 > 0:
+            resp.dist_high_pct = round((cur / hi52 - 1) * 100, 1)
+        if lo52 > 0:
+            resp.dist_low_pct = round((cur / lo52 - 1) * 100, 1)
+
+        rets = [
+            prices[i][1] / prices[i - 1][1] - 1
+            for i in range(1, len(prices))
+            if prices[i - 1][1]
+        ]
+        if len(rets) >= 20:
+            win = rets[-60:]
+            mean = sum(win) / len(win)
+            var = sum((r - mean) ** 2 for r in win) / len(win)
+            resp.volatility_pct = round((var ** 0.5) * (240 ** 0.5) * 100, 1)
+
+        # Beta：近一年股票 vs 加權指數日報酬（共同交易日）
+        idx_rows = session.execute(
+            select(models.MarketIndex.date, models.MarketIndex.close)
+            .where(models.MarketIndex.close.is_not(None),
+                   models.MarketIndex.date >= prices[0][0])
+            .order_by(models.MarketIndex.date)
+        ).all()
+        idx_map = {d: c for d, c in idx_rows}
+        stk_ret, idx_ret = [], []
+        prev = None  # (stock_close, index_close)
+        for d, c, _, _ in prices:
+            ic = idx_map.get(d)
+            if ic is None or c is None:
+                continue
+            if prev is not None and prev[0] and prev[1]:
+                stk_ret.append(c / prev[0] - 1)
+                idx_ret.append(ic / prev[1] - 1)
+            prev = (c, ic)
+        if len(stk_ret) >= 60:
+            m_s = sum(stk_ret) / len(stk_ret)
+            m_i = sum(idx_ret) / len(idx_ret)
+            cov = sum((s - m_s) * (i - m_i) for s, i in zip(stk_ret, idx_ret))
+            var_i = sum((i - m_i) ** 2 for i in idx_ret)
+            if var_i > 0:
+                resp.beta = round(cov / var_i, 2)
+    return resp
+
+
+@router.get("/stocks/{stock_id}/fundamental-history", response_model=FundamentalHistoryResponse)
+def fundamental_history(
+    stock_id: str,
+    months: int = Query(36, ge=6, le=84),
+    quarters: int = Query(12, ge=4, le=28),
+    session: Session = Depends(get_session),
+) -> FundamentalHistoryResponse:
+    """基本面歷史（月營收 + 單季財報），升冪，供趨勢圖。"""
+    rev_rows = list(reversed(session.execute(
+        select(models.RevenueMonthly).where(models.RevenueMonthly.stock_id == stock_id)
+        .order_by(models.RevenueMonthly.year.desc(), models.RevenueMonthly.month.desc())
+        .limit(months)
+    ).scalars().all()))
+    fin_rows = list(reversed(session.execute(
+        select(models.FinancialQuarter).where(models.FinancialQuarter.stock_id == stock_id)
+        .order_by(models.FinancialQuarter.year.desc(), models.FinancialQuarter.quarter.desc())
+        .limit(quarters)
+    ).scalars().all()))
+    return FundamentalHistoryResponse(
+        stock_id=stock_id,
+        revenues=[
+            RevenuePoint(
+                ym=f"{r.year}/{r.month:02d}",
+                revenue=round(r.revenue / 1e5, 2) if r.revenue is not None else None,  # 千元→億
+                yoy=r.yoy, mom=r.mom,
+            )
+            for r in rev_rows
+        ],
+        quarters=[
+            QuarterPoint(
+                label=f"{r.year}Q{r.quarter}",
+                eps=r.eps,
+                revenue=round(r.revenue / 1e5, 2) if r.revenue is not None else None,
+                gross_margin=r.gross_margin, op_margin=r.op_margin,
+                net_margin=r.net_margin, roe=r.roe,
+            )
+            for r in fin_rows
+        ],
+        # 回補腳本跑完前月營收/季財報只有最新期 → 前端顯示「回補中」提示
+        backfilling=len(rev_rows) < 6,
+    )
+
+
+@router.get("/stocks/{stock_id}/attention", response_model=AttentionResponse)
+def stock_attention(
+    stock_id: str,
+    session: Session = Depends(get_session),
+) -> AttentionResponse:
+    """注意/處置狀態與近 90 日明細（名單由每日 pipeline AttentionStep 更新）。"""
+    today = session.execute(select(func.max(models.DailyPrice.date))).scalar() or date.today()
+    rows = session.execute(
+        select(models.AttentionListing)
+        .where(models.AttentionListing.stock_id == stock_id,
+               models.AttentionListing.date >= today - timedelta(days=90))
+        .order_by(models.AttentionListing.date.desc())
+    ).scalars().all()
+
+    status = None
+    punish_end = None
+    for r in rows:
+        if r.kind == "punish" and r.begin_date and r.end_date and r.begin_date <= today <= r.end_date:
+            status, punish_end = "punish", r.end_date
+            break
+    if status is None and any(
+        r.kind == "notice" and (today - r.date).days <= 5 for r in rows
+    ):
+        status = "notice"
+
+    return AttentionResponse(
+        stock_id=stock_id,
+        status=status,
+        punish_end=punish_end,
+        notice_count_30d=sum(1 for r in rows if r.kind == "notice" and (today - r.date).days <= 30),
+        entries=[
+            AttentionEntry(date=r.date, kind=r.kind, times=r.times,
+                           begin_date=r.begin_date, end_date=r.end_date, reason=r.reason)
+            for r in rows
+        ],
+    )
+
+
+@router.get("/stocks/{stock_id}/financial-statements", response_model=FinancialStatementsResponse)
+def stock_financial_statements(
+    stock_id: str,
+    quarters: int = Query(12, ge=4, le=28),
+    session: Session = Depends(get_session_write),
+) -> FinancialStatementsResponse:
+    """資產負債表＋現金流量表摘要。首讀懶抓 FinMind 落庫快取（30 天過期重抓）。"""
+    from datetime import datetime, timedelta as td_
+
+    def _load():
+        return session.execute(
+            select(models.FinancialStatementQuarter)
+            .where(models.FinancialStatementQuarter.stock_id == stock_id)
+        ).scalars().all()
+
+    rows = _load()
+    stale = not rows or all(
+        r.updated_at is None or datetime.now() - r.updated_at > td_(days=30) for r in rows
+    )
+    if stale:
+        from ..sources import registry
+        from ..sources.base import SourceError
+        from ..storage import repositories as repo_
+
+        try:
+            df = registry.get_source("finmind").fetch_financial_statements(stock_id, date(2020, 1, 1))
+            if not df.empty:
+                recs = df.astype(object).where(df.notna(), None).to_dict("records")
+                now = datetime.now()
+                for r in recs:
+                    r["updated_at"] = now
+                repo_.FinancialStatementRepository().upsert_many(session, recs)
+                session.flush()
+                rows = _load()
+        except SourceError:
+            pass  # 來源失敗（限流/斷線）用既有快取（可能為空）
+
+    shares = session.execute(
+        select(models.CompanyProfile.issued_shares)
+        .where(models.CompanyProfile.stock_id == stock_id)
+    ).scalar()
+
+    def _yi(v: float | None) -> float | None:  # 元 → 億
+        return round(v / 1e8, 1) if v is not None else None
+
+    out: list[FinStatementQuarter] = []
+    for r in sorted(rows, key=lambda x: (x.year, x.quarter), reverse=True)[:quarters]:
+        fcf = r.op_cf + r.capex if r.op_cf is not None and r.capex is not None else None
+        out.append(FinStatementQuarter(
+            label=f"{r.year}Q{r.quarter}",
+            cash=_yi(r.cash),
+            current_assets=_yi(r.current_assets),
+            total_assets=_yi(r.total_assets),
+            current_liab=_yi(r.current_liab),
+            total_liab=_yi(r.total_liab),
+            equity=_yi(r.equity),
+            inventories=_yi(r.inventories),
+            receivables=_yi(r.receivables),
+            debt_ratio=round(r.total_liab / r.total_assets * 100, 1) if r.total_liab and r.total_assets else None,
+            current_ratio=round(r.current_assets / r.current_liab * 100, 1) if r.current_assets and r.current_liab else None,
+            bps=round(r.equity / shares, 2) if r.equity and shares else None,
+            op_cf=_yi(r.op_cf),
+            inv_cf=_yi(r.inv_cf),
+            fin_cf=_yi(r.fin_cf),
+            capex=_yi(r.capex),
+            fcf=_yi(fcf),
+        ))
+    return FinancialStatementsResponse(stock_id=stock_id, quarters=out)
 
 
 @router.get("/stocks/{stock_id}/chip-history", response_model=ChipHistoryResponse)

@@ -24,7 +24,9 @@ from datetime import date
 
 from sqlalchemy import select
 
-sys.path.insert(0, __file__.rsplit("/scripts/", 1)[0])
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.engines.scoring import ScoringEngine  # noqa: E402
 from app.storage import models  # noqa: E402

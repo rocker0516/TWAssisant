@@ -4,6 +4,57 @@
  */
 
 export interface paths {
+    "/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Login */
+        post: operations["login_auth_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Logout */
+        post: operations["logout_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Me */
+        get: operations["me_auth_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/recommendations/tag-stats": {
         parameters: {
             query?: never;
@@ -206,6 +257,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/stocks/{stock_id}/recommendation-marks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stock Recommendation Marks
+         * @description K 線推薦標記：波段軌被推薦的段落起始日 + 達標狀態（口徑同回看）。
+         */
+        get: operations["stock_recommendation_marks_stocks__stock_id__recommendation_marks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stocks/{stock_id}/target-price": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stock Target Price
+         * @description FactSet 共識目標價：最新一筆＋歷次調整，每筆附有效期間內是否達標。
+         */
+        get: operations["stock_target_price_stocks__stock_id__target_price_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/stocks/{stock_id}/levels": {
         parameters: {
             query?: never;
@@ -238,6 +329,86 @@ export interface paths {
          * @description 集保大戶/散戶占比週序列（曲線用）。史料不足時背景回補近一年（看哪檔補哪檔）。
          */
         get: operations["holding_history_stocks__stock_id__holding_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stocks/{stock_id}/industry-chain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stock Industry Chain
+         * @description 個股產業鏈上下游全景：所屬每條鏈的 上游/中游/下游 主節點與所在位置。
+         */
+        get: operations["stock_industry_chain_stocks__stock_id__industry_chain_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stocks/{stock_id}/dividends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stock Dividends
+         * @description 股利政策 + 填息判定。首讀懶抓 FinMind 落庫快取（30 天過期重抓）。
+         */
+        get: operations["stock_dividends_stocks__stock_id__dividends_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stocks/{stock_id}/pe-river": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stock Pe River
+         * @description 本益比河流圖：官方每日 PE 反推隱含 EPS，PE 分位數 × EPS = 價格帶。
+         */
+        get: operations["stock_pe_river_stocks__stock_id__pe_river_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stocks/{stock_id}/fundamental-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fundamental History
+         * @description 基本面歷史（月營收 + 單季財報），升冪，供趨勢圖。
+         */
+        get: operations["fundamental_history_stocks__stock_id__fundamental_history_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -723,6 +894,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/corners": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Corner Signals */
+        get: operations["corner_signals_corners_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/corners/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Corner Review */
+        get: operations["corner_review_corners_review_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -896,6 +1101,49 @@ export interface components {
             /** Macd Hist */
             macd_hist?: number | null;
         };
+        /** ChainNode */
+        ChainNode: {
+            /** Name */
+            name: string;
+            /** Count */
+            count: number;
+            /** Mine */
+            mine: boolean;
+        };
+        /** ChainStream */
+        ChainStream: {
+            /** Stream */
+            stream: string;
+            /** Nodes */
+            nodes: components["schemas"]["ChainNode"][];
+        };
+        /** ChainStructure */
+        ChainStructure: {
+            /** Chain Id */
+            chain_id: string;
+            /** Chain Name */
+            chain_name: string;
+            /** My Nodes */
+            my_nodes: string[];
+            /** Streams */
+            streams: components["schemas"]["ChainStream"][];
+        };
+        /**
+         * ChainTagDTO
+         * @description 個股產業鏈定位一筆（官方 ic.tpex.org.tw）。
+         */
+        ChainTagDTO: {
+            /** Chain Id */
+            chain_id: string;
+            /** Chain Name */
+            chain_name: string;
+            /** Stream */
+            stream?: string | null;
+            /** Main Node */
+            main_node?: string | null;
+            /** Node Name */
+            node_name?: string | null;
+        };
         /** ChatMsg */
         ChatMsg: {
             /** Role */
@@ -1007,6 +1255,146 @@ export interface components {
             insider_pct_chg?: number | null;
             /** Insider Pledge Pct */
             insider_pledge_pct?: number | null;
+        };
+        /**
+         * CompanyProfileDTO
+         * @description 公司基本資料（ETF 無此塊）。
+         */
+        CompanyProfileDTO: {
+            /** Industry */
+            industry?: string | null;
+            /** Listed Date */
+            listed_date?: string | null;
+            /** Established Date */
+            established_date?: string | null;
+            /** Chairman */
+            chairman?: string | null;
+            /** President */
+            president?: string | null;
+            /** Capital Billion */
+            capital_billion?: number | null;
+            /** Market Cap Billion */
+            market_cap_billion?: number | null;
+            /** Website */
+            website?: string | null;
+        };
+        /** CornerOut */
+        CornerOut: {
+            /** Id */
+            id: string;
+            /** Atoms */
+            atoms: string[];
+            /** Family */
+            family: string;
+            /** Family Label */
+            family_label: string;
+            /** Floor */
+            floor: number;
+            /** Per Year */
+            per_year: {
+                [key: string]: unknown;
+            };
+            /** Stocks */
+            stocks: components["schemas"]["CornerStockOut"][];
+        };
+        /** CornerReviewResponse */
+        CornerReviewResponse: {
+            /** As Of */
+            as_of: string | null;
+            /** Oos From */
+            oos_from: string;
+            /** Overall Unique */
+            overall_unique: {
+                [key: string]: unknown;
+            };
+            /** By Corner */
+            by_corner: components["schemas"]["CornerReviewRow"][];
+            /** By Day */
+            by_day: {
+                [key: string]: unknown;
+            }[];
+            /** Note */
+            note: string;
+        };
+        /** CornerReviewRow */
+        CornerReviewRow: {
+            /** Id */
+            id: string;
+            /** Atoms */
+            atoms: string[];
+            /** Family Label */
+            family_label: string;
+            /** Floor */
+            floor: number;
+            /** N */
+            n: number;
+            /** Matured */
+            matured: number;
+            /** Hits */
+            hits: number;
+            /** Hit Rate */
+            hit_rate: number | null;
+            /** Pending */
+            pending: number;
+            /** Early Hits */
+            early_hits: number;
+        };
+        /** CornerSignalsResponse */
+        CornerSignalsResponse: {
+            /** Date */
+            date: string | null;
+            /** Evaluated */
+            evaluated: boolean;
+            /** Total Corners */
+            total_corners: number;
+            /** Fired */
+            fired: components["schemas"]["CornerOut"][];
+            /** Recent */
+            recent: {
+                [key: string]: unknown;
+            }[];
+            /** Note */
+            note: string;
+        };
+        /** CornerStockOut */
+        CornerStockOut: {
+            /** Stock Id */
+            stock_id: string;
+            /** Name */
+            name: string;
+            /** Close */
+            close: number | null;
+        };
+        /**
+         * DividendEntry
+         * @description 一期股利（年度制一年一列、季配一年四列）。
+         */
+        DividendEntry: {
+            /** Period */
+            period: string;
+            /** Cash */
+            cash?: number | null;
+            /** Stock */
+            stock?: number | null;
+            /** Cash Ex Date */
+            cash_ex_date?: string | null;
+            /** Pay Date */
+            pay_date?: string | null;
+            /** Fill Days */
+            fill_days?: number | null;
+            /** Filled */
+            filled?: boolean | null;
+        };
+        /** DividendsResponse */
+        DividendsResponse: {
+            /** Stock Id */
+            stock_id: string;
+            /** Entries */
+            entries: components["schemas"]["DividendEntry"][];
+            /** Cash 12M */
+            cash_12m?: number | null;
+            /** Yield 12M */
+            yield_12m?: number | null;
         };
         /**
          * EtfInfo
@@ -1123,6 +1511,23 @@ export interface components {
             /** Items */
             items: components["schemas"]["FlowStockItem"][];
         };
+        /**
+         * FundamentalHistoryResponse
+         * @description 基本面歷史序列（月營收 + 單季財報），供趨勢圖。
+         */
+        FundamentalHistoryResponse: {
+            /** Stock Id */
+            stock_id: string;
+            /** Revenues */
+            revenues: components["schemas"]["RevenuePoint"][];
+            /** Quarters */
+            quarters: components["schemas"]["QuarterPoint"][];
+            /**
+             * Backfilling
+             * @default false
+             */
+            backfilling: boolean;
+        };
         /** FundamentalSummary */
         FundamentalSummary: {
             /** Pe */
@@ -1135,6 +1540,34 @@ export interface components {
             eps?: number | null;
             /** Revenue Yoy */
             revenue_yoy?: number | null;
+            /** Revenue Ym */
+            revenue_ym?: string | null;
+            /** Month Revenue */
+            month_revenue?: number | null;
+            /** Revenue Mom */
+            revenue_mom?: number | null;
+            /** Fin Quarter */
+            fin_quarter?: string | null;
+            /** Quarter Eps */
+            quarter_eps?: number | null;
+            /** Gross Margin */
+            gross_margin?: number | null;
+            /** Op Margin */
+            op_margin?: number | null;
+            /** Net Margin */
+            net_margin?: number | null;
+            /** Roe */
+            roe?: number | null;
+            /** Gross Margin Qoq */
+            gross_margin_qoq?: number | null;
+            /** Op Margin Qoq */
+            op_margin_qoq?: number | null;
+            /** Net Margin Qoq */
+            net_margin_qoq?: number | null;
+            /** Eps Yoy */
+            eps_yoy?: number | null;
+            /** Rev Yoy Streak */
+            rev_yoy_streak?: number | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1284,6 +1717,16 @@ export interface components {
             /** Total Realized Pnl */
             total_realized_pnl: number;
         };
+        /**
+         * IndustryChainResponse
+         * @description 個股產業鏈上下游全景（官方價值鏈平台）。
+         */
+        IndustryChainResponse: {
+            /** Stock Id */
+            stock_id: string;
+            /** Chains */
+            chains: components["schemas"]["ChainStructure"][];
+        };
         /** InstActorIC */
         InstActorIC: {
             /** Ic */
@@ -1377,6 +1820,13 @@ export interface components {
             supports: components["schemas"]["LevelDTO"][];
             /** Resistances */
             resistances: components["schemas"]["LevelDTO"][];
+        };
+        /** LoginBody */
+        LoginBody: {
+            /** Username */
+            username: string;
+            /** Password */
+            password: string;
         };
         /**
          * LookbackCalendar
@@ -1612,6 +2062,59 @@ export interface components {
             /** Recent Events */
             recent_events: components["schemas"]["EventBrief"][];
         };
+        /** PeRiverPoint */
+        PeRiverPoint: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Close */
+            close?: number | null;
+            /** Bands */
+            bands: (number | null)[];
+        };
+        /**
+         * PeRiverResponse
+         * @description 本益比河流圖：全期間 PE 分位數 × 隱含 EPS → 價格帶，疊收盤價。
+         */
+        PeRiverResponse: {
+            /** Stock Id */
+            stock_id: string;
+            /** Pe Levels */
+            pe_levels: number[];
+            /** Points */
+            points: components["schemas"]["PeRiverPoint"][];
+            /** Current Pe */
+            current_pe?: number | null;
+            /** Pe Percentile */
+            pe_percentile?: number | null;
+            /**
+             * Backfilling
+             * @default false
+             */
+            backfilling: boolean;
+        };
+        /**
+         * QuarterPoint
+         * @description 季財報一點（單季）。
+         */
+        QuarterPoint: {
+            /** Label */
+            label: string;
+            /** Eps */
+            eps?: number | null;
+            /** Revenue */
+            revenue?: number | null;
+            /** Gross Margin */
+            gross_margin?: number | null;
+            /** Op Margin */
+            op_margin?: number | null;
+            /** Net Margin */
+            net_margin?: number | null;
+            /** Roe */
+            roe?: number | null;
+        };
         /** RecoBrief */
         RecoBrief: {
             /** Stock Id */
@@ -1680,6 +2183,14 @@ export interface components {
             passed_styles?: string[] | null;
             /** Passed Filter */
             passed_filter?: boolean | null;
+            /** Prob Hit */
+            prob_hit?: number | null;
+            /** Prob N */
+            prob_n?: number | null;
+            /** Prob Cond */
+            prob_cond?: string | null;
+            /** Prob Mae */
+            prob_mae?: number | null;
         };
         /** RecommendationList */
         RecommendationList: {
@@ -1722,6 +2233,44 @@ export interface components {
             /** Items */
             items: components["schemas"]["RecommendationItem"][];
             summary: components["schemas"]["LookbackSummary"];
+        };
+        /**
+         * RecommendationMark
+         * @description K 線上的推薦段落標記（起始日）。
+         */
+        RecommendationMark: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Status */
+            status: string;
+            /** Hit Date */
+            hit_date?: string | null;
+            /** Ret Pct */
+            ret_pct?: number | null;
+        };
+        /** RecommendationMarksResponse */
+        RecommendationMarksResponse: {
+            /** Stock Id */
+            stock_id: string;
+            /** Marks */
+            marks: components["schemas"]["RecommendationMark"][];
+        };
+        /**
+         * RevenuePoint
+         * @description 月營收一點。
+         */
+        RevenuePoint: {
+            /** Ym */
+            ym: string;
+            /** Revenue */
+            revenue?: number | null;
+            /** Yoy */
+            yoy?: number | null;
+            /** Mom */
+            mom?: number | null;
         };
         /** ScoreDTO */
         ScoreDTO: {
@@ -1767,6 +2316,32 @@ export interface components {
             /** Rotation Stage */
             rotation_stage: string | null;
         };
+        /**
+         * SectorBriefDTO
+         * @description 所屬類股健康度摘要（個股頁小卡，連到類股詳情）。
+         */
+        SectorBriefDTO: {
+            /** Sector Id */
+            sector_id: number;
+            /** Name */
+            name: string;
+            /** Date */
+            date: string | null;
+            /** Strength Score */
+            strength_score?: number | null;
+            /** Trend Short */
+            trend_short?: string | null;
+            /** Trend Long */
+            trend_long?: string | null;
+            /** Rotation Stage */
+            rotation_stage?: string | null;
+            /** Momentum 5 */
+            momentum_5?: number | null;
+            /** Momentum 20 */
+            momentum_20?: number | null;
+            /** Foreign Net */
+            foreign_net?: number | null;
+        };
         /** SectorConstituent */
         SectorConstituent: {
             /** Stock Id */
@@ -1783,6 +2358,11 @@ export interface components {
             long_score: number | null;
             /** Recommended */
             recommended: boolean;
+            /**
+             * Tags
+             * @default []
+             */
+            tags: string[];
         };
         /** SectorDetail */
         SectorDetail: {
@@ -1923,6 +2503,13 @@ export interface components {
             };
             chip: components["schemas"]["ChipSummary"] | null;
             fundamental: components["schemas"]["FundamentalSummary"] | null;
+            profile?: components["schemas"]["CompanyProfileDTO"] | null;
+            /**
+             * Chains
+             * @default []
+             */
+            chains: components["schemas"]["ChainTagDTO"][];
+            sector_brief?: components["schemas"]["SectorBriefDTO"] | null;
             etf?: components["schemas"]["EtfInfo"] | null;
             /** Events */
             events: components["schemas"]["EventDTO"][];
@@ -1945,6 +2532,60 @@ export interface components {
              * @default false
              */
             is_etf: boolean;
+        };
+        /**
+         * TargetPriceEntry
+         * @description 一筆 FactSet 共識目標價（含達標實況）。
+         */
+        TargetPriceEntry: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Target Price */
+            target_price: number;
+            /** Prev Target */
+            prev_target?: number | null;
+            /**
+             * Direction
+             * @default new
+             */
+            direction: string;
+            /** Target High */
+            target_high?: number | null;
+            /** Target Low */
+            target_low?: number | null;
+            /** Analyst Count */
+            analyst_count?: number | null;
+            /** Rating Bull */
+            rating_bull?: number | null;
+            /** Rating Neutral */
+            rating_neutral?: number | null;
+            /** Rating Bear */
+            rating_bear?: number | null;
+            /** Eps Est */
+            eps_est?: number | null;
+            /**
+             * Hit
+             * @default false
+             */
+            hit: boolean;
+            /** Hit Date */
+            hit_date?: string | null;
+            /** Upside Pct */
+            upside_pct?: number | null;
+        };
+        /** TargetPriceResponse */
+        TargetPriceResponse: {
+            /** Stock Id */
+            stock_id: string;
+            latest?: components["schemas"]["TargetPriceEntry"] | null;
+            /**
+             * History
+             * @default []
+             */
+            history: components["schemas"]["TargetPriceEntry"][];
         };
         /** ThemeDigest */
         ThemeDigest: {
@@ -2112,6 +2753,81 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    login_auth_login_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    logout_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    me_auth_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     recommendation_tag_stats_recommendations_tag_stats_get: {
         parameters: {
             query?: never;
@@ -2174,8 +2890,10 @@ export interface operations {
                 date?: string | null;
                 /** @description N 個交易日前（date 未指定時用） */
                 days?: number;
-                /** @description 覆寫嚴格度（前 N%）；不傳用設定值 */
+                /** @description 舊參數（前 N%），機率口徑下僅回顯不篩選 */
                 top_pct?: number | null;
+                /** @description 達標機率門檻%（0=全部有標籤者） */
+                prob_min?: number;
                 /** @description 波段風格（爆發=純門檻篩，不看 top_pct） */
                 style?: string;
             };
@@ -2210,9 +2928,11 @@ export interface operations {
             query?: {
                 /** @description 起始日；不傳=全部歷史 */
                 since?: string | null;
-                /** @description 覆寫嚴格度（前 N%） */
+                /** @description 舊參數（前 N%），機率口徑下僅回顯 */
                 top_pct?: number | null;
-                /** @description 波段風格（爆發=純門檻篩，不看 top_pct） */
+                /** @description 達標機率門檻%（0=全部有標籤者） */
+                prob_min?: number;
+                /** @description 波段風格（爆發=純門檻篩） */
                 style?: string;
             };
             header?: never;
@@ -2403,6 +3123,70 @@ export interface operations {
             };
         };
     };
+    stock_recommendation_marks_stocks__stock_id__recommendation_marks_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path: {
+                stock_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecommendationMarksResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stock_target_price_stocks__stock_id__target_price_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stock_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TargetPriceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     stock_levels_stocks__stock_id__levels_get: {
         parameters: {
             query?: never;
@@ -2452,6 +3236,133 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HoldingHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stock_industry_chain_stocks__stock_id__industry_chain_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stock_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndustryChainResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stock_dividends_stocks__stock_id__dividends_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stock_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DividendsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stock_pe_river_stocks__stock_id__pe_river_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stock_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PeRiverResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fundamental_history_stocks__stock_id__fundamental_history_get: {
+        parameters: {
+            query?: {
+                months?: number;
+                quarters?: number;
+            };
+            header?: never;
+            path: {
+                stock_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FundamentalHistoryResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3355,6 +4266,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    corner_signals_corners_get: {
+        parameters: {
+            query?: {
+                date?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CornerSignalsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    corner_review_corners_review_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CornerReviewResponse"];
                 };
             };
         };

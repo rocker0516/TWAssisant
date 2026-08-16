@@ -15,6 +15,26 @@ function pnlColor(v: number | null | undefined) {
   return changeColor(v);
 }
 
+// 進場論點狀態（entry_snapshot vs 最新分數）
+const THESIS_META: Record<string, { label: string; cls: string }> = {
+  intact: { label: "論點成立", cls: "bg-emerald-500/10 text-emerald-300" },
+  weakening: { label: "論點轉弱", cls: "bg-amber-500/15 text-amber-300" },
+  broken: { label: "論點失效", cls: "bg-red-500/15 text-red-300" },
+  unknown: { label: "論點未知", cls: "bg-gray-500/10 text-gray-400" },
+};
+
+function ThesisChip({ h }: { h: HoldingItem }) {
+  const t = h.thesis;
+  if (!t) return null;
+  const m = THESIS_META[t.status] ?? THESIS_META.unknown;
+  return (
+    <span className={`ml-2 rounded px-1.5 py-0.5 text-[10px] ${m.cls}`}
+      title={t.messages.join("；") || `進場 ${t.entry_score ?? "—"} 分 → 最新 ${t.latest_score ?? "—"} 分`}>
+      {m.label}
+    </span>
+  );
+}
+
 function SummaryBar({ s }: { s: { count: number; total_market_value: number; total_unrealized_pnl: number; total_return_pct: number | null; total_realized_pnl: number } }) {
   const cell = (label: string, value: string, color?: string) => (
     <div>
@@ -124,6 +144,7 @@ function RowGroup({ h, tab, expanded, onToggle, onAdd, onSell, onDelete }: {
             <span className="font-medium">{h.name}</span>
             <span className="ml-1 text-xs text-muted">{h.stock_id}</span>
           </Link>
+          {tab === "open" && <ThesisChip h={h} />}
         </td>
         <td className="px-3 py-2 text-muted">{TRACK_LABELS[h.track]}</td>
         <td className="px-3 py-2 text-right tabular-nums">
@@ -165,6 +186,34 @@ function RowGroup({ h, tab, expanded, onToggle, onAdd, onSell, onDelete }: {
                 )}
               </div>
             </div>
+            {h.entry_snapshot && (
+              <div className="mt-3 rounded-lg border border-edge bg-panel/50 p-3">
+                <div className="mb-1 text-xs text-muted">
+                  進場理由快照（{h.entry_snapshot.score_date} 當時評分 {h.entry_snapshot.total_score ?? "—"} 分）
+                  {h.thesis && h.thesis.latest_score != null && (
+                    <span className="ml-2">
+                      → 最新 {h.thesis.latest_score} 分
+                      {h.thesis.messages.length > 0 && (
+                        <span className="ml-1 text-amber-400">（{h.thesis.messages.join("；")}）</span>
+                      )}
+                    </span>
+                  )}
+                </div>
+                {h.entry_snapshot.reasons?.length ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {h.entry_snapshot.reasons.map((r, i) => (
+                      <span key={i} className="rounded bg-sky-500/10 px-1.5 py-0.5 text-xs text-sky-300">{r}</span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted">無理由紀錄</div>
+                )}
+                <div className="mt-1.5 text-xs text-muted">
+                  當時買點 {fmtNum(h.entry_snapshot.buy_low)}–{fmtNum(h.entry_snapshot.buy_high)} ·
+                  停損 {fmtNum(h.entry_snapshot.stop_loss)} · 收盤 {fmtNum(h.entry_snapshot.close)}
+                </div>
+              </div>
+            )}
             <div className="mt-3">
               <div className="mb-1 text-xs text-muted">交易明細</div>
               <table className="w-full text-xs">

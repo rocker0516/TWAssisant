@@ -14,7 +14,7 @@ import sys
 from datetime import timedelta
 import numpy as np, pandas as pd
 from sqlalchemy import select, distinct
-sys.path.insert(0, __file__.rsplit("/scripts/", 1)[0])
+sys.path.insert(0, __file__.replace("\\", "/").rsplit("/scripts/", 1)[0])
 from app.engines.calibration import _MIN_BARS, _iter_stock_groups
 from app.storage import models
 from app.storage.database import SessionLocal

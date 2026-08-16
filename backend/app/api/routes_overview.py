@@ -16,6 +16,7 @@ from .deps import get_session
 from .schemas import (
     AlertBrief,
     EventBrief,
+    FearGreedResponse,
     MarketSummary,
     OverviewResponse,
     RecoBrief,
@@ -73,6 +74,15 @@ def _market(session: Session, td: date) -> MarketSummary:
         trust_buy_count=b["trust_buy_count"], trust_sell_count=b["trust_sell_count"],
         trust_top10_concentration=b["trust_top10_concentration"],
     )
+
+
+@router.get("/market/fear-greed", response_model=FearGreedResponse)
+def market_fear_greed(session: Session = Depends(get_session)) -> FearGreedResponse:
+    """台股恐懼貪婪指數（自算，行程內快取）＋ CNN 官方美股指數（直抓，6h 快取）。"""
+    from ..engines.fear_greed import compute_fear_greed
+    from ..sources.cnn_fg import fetch_cnn_fear_greed
+
+    return FearGreedResponse(**compute_fear_greed(session), us=fetch_cnn_fear_greed())
 
 
 @router.get("/overview", response_model=OverviewResponse)

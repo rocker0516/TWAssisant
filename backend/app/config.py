@@ -34,9 +34,14 @@ class Settings(BaseSettings):
     data_dir: Path = DATA_DIR
     db_filename: str = "twa.db"
 
-    # --- 服務（本機）---
+    # --- 服務 ---
     host: str = "127.0.0.1"
     port: int = 8000
+
+    # --- 登入（網站模式）：TWA_AUTH_PASSWORD 未設 = 關閉登入（純本機開發）---
+    auth_username: str = "admin"
+    auth_password: str = ""
+    auth_session_days: int = 30
 
     # --- 能力 → 來源實作 綁定（DI）。換來源只動這裡 ---
     # key = 能力介面，value = registry 中註冊的來源名稱

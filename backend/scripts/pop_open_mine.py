@@ -15,7 +15,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, __file__.rsplit("/scripts/", 1)[0])
+sys.path.insert(0, __file__.replace("\\", "/").rsplit("/scripts/", 1)[0])
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 from pop_condition_judge import _CACHE  # noqa: E402
 

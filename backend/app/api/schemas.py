@@ -5,6 +5,7 @@ P1：推薦頁 + 詳情頁所需。後續階段再擴充。
 
 from __future__ import annotations
 
+import datetime as _dt
 from datetime import date
 
 from pydantic import BaseModel
@@ -48,6 +49,32 @@ class LookbackReview(BaseModel):
     days_elapsed: int = 0              # 進場日後已過幾個交易日
 
 
+class LongTargetZone(BaseModel):
+    """長線軌目標區間（參考期間 12 個月＝回測視窗）。
+
+    基準錨優先用法人目標價中位（FactSet），無法人報告退 PE 河流中位帶（估值推算）；
+    保守/樂觀恆為 PE 河流中位帶/上緣帶 × 隱含 EPS（長線硬篩②保證 EPS>0，缺的只會是 PE 史料）。
+    """
+
+    basis: str                        # 基準錨來源：analyst=法人目標價 | pe_river=估值推算
+    base: float                       # 基準目標價
+    upside_pct: float | None          # 基準相對現價上漲空間 %
+    low: float | None                 # 保守：PE 河流中位帶價
+    high: float | None                # 樂觀：PE 河流上緣帶價
+    analyst_target: float | None = None   # 法人目標價中位（有 FactSet 報告才有）
+    analyst_date: date | None = None      # 該目標價發布日
+    analyst_count: int | None = None      # 分析師家數
+    hit: bool = False                 # 已達標：analyst=發布後最高價曾觸及；pe_river=現價已在基準上
+
+
+class LongGraduation(BaseModel):
+    """長線軌畢業條件（重新審視訊號，非停損）：達標 / 魚齡老化 / 已暴漲。"""
+
+    hit_target: bool = False          # 現價已觸及基準目標
+    streak_months: int | None = None  # 魚齡：連續營收 YoY>0 月數（>12 轉黃、>18 轉紅）
+    mom12_pct: float | None = None    # 近 12 月漲幅 %（>80 轉黃、>200 轉紅）
+
+
 class RecommendationItem(BaseModel):
     stock_id: str
     name: str
@@ -74,6 +101,14 @@ class RecommendationItem(BaseModel):
     prob_n: int | None = None       # 該條件格歷史樣本數
     prob_cond: str | None = None    # 條件描述（例：分數90-95×波動5-8%×大盤正常）
     prob_mae: float | None = None   # 同條件歷史平均最深回撤%（風險行顯示用）
+    vol_ratio: float | None = None  # 量增比＝vol_ma5/vol_ma20（標籤共振徽章用：爆發×量增>1.5 實證加成）
+    # 注意/處置動能徽章（2026-08 判官驗證：處置後10日 控波動+16pp、holdout命中71%；注意×上升 +5~7pp）
+    attention: str | None = None    # "punish"（處置公告10日內/執行中）/ "notice"（近5日列注意）/ None
+    attention_tags: list[str] = []  # 完整旗標集（可同時 punish+notice；精確組合篩選用）
+    # ML 共識確認（2026-08 實證：四因子∩ML 交集 holdout 命中 ~34% vs 單獨 ~30-31%）
+    ml_consensus: bool | None = None  # True=ML 模型也將其排入硬篩內前 20%（資料日對得上才附）
+    target_zone: LongTargetZone | None = None   # 長線軌限定：目標區間（波段軌恆 None）
+    graduation: LongGraduation | None = None    # 長線軌限定：畢業條件狀態
 
 
 class MarketRegime(BaseModel):
@@ -204,6 +239,334 @@ class FundamentalSummary(BaseModel):
     dividend_yield: float | None = None
     eps: float | None = None
     revenue_yoy: float | None = None
+    # 月營收（最新月）
+    revenue_ym: str | None = None          # 如 "2026/07"
+    month_revenue: float | None = None     # 當月營收（億元）
+    revenue_mom: float | None = None       # 月增 %
+    # 季財報（最新單季）
+    fin_quarter: str | None = None         # 如 "2026Q1"
+    quarter_eps: float | None = None       # 單季 EPS
+    gross_margin: float | None = None      # 毛利率 %
+    op_margin: float | None = None         # 營益率 %
+    net_margin: float | None = None        # 淨利率 %
+    roe: float | None = None               # ROE %
+    # 派生指標
+    gross_margin_qoq: float | None = None  # 毛利率 vs 上季（個百分點）
+    op_margin_qoq: float | None = None     # 營益率 vs 上季（個百分點）
+    net_margin_qoq: float | None = None    # 淨利率 vs 上季（個百分點）
+    eps_yoy: float | None = None           # 單季 EPS vs 去年同季 %
+    rev_yoy_streak: int | None = None      # 月營收 YoY 連續正成長月數（0=最新月已轉負）
+
+
+class RevenuePoint(BaseModel):
+    """月營收一點。"""
+
+    ym: str                              # "2026/07"
+    revenue: float | None = None         # 億元
+    yoy: float | None = None             # 年增 %
+    mom: float | None = None             # 月增 %
+
+
+class QuarterPoint(BaseModel):
+    """季財報一點（單季）。"""
+
+    label: str                           # "2026Q1"
+    eps: float | None = None
+    revenue: float | None = None         # 億元
+    gross_margin: float | None = None
+    op_margin: float | None = None
+    net_margin: float | None = None
+    roe: float | None = None
+
+
+class FundamentalHistoryResponse(BaseModel):
+    """基本面歷史序列（月營收 + 單季財報），供趨勢圖。"""
+
+    stock_id: str
+    revenues: list[RevenuePoint]
+    quarters: list[QuarterPoint]
+    backfilling: bool = False            # 歷史仍在回補中（資料太少時提示）
+
+
+class DividendEntry(BaseModel):
+    """一期股利（年度制一年一列、季配一年四列）。"""
+
+    period: str                          # "114年" / "114年第4季"
+    cash: float | None = None            # 現金股利（元/股）
+    stock: float | None = None           # 股票股利（元/股）
+    cash_ex_date: date | None = None     # 除息交易日
+    pay_date: date | None = None         # 發放日
+    fill_days: int | None = None         # 填息交易日數（未填/價格資料不足=None）
+    filled: bool | None = None           # 是否已填息（價格資料不足=None）
+
+
+class DividendsResponse(BaseModel):
+    stock_id: str
+    entries: list[DividendEntry]         # 除息日降冪
+    cash_12m: float | None = None        # 近 12 個月現金股利合計（元/股）
+    yield_12m: float | None = None       # 近 12 個月現金殖利率 %（÷現價）
+
+
+class PeRiverPoint(BaseModel):
+    date: date
+    close: float | None = None
+    bands: list[float | None]            # 對應 PeRiverResponse.pe_levels 的價格帶
+
+
+class PeRiverResponse(BaseModel):
+    """本益比河流圖：全期間 PE 分位數 × 隱含 EPS → 價格帶，疊收盤價。"""
+
+    stock_id: str
+    pe_levels: list[float]               # 分位數 PE（低→高）
+    points: list[PeRiverPoint]
+    current_pe: float | None = None
+    pe_percentile: float | None = None   # 現在 PE 落在歷史第幾百分位（0~100）
+    backfilling: bool = False            # 估值/價格歷史仍在回補
+
+
+class TechSummaryResponse(BaseModel):
+    """技術指標摘要：現值 KD/MACD/乖離 + Beta/52週位置/波動（皆由既有日線與指標計算）。"""
+
+    stock_id: str
+    # 欄位名 date 會遮蔽 datetime.date（預設值進 class namespace），需用模組限定名
+    date: _dt.date | None = None
+    kd_k: float | None = None
+    kd_d: float | None = None
+    macd: float | None = None
+    macd_signal: float | None = None
+    macd_hist: float | None = None
+    bias_20: float | None = None         # 20 日乖離 %
+    bias_60: float | None = None
+    beta: float | None = None            # 對加權指數，近一年日報酬迴歸
+    high_52w: float | None = None
+    low_52w: float | None = None
+    dist_high_pct: float | None = None   # 現價距 52 週高 %（負值＝低於高點）
+    dist_low_pct: float | None = None    # 現價距 52 週低 %
+    volatility_pct: float | None = None  # 年化波動率 %（近 60 日日報酬標準差×√240）
+
+
+class FearGreedComponent(BaseModel):
+    """恐懼貪婪指數單一組件：score 0~100（高=貪婪）、value 為原始值。"""
+
+    key: str
+    label: str
+    desc: str | None = None
+    score: float
+    value: float | None = None
+
+
+class FearGreedPoint(BaseModel):
+    date: date
+    score: float
+
+
+class UsFearGreed(BaseModel):
+    """CNN 官方 Fear & Greed（美股）。直抓 CNN dataviz API。"""
+
+    score: float
+    rating: str                      # extreme fear / fear / neutral / greed / extreme greed
+    label: str                       # 中文
+    prev_close: float | None = None
+    prev_week: float | None = None
+    prev_month: float | None = None
+    prev_year: float | None = None
+    history: list[FearGreedPoint] = []
+
+
+class FearGreedResponse(BaseModel):
+    """台股恐懼貪婪指數（自算組件百分位）＋ CNN 官方美股指數並列。"""
+
+    # 欄位名 date 有預設值會遮蔽 datetime.date，需模組限定名（同 TechSummaryResponse）
+    date: _dt.date | None = None
+    score: float | None = None
+    label: str | None = None
+    components: list[FearGreedComponent] = []
+    history: list[FearGreedPoint] = []
+    us: UsFearGreed | None = None    # CNN 抓失敗時為 None（前端隱藏該區塊）
+
+
+class TagComboStat(BaseModel):
+    """一種「精確標籤組合」的出現與成效統計（组合鍵如 explosive+notice）。"""
+
+    key: str
+    n: int                              # 出現樣本數（檔×日）
+    share_pct: float                    # 占全部有標籤樣本 %
+    hit_rate: float | None = None       # 10 交易日內碰到 +10% 比率（樣本夠熟才計）
+    avg_ret_pct: float | None = None    # 30 日實際報酬平均
+    avg_mfe_pct: float | None = None
+    avg_mae_pct: float | None = None
+
+
+class SignalDecayPoint(BaseModel):
+    ym: str                          # 月份 YYYY-MM
+    n: int
+    hit: float | None = None         # 該月此訊號樣本 10 日碰 +10% 率 %
+    lift: float | None = None        # hit − 該月全市場基率（pp）
+
+
+class SignalDecaySeries(BaseModel):
+    key: str                         # pop/explosive/strong/story/crash/punish/notice
+    points: list[SignalDecayPoint] = []
+    hit_all: float | None = None     # 全期命中 %
+    lift_all: float | None = None
+    hit_recent: float | None = None  # 近 3 個月
+    lift_recent: float | None = None
+
+
+class SignalDecayResponse(BaseModel):
+    """訊號時變效力：各訊號逐月 10 日命中率與相對基率 lift（影響度隨時間變化）。"""
+
+    today_date: date | None = None
+    base: list[SignalDecayPoint] = []   # 全市場基率逐月（hit 欄）
+    signals: list[SignalDecaySeries] = []
+
+
+class ComboSample(BaseModel):
+    """精確組合的單一樣本（某檔某日）＋10 日窗成效。"""
+
+    date: date
+    stock_id: str
+    name: str
+    hit: bool | None = None          # 10 日內碰 +10%；樣本齡不足＝None（評估中）
+    ret_pct: float | None = None     # 第 10 日收盤報酬
+    mfe_pct: float | None = None
+    mae_pct: float | None = None
+
+
+class ComboSamplesResponse(BaseModel):
+    combo: str
+    since: date | None = None
+    samples: list[ComboSample] = []  # 新→舊
+
+
+class CooccurrenceResponse(BaseModel):
+    """風格標籤共存結構：1對1 條件機率矩陣 + 精確組合全枚舉（含成效）。
+
+    matrix[i][j] = P(同時有 tags[j] | 已有 tags[i])，%；對角=100、列樣本<30 為 null。
+    combos＝每種實際出現的標籤集合（含單標籤獨佔），n<30 不列。
+    樣本＝波段軌每日評分列；注意/處置以徽章同窗判定
+    （notice=公告後~5交易日、punish=公告後~10交易日或執行期間）。
+    """
+
+    since: date | None = None
+    today_date: date | None = None
+    tags: list[str] = []
+    counts: dict[str, int] = {}
+    matrix: list[list[float | None]] = []
+    combos: list[TagComboStat] = []
+
+
+class AttentionEntry(BaseModel):
+    date: date
+    kind: str                        # notice / punish
+    times: int | None = None
+    begin_date: date | None = None
+    end_date: date | None = None
+    reason: str | None = None
+
+
+class AttentionResponse(BaseModel):
+    """注意/處置狀態。實證上列入者常伴隨上漲動能（熱錢聚集），前端以動能徽章呈現。"""
+
+    stock_id: str
+    status: str | None = None        # punish=處置中 / notice=近 5 日曾列注意 / None
+    punish_end: date | None = None   # 處置迄日（status=punish 時）
+    notice_count_30d: int = 0        # 近 30 日列注意次數
+    entries: list[AttentionEntry] = []  # 近 90 日明細（新→舊）
+
+
+class FinStatementQuarter(BaseModel):
+    """單季財務報表關鍵科目（金額單位：億元；比率 %；每股淨值 元）。"""
+
+    label: str                                  # 2026Q1
+    # 資產負債表（期末餘額）
+    cash: float | None = None
+    current_assets: float | None = None
+    total_assets: float | None = None
+    current_liab: float | None = None
+    total_liab: float | None = None
+    equity: float | None = None
+    inventories: float | None = None
+    receivables: float | None = None
+    debt_ratio: float | None = None             # 負債總額/資產總額 %
+    current_ratio: float | None = None          # 流動資產/流動負債 %
+    bps: float | None = None                    # 每股淨值＝權益/發行股數
+    # 現金流量表（單季化）
+    op_cf: float | None = None
+    inv_cf: float | None = None
+    fin_cf: float | None = None
+    capex: float | None = None                  # 取得不動產廠房設備（負＝流出）
+    fcf: float | None = None                    # 自由現金流＝營業 + capex
+
+
+class FinancialStatementsResponse(BaseModel):
+    """資產負債表＋現金流量表摘要（FinMind 逐檔懶抓、30 天快取）。新→舊。"""
+
+    stock_id: str
+    quarters: list[FinStatementQuarter]
+
+
+class ChainTagDTO(BaseModel):
+    """個股產業鏈定位一筆（官方 ic.tpex.org.tw）。"""
+
+    chain_id: str
+    chain_name: str                      # 半導體
+    stream: str | None = None            # 上游/中游/下游
+    main_node: str | None = None         # IC/晶圓製造
+    node_name: str | None = None         # 晶圓製造（最細分類＝業務標籤）
+
+
+class SectorBriefDTO(BaseModel):
+    """所屬類股健康度摘要（個股頁小卡，連到類股詳情）。"""
+
+    sector_id: int
+    name: str
+    date: date | None  # 有預設值會遮蔽型別名 date，故設為必填
+    strength_score: float | None = None
+    trend_short: str | None = None
+    trend_long: str | None = None
+    rotation_stage: str | None = None
+    momentum_5: float | None = None
+    momentum_20: float | None = None
+    foreign_net: int | None = None       # 類股法人近5日淨買超（張）
+
+
+class ChainNode(BaseModel):
+    name: str                            # 主節點名
+    count: int                           # 本國掛牌公司數
+    mine: bool                           # 個股是否位於此節點
+
+
+class ChainStream(BaseModel):
+    stream: str                          # 上游/中游/下游
+    nodes: list[ChainNode]
+
+
+class ChainStructure(BaseModel):
+    chain_id: str
+    chain_name: str
+    my_nodes: list[str]                  # 個股所在細分節點名
+    streams: list[ChainStream]
+
+
+class IndustryChainResponse(BaseModel):
+    """個股產業鏈上下游全景（官方價值鏈平台）。"""
+
+    stock_id: str
+    chains: list[ChainStructure]
+
+
+class CompanyProfileDTO(BaseModel):
+    """公司基本資料（ETF 無此塊）。"""
+
+    industry: str | None = None            # 產業別（來源原始字串）
+    listed_date: date | None = None        # 上市/上櫃日期
+    established_date: date | None = None   # 成立日期
+    chairman: str | None = None            # 董事長
+    president: str | None = None           # 總經理
+    capital_billion: float | None = None   # 股本（億元）＝實收資本額/1e8
+    market_cap_billion: float | None = None  # 市值估算（億元）＝發行股數×收盤價/1e8
+    website: str | None = None
 
 
 class StockSearchItem(BaseModel):
@@ -250,6 +613,9 @@ class StockDetail(BaseModel):
     scores: dict[str, ScoreDTO | None]  # {"wave": ..., "long": ...}
     chip: ChipSummary | None
     fundamental: FundamentalSummary | None
+    profile: CompanyProfileDTO | None = None
+    chains: list[ChainTagDTO] = []       # 產業鏈定位（業務標籤）
+    sector_brief: SectorBriefDTO | None = None  # 所屬類股健康度摘要
     etf: EtfInfo | None = None
     events: list[EventDTO]
     news_digest: str | None = None  # AI 近期消息重點（盤後批次快取）
@@ -275,6 +641,45 @@ class Candle(BaseModel):
 class OhlcvResponse(BaseModel):
     stock_id: str
     candles: list[Candle]
+
+
+class RecommendationMark(BaseModel):
+    """K 線上的推薦段落標記（起始日）。"""
+
+    date: date
+    status: str  # "hit"（10日內碰+10%）| "miss"（窗走完沒碰）| "pending"（窗未走完）
+    hit_date: date | None = None  # 首次摸到 +10% 的交易日（僅 hit）
+    ret_pct: float | None = None  # 期間 MFE %（僅 hit）
+
+
+class RecommendationMarksResponse(BaseModel):
+    stock_id: str
+    marks: list[RecommendationMark]
+
+
+class TargetPriceEntry(BaseModel):
+    """一筆 FactSet 共識目標價（含達標實況）。"""
+
+    date: date
+    target_price: float
+    prev_target: float | None = None
+    direction: str = "new"  # up/down/flat/new
+    target_high: float | None = None
+    target_low: float | None = None
+    analyst_count: int | None = None
+    rating_bull: int | None = None
+    rating_neutral: int | None = None
+    rating_bear: int | None = None
+    eps_est: float | None = None
+    hit: bool = False          # 有效期間內盤中高點是否觸及目標價
+    hit_date: date | None = None
+    upside_pct: float | None = None  # 僅 latest：目標價/最新收盤 − 1
+
+
+class TargetPriceResponse(BaseModel):
+    stock_id: str
+    latest: TargetPriceEntry | None = None
+    history: list[TargetPriceEntry] = []
 
 
 class LevelDTO(BaseModel):
@@ -336,6 +741,16 @@ class TransactionDTO(BaseModel):
     note: str | None
 
 
+class ThesisStatus(BaseModel):
+    """進場論點追蹤：進場快照 vs 最新評分的對照結論。"""
+
+    status: str  # intact / weakening / broken / unknown
+    entry_score: float | None = None
+    latest_score: float | None = None
+    latest_passed_filter: bool | None = None
+    messages: list[str] = []
+
+
 class HoldingItem(BaseModel):
     id: int
     stock_id: str
@@ -363,6 +778,8 @@ class HoldingItem(BaseModel):
     stop_loss_override: float | None
     trail_trigger_override: float | None
     trail_pullback_override: float | None
+    entry_snapshot: dict | None = None  # 建倉當下 Score 凍結副本
+    thesis: ThesisStatus | None = None  # 論點是否還成立
     note: str | None
     transactions: list[TransactionDTO]
 
@@ -400,6 +817,7 @@ class SectorItem(BaseModel):
     turnover_share: float | None
     above_ma20: float | None
     constituents: int | None
+    turnover_chg5: float | None = None  # 成交佔比 vs 前5日均（個百分點，+=資金移入）
 
 
 class SectorList(BaseModel):
@@ -415,12 +833,22 @@ class SectorConstituent(BaseModel):
     wave_score: float | None
     long_score: float | None
     recommended: bool
+    tags: list[str] = []  # 產業鏈細分標籤（如 晶圓製造 / 消費性IC）
+    # 細分狀態聚合用（前端按標籤即時聚合成「細分狀態卡」）
+    mom5_pct: float | None = None    # 近 5 交易日漲跌 %
+    mom20_pct: float | None = None   # 近 20 交易日漲跌 %
+    above_ma20: bool | None = None   # 站上月線
+    inst_net5: int | None = None     # 近 5 日三大法人淨買超（張）
+    inst_net20: int | None = None    # 近 20 日三大法人淨買超（張，判斷 5 日是加速還是退潮）
+    rev_yoy: float | None = None     # 最新月營收年增 %
 
 
 class SectorDetail(BaseModel):
     sector: SectorItem
     constituents: list[SectorConstituent]
     interpretation: str | None = None  # AI 類股方向解讀（盤後批次快取）
+    market_mom5: float | None = None   # 加權指數近 5 交易日漲跌 %（細分相對強弱基準）
+    market_mom20: float | None = None  # 加權指數近 20 交易日漲跌 %
 
 
 # ─────────── 籌碼動向（法人 + 大戶散戶）───────────
@@ -723,3 +1151,94 @@ class IntelResponse(BaseModel):
     total: int          # 窗口內事件總數（未受篩選影響）
     risk_count: int     # 窗口內重大利空數
     has_digest: bool    # 是否已有任何 LLM digest（無 API key/未跑批次時為 False）
+
+
+# ─────────── 策略室（模擬倉 / 勝率分析 / 敏感度）───────────
+
+
+class PaperPositionDTO(BaseModel):
+    """模擬倉單筆部位（確定性重播產物，非落庫資料）。"""
+
+    stock_id: str
+    name: str
+    signal_date: date          # 推薦日（Score 日）
+    entry_date: date           # 進場日＝隔一交易日
+    entry_price: float         # 進場價＝隔日最高（保守錨，與回看口徑一致）
+    stop_price: float
+    target_price: float
+    status: str                # open / closed
+    exit_date: date | None = None
+    exit_price: float | None = None
+    exit_reason: str | None = None  # stop / target / timeout
+    return_pct: float | None = None  # closed=實現；open=以最新收盤計
+    days_held: int = 0
+    score: float | None = None
+    prob_hit: float | None = None
+
+
+class PaperEquityPoint(BaseModel):
+    date: date
+    cum_return_pct: float  # 已實現報酬累計（每筆等權 1 單位）
+
+
+class PaperSimStats(BaseModel):
+    trades: int
+    closed: int
+    open: int
+    wins: int
+    win_rate: float | None      # 已平倉勝率
+    avg_return_pct: float | None
+    total_return_pct: float | None  # 已實現累計（等權和）
+    open_unrealized_pct: float | None  # 未平倉浮動合計
+    avg_days_held: float | None
+    max_drawdown_pct: float | None  # 權益曲線最大回撤（等權和口徑）
+
+
+class PaperSimResponse(BaseModel):
+    since: date | None
+    today_date: date | None
+    style: str
+    prob_min: float
+    top_n: int
+    hold_days: int
+    stop_pct: float
+    target_pct: float
+    stats: PaperSimStats
+    equity: list[PaperEquityPoint]
+    positions: list[PaperPositionDTO]
+
+
+class LookbackGroupStat(BaseModel):
+    """一個分組（風格標籤 / 分數帶）的歷史績效。"""
+
+    key: str
+    n: int
+    hit_count: int
+    hit_rate: float | None
+    avg_return_pct: float | None   # 至今報酬（與回看口徑一致：隔日高錨）
+    avg_mfe_pct: float | None
+    avg_mae_pct: float | None
+
+
+class LookbackStatsResponse(BaseModel):
+    since: date | None
+    today_date: date | None
+    min_age_days: int              # 樣本至少距今 N 個交易日（避免太新未走完）
+    by_style: list[LookbackGroupStat]
+    by_score_bin: list[LookbackGroupStat]
+
+
+class SensitivityPoint(BaseModel):
+    prob_min: float
+    n: int                  # 全期樣本數
+    avg_daily_n: float | None  # 平均每日推薦檔數
+    hit_count: int
+    hit_rate: float | None
+    avg_return_pct: float | None
+
+
+class SensitivityResponse(BaseModel):
+    since: date | None
+    today_date: date | None
+    min_age_days: int
+    points: list[SensitivityPoint]

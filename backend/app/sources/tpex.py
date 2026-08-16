@@ -12,7 +12,7 @@ import pandas as pd
 
 from .base import BaseSource
 from .interfaces import ChipProvider, FundamentalProvider, NewsProvider, PriceProvider
-from .twse import _UA, _cell, _digest_insider, _insider_transfer_events, _num, _roc_ym
+from .twse import _UA, _ad_date, _cell, _digest_insider, _insider_transfer_events, _num, _roc_ym
 from . import schemas
 
 _BASE = "https://www.tpex.org.tw/www/zh-tw"
@@ -199,6 +199,30 @@ class TpexSource(BaseSource, PriceProvider, ChipProvider, FundamentalProvider, N
         for c in ("sbl_balance", "sbl_change", "sbl_sell"):
             df[c] = df[c].astype("Int64")
         return df[schemas.SHORT_LENDING_COLS]
+
+    def fetch_company_profiles(
+        self, start: date | None = None, end: date | None = None,
+        stock_ids: list[str] | None = None,
+    ) -> pd.DataFrame:
+        """上櫃公司基本資料（mopsfin_t187ap03_O 全快照），欄位對齊 TWSE 版。"""
+        rows: list[dict] = []
+        for r in self._openapi("mopsfin_t187ap03_O"):
+            sid = (r.get("SecuritiesCompanyCode") or "").strip()
+            if not sid:
+                continue
+            rows.append({
+                "stock_id": sid,
+                "chairman": (r.get("Chairman") or "").strip() or None,
+                "president": (r.get("GeneralManager") or "").strip() or None,
+                "capital": _num(r.get("Paidin.Capital.NTDollars")),
+                "issued_shares": _num(r.get("IssueShares")),
+                "established_date": _ad_date(r.get("DateOfIncorporation") or ""),
+                "listed_date": _ad_date(r.get("DateOfListing") or ""),
+                "website": (r.get("WebAddress") or "").strip() or None,
+            })
+        if not rows:
+            return pd.DataFrame(columns=schemas.COMPANY_PROFILE_COLS)
+        return pd.DataFrame(rows)[schemas.COMPANY_PROFILE_COLS]
 
     def fetch_insider_holdings(self, start: date, end: date, stock_ids: list[str] | None = None) -> pd.DataFrame:
         """董監事持股餘額明細（mopsfin_t187ap11_O 月快照）→ 逐公司加總。日期參數忽略。"""

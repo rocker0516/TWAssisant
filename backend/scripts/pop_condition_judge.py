@@ -35,9 +35,9 @@ import time
 import numpy as np
 import pandas as pd
 
-_BASE = __file__.rsplit("/scripts/", 1)[0]
+_BASE = __file__.replace("\\", "/").rsplit("/scripts/", 1)[0]
 _DB = _BASE + "/data/twa.db"
-_CACHE = _BASE + "/data/condition_judge_cache_v3.pkl"
+_CACHE = _BASE + "/data/condition_judge_cache_v4.pkl"  # v4: +mfe10/mae10/hit10
 _MINE_LO, _MINE_HI = "2021-01-01", "2024-12-31"
 _HOLD_LO = "2025-01-01"
 _MIN_PICKS_DAY = 5   # 當日選中 <5 檔的日子不進日層級統計（單檔噪音）
@@ -52,7 +52,7 @@ def _build_cache() -> pd.DataFrame:
                i.ma5, i.ma10, i.ma20, i.ma60, i.ma120, i.ma240,
                i.vol_ma5, i.vol_ma20, i.kd_k, i.kd_d,
                i.macd, i.macd_signal, i.macd_hist, i.atr14, i.bias_20, i.bias_60,
-               f.mfe30, f.mae30, f.ret30
+               f.mfe30, f.mae30, f.ret30, f.mfe10, f.mae10
         FROM forward_labels f
         JOIN daily_prices p ON p.stock_id = f.stock_id AND p.date = f.date
         LEFT JOIN indicators i ON i.stock_id = f.stock_id AND i.date = f.date
@@ -70,6 +70,7 @@ def _build_cache() -> pd.DataFrame:
     df["vol_trend"] = df["vol_ma5"] / df["vol_ma20"]     # 量能趨勢（放量中/縮量中）
     df["c_over_ma20"] = df["close"] / df["ma20"] - 1.0
     df["hit"] = (df["mfe30"] >= 10.0).astype(float)
+    df["hit10"] = (df["mfe10"] >= 10.0).astype(float)  # 10日碰到率（2026-08 主目標）
     # 位置結構
     df["pos_52w"] = ((df["close"] - g["low"].transform(lambda s: s.rolling(240, 60).min()))
                      / (g["high"].transform(lambda s: s.rolling(240, 60).max())

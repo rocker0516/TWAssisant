@@ -34,3 +34,4 @@ frontend/dist/
 
 # pipeline 執行 log（launchd 寫入）
 backend/data/*.log
+backend/data/*.bin

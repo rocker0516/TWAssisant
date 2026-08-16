@@ -29,7 +29,7 @@ import numpy as np
 import pandas as pd
 from sqlalchemy import select
 
-sys.path.insert(0, __file__.rsplit("/scripts/", 1)[0])
+sys.path.insert(0, __file__.replace("\\", "/").rsplit("/scripts/", 1)[0])
 
 from app.engines.calibration import _iter_stock_groups  # noqa: E402
 from app.storage import models  # noqa: E402

@@ -43,7 +43,7 @@ _EFF_FILTERS = COMMON_FILTERS + WAVE_FILTERS
 _EFF_CONS = ConsolidationScore()
 _EMPTY_INST = pd.DataFrame(columns=_INST_COLS)
 
-_H = 30            # 未來交易日（會噴定義：30 日內碰到 +10%，2026-06 改 20→30 定版）
+_H = 10            # 未來交易日（會噴定義：10 日內碰到 +10%，2026-08 定版：資金周轉導向）
 _POP_TARGET = 0.10  # 「會噴」門檻：持有期間摸到 +10%
 _N_DATES = 200      # 統計窗口：取最近 N 個進場日算碰到率（~4年含空頭→可信度橫幅穩定、不被近期牛市虛高）
 _PANEL_DATES = 12   # 面板 by_date 表只顯示最近幾列（避免整個統計窗口塞進表格）

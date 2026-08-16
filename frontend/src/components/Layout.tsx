@@ -13,6 +13,7 @@ const NAV: NavItem[] = [
   { to: "/flow", label: "籌碼動向", icon: "💰", enabled: true },
   { to: "/holdings", label: "我的持股", icon: "💼", enabled: true },
   { to: "/watchlists", label: "觀察清單", icon: "⭐", enabled: true },
+  { to: "/lab", label: "策略室", icon: "🧪", enabled: true },
   { to: "/settings", label: "設定", icon: "⚙️", enabled: true },
 ];
 
@@ -55,6 +56,18 @@ export default function Layout() {
             ),
           )}
         </nav>
+        <div className="mt-auto px-2 pb-4">
+          <button
+            onClick={async () => {
+              await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+              window.location.href = "/login";
+            }}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-400 transition hover:bg-panel2 hover:text-gray-200"
+          >
+            <span>🚪</span>
+            登出
+          </button>
+        </div>
       </aside>
       <main className="flex-1 overflow-x-hidden">
         <Outlet />
