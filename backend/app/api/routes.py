@@ -170,17 +170,29 @@ def _to_item(
 _PROB_MIN_N = 150  # 格子樣本不足 → 逐層回退（去大盤 → 去波動 → 全域）
 
 
+_prob_cache: dict = {}
+
+
 def _prob_table() -> dict | None:
+    """條件機率查表（mtime 快取，與 _ml_consensus_picks 同款）。
+
+    原本是永久快取：重跑 build_prob_table.py 後不重啟後端就讀不到新表，
+    整站機率會停在舊口徑而且完全無聲。
+    """
     import json as _json
     from pathlib import Path as _Path
-    global _PROB_CACHE
-    try:
-        return _PROB_CACHE  # type: ignore[name-defined]
-    except NameError:
-        pass
+
     fp = _Path(__file__).resolve().parents[2] / "data" / "prob_table.json"
-    _PROB_CACHE = _json.loads(fp.read_text(encoding="utf-8")) if fp.exists() else None
-    return _PROB_CACHE
+    if not fp.exists():
+        return None
+    mtime = fp.stat().st_mtime
+    if _prob_cache.get("mtime") != mtime:
+        try:
+            _prob_cache["data"] = _json.loads(fp.read_text(encoding="utf-8"))
+            _prob_cache["mtime"] = mtime
+        except (ValueError, OSError):
+            return _prob_cache.get("data")  # 讀壞了就沿用上一版，不要整站沒機率
+    return _prob_cache.get("data")
 
 
 def _bin_label(v: float, edges: list[float], labels: list[str]) -> str | None:

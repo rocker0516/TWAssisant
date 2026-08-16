@@ -1,0 +1,1800 @@
+{
+ "generated_at": "2026-08-16 17:31",
+ "chains": [
+  "半導體",
+  "平面顯示器",
+  "製藥",
+  "觸控面板",
+  "醫療器材"
+ ],
+ "crit": 0.283,
+ "pairs": [
+  {
+   "chain": "半導體",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 1,
+   "r": 0.024,
+   "r_h1": 0.057,
+   "r_h2": 0.024,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 2,
+   "r": 0.04,
+   "r_h1": 0.075,
+   "r_h2": 0.044,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 3,
+   "r": 0.053,
+   "r_h1": 0.088,
+   "r_h2": 0.066,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 5,
+   "r": 0.032,
+   "r_h1": 0.066,
+   "r_h2": 0.047,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 10,
+   "r": -0.059,
+   "r_h1": -0.055,
+   "r_h2": -0.012,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 1,
+   "r": 0.029,
+   "r_h1": 0.074,
+   "r_h2": 0.022,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 2,
+   "r": 0.043,
+   "r_h1": 0.091,
+   "r_h2": 0.039,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 3,
+   "r": 0.057,
+   "r_h1": 0.103,
+   "r_h2": 0.063,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 5,
+   "r": 0.053,
+   "r_h1": 0.104,
+   "r_h2": 0.059,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 10,
+   "r": -0.02,
+   "r_h1": -0.01,
+   "r_h2": 0.032,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 1,
+   "r": -0.01,
+   "r_h1": -0.089,
+   "r_h2": -0.015,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 2,
+   "r": 0.022,
+   "r_h1": -0.074,
+   "r_h2": 0.028,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 3,
+   "r": 0.062,
+   "r_h1": -0.051,
+   "r_h2": 0.082,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 5,
+   "r": 0.105,
+   "r_h1": -0.01,
+   "r_h2": 0.137,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 10,
+   "r": 0.114,
+   "r_h1": -0.025,
+   "r_h2": 0.174,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 1,
+   "r": -0.057,
+   "r_h1": -0.048,
+   "r_h2": -0.065,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 2,
+   "r": -0.061,
+   "r_h1": -0.051,
+   "r_h2": -0.058,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 3,
+   "r": -0.057,
+   "r_h1": -0.048,
+   "r_h2": -0.039,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 5,
+   "r": -0.053,
+   "r_h1": -0.051,
+   "r_h2": -0.005,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 10,
+   "r": -0.012,
+   "r_h1": -0.018,
+   "r_h2": 0.101,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 1,
+   "r": -0.046,
+   "r_h1": -0.022,
+   "r_h2": -0.054,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 2,
+   "r": -0.039,
+   "r_h1": -0.023,
+   "r_h2": -0.03,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 3,
+   "r": -0.033,
+   "r_h1": -0.028,
+   "r_h2": -0.009,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 5,
+   "r": -0.021,
+   "r_h1": -0.011,
+   "r_h2": 0.011,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 10,
+   "r": 0.043,
+   "r_h1": 0.055,
+   "r_h2": 0.098,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 1,
+   "r": 0.025,
+   "r_h1": 0.017,
+   "r_h2": -0.001,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 2,
+   "r": 0.06,
+   "r_h1": 0.027,
+   "r_h2": 0.047,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 3,
+   "r": 0.092,
+   "r_h1": 0.025,
+   "r_h2": 0.096,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 5,
+   "r": 0.11,
+   "r_h1": 0.019,
+   "r_h2": 0.13,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "半導體",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 10,
+   "r": 0.112,
+   "r_h1": -0.05,
+   "r_h2": 0.169,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 1,
+   "r": -0.066,
+   "r_h1": 0.056,
+   "r_h2": -0.124,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 2,
+   "r": -0.045,
+   "r_h1": 0.062,
+   "r_h2": -0.1,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 3,
+   "r": -0.021,
+   "r_h1": 0.066,
+   "r_h2": -0.068,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 5,
+   "r": 0.009,
+   "r_h1": 0.067,
+   "r_h2": -0.022,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 10,
+   "r": 0.084,
+   "r_h1": 0.03,
+   "r_h2": 0.098,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 1,
+   "r": -0.148,
+   "r_h1": -0.07,
+   "r_h2": -0.224,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 2,
+   "r": -0.136,
+   "r_h1": -0.057,
+   "r_h2": -0.222,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 3,
+   "r": -0.111,
+   "r_h1": -0.041,
+   "r_h2": -0.196,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 5,
+   "r": -0.057,
+   "r_h1": 0.018,
+   "r_h2": -0.144,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 10,
+   "r": -0.025,
+   "r_h1": 0.028,
+   "r_h2": -0.09,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 1,
+   "r": -0.09,
+   "r_h1": -0.024,
+   "r_h2": -0.145,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 2,
+   "r": -0.083,
+   "r_h1": 0.014,
+   "r_h2": -0.16,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 3,
+   "r": -0.069,
+   "r_h1": 0.056,
+   "r_h2": -0.166,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 5,
+   "r": -0.049,
+   "r_h1": 0.116,
+   "r_h2": -0.177,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 10,
+   "r": -0.086,
+   "r_h1": 0.044,
+   "r_h2": -0.203,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 1,
+   "r": 0.111,
+   "r_h1": -0.029,
+   "r_h2": 0.154,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 2,
+   "r": 0.125,
+   "r_h1": 0.0,
+   "r_h2": 0.16,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 3,
+   "r": 0.13,
+   "r_h1": 0.003,
+   "r_h2": 0.165,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 5,
+   "r": 0.107,
+   "r_h1": -0.003,
+   "r_h2": 0.129,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 10,
+   "r": 0.057,
+   "r_h1": -0.039,
+   "r_h2": 0.067,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 1,
+   "r": -0.033,
+   "r_h1": 0.016,
+   "r_h2": -0.058,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 2,
+   "r": -0.016,
+   "r_h1": 0.045,
+   "r_h2": -0.055,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 3,
+   "r": -0.007,
+   "r_h1": 0.062,
+   "r_h2": -0.058,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 5,
+   "r": 0.002,
+   "r_h1": 0.074,
+   "r_h2": -0.056,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 10,
+   "r": 0.001,
+   "r_h1": 0.088,
+   "r_h2": -0.065,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 1,
+   "r": -0.016,
+   "r_h1": -0.05,
+   "r_h2": 0.003,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 2,
+   "r": -0.009,
+   "r_h1": -0.017,
+   "r_h2": -0.011,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 3,
+   "r": -0.007,
+   "r_h1": 0.018,
+   "r_h2": -0.032,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 5,
+   "r": -0.003,
+   "r_h1": 0.072,
+   "r_h2": -0.051,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "平面顯示器",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 10,
+   "r": 0.048,
+   "r_h1": 0.167,
+   "r_h2": -0.023,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 1,
+   "r": -0.094,
+   "r_h1": -0.118,
+   "r_h2": -0.042,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 2,
+   "r": -0.072,
+   "r_h1": -0.106,
+   "r_h2": -0.004,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 3,
+   "r": -0.045,
+   "r_h1": -0.083,
+   "r_h2": 0.02,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 5,
+   "r": -0.006,
+   "r_h1": -0.045,
+   "r_h2": 0.014,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 10,
+   "r": 0.081,
+   "r_h1": 0.048,
+   "r_h2": 0.088,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 1,
+   "r": -0.066,
+   "r_h1": -0.093,
+   "r_h2": 0.012,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 2,
+   "r": -0.059,
+   "r_h1": -0.099,
+   "r_h2": 0.041,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 3,
+   "r": -0.045,
+   "r_h1": -0.09,
+   "r_h2": 0.07,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 5,
+   "r": -0.015,
+   "r_h1": -0.057,
+   "r_h2": 0.087,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 10,
+   "r": 0.044,
+   "r_h1": 0.053,
+   "r_h2": 0.001,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 1,
+   "r": -0.032,
+   "r_h1": -0.058,
+   "r_h2": -0.011,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 2,
+   "r": -0.024,
+   "r_h1": -0.057,
+   "r_h2": 0.045,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 3,
+   "r": -0.005,
+   "r_h1": -0.037,
+   "r_h2": 0.081,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 5,
+   "r": 0.025,
+   "r_h1": 0.016,
+   "r_h2": 0.075,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 10,
+   "r": 0.028,
+   "r_h1": 0.043,
+   "r_h2": -0.102,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 1,
+   "r": -0.003,
+   "r_h1": 0.005,
+   "r_h2": 0.079,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 2,
+   "r": 0.019,
+   "r_h1": 0.016,
+   "r_h2": 0.13,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 3,
+   "r": 0.039,
+   "r_h1": 0.036,
+   "r_h2": 0.159,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 5,
+   "r": 0.078,
+   "r_h1": 0.091,
+   "r_h2": 0.163,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 10,
+   "r": 0.084,
+   "r_h1": 0.066,
+   "r_h2": 0.093,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 1,
+   "r": -0.008,
+   "r_h1": 0.022,
+   "r_h2": 0.029,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 2,
+   "r": 0.003,
+   "r_h1": 0.029,
+   "r_h2": 0.037,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 3,
+   "r": 0.016,
+   "r_h1": 0.047,
+   "r_h2": 0.034,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 5,
+   "r": 0.032,
+   "r_h1": 0.073,
+   "r_h2": 0.005,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 10,
+   "r": 0.019,
+   "r_h1": 0.019,
+   "r_h2": -0.011,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 1,
+   "r": -0.031,
+   "r_h1": -0.019,
+   "r_h2": -0.121,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 2,
+   "r": -0.012,
+   "r_h1": -0.004,
+   "r_h2": -0.09,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 3,
+   "r": -0.005,
+   "r_h1": -0.002,
+   "r_h2": -0.071,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 5,
+   "r": -0.004,
+   "r_h1": -0.011,
+   "r_h2": -0.055,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "製藥",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 10,
+   "r": 0.029,
+   "r_h1": 0.014,
+   "r_h2": 0.042,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 1,
+   "r": 0.03,
+   "r_h1": -0.1,
+   "r_h2": 0.082,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 2,
+   "r": 0.01,
+   "r_h1": -0.116,
+   "r_h2": 0.059,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 3,
+   "r": -0.011,
+   "r_h1": -0.138,
+   "r_h2": 0.042,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 5,
+   "r": -0.036,
+   "r_h1": -0.141,
+   "r_h2": 0.014,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 10,
+   "r": 0.05,
+   "r_h1": -0.023,
+   "r_h2": 0.086,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 1,
+   "r": 0.04,
+   "r_h1": -0.146,
+   "r_h2": 0.097,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 2,
+   "r": 0.046,
+   "r_h1": -0.142,
+   "r_h2": 0.105,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 3,
+   "r": 0.055,
+   "r_h1": -0.126,
+   "r_h2": 0.116,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 5,
+   "r": 0.074,
+   "r_h1": -0.068,
+   "r_h2": 0.123,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 10,
+   "r": 0.045,
+   "r_h1": 0.041,
+   "r_h2": 0.024,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 1,
+   "r": -0.087,
+   "r_h1": -0.037,
+   "r_h2": -0.136,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 2,
+   "r": -0.092,
+   "r_h1": -0.012,
+   "r_h2": -0.156,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 3,
+   "r": -0.095,
+   "r_h1": 0.018,
+   "r_h2": -0.174,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 5,
+   "r": -0.075,
+   "r_h1": 0.065,
+   "r_h2": -0.168,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 10,
+   "r": -0.03,
+   "r_h1": 0.108,
+   "r_h2": -0.129,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 1,
+   "r": -0.023,
+   "r_h1": -0.067,
+   "r_h2": -0.001,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 2,
+   "r": -0.038,
+   "r_h1": -0.082,
+   "r_h2": -0.018,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 3,
+   "r": -0.055,
+   "r_h1": -0.107,
+   "r_h2": -0.036,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 5,
+   "r": -0.056,
+   "r_h1": -0.126,
+   "r_h2": -0.04,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 10,
+   "r": -0.023,
+   "r_h1": -0.068,
+   "r_h2": -0.015,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 1,
+   "r": 0.059,
+   "r_h1": 0.11,
+   "r_h2": 0.043,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 2,
+   "r": 0.058,
+   "r_h1": 0.117,
+   "r_h2": 0.037,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 3,
+   "r": 0.057,
+   "r_h1": 0.102,
+   "r_h2": 0.04,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 5,
+   "r": 0.052,
+   "r_h1": 0.061,
+   "r_h2": 0.034,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 10,
+   "r": 0.052,
+   "r_h1": -0.026,
+   "r_h2": 0.063,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 1,
+   "r": 0.094,
+   "r_h1": 0.004,
+   "r_h2": 0.144,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 2,
+   "r": 0.087,
+   "r_h1": -0.004,
+   "r_h2": 0.142,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 3,
+   "r": 0.075,
+   "r_h1": -0.022,
+   "r_h2": 0.132,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 5,
+   "r": 0.048,
+   "r_h1": -0.087,
+   "r_h2": 0.12,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "觸控面板",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 10,
+   "r": 0.054,
+   "r_h1": -0.097,
+   "r_h2": 0.103,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 1,
+   "r": -0.026,
+   "r_h1": 0.052,
+   "r_h2": -0.155,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 2,
+   "r": -0.032,
+   "r_h1": 0.031,
+   "r_h2": -0.141,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 3,
+   "r": -0.043,
+   "r_h1": -0.006,
+   "r_h2": -0.117,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 5,
+   "r": -0.049,
+   "r_h1": -0.064,
+   "r_h2": -0.032,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "正向",
+   "pair": "上游→中游",
+   "lag": 10,
+   "r": -0.088,
+   "r_h1": -0.124,
+   "r_h2": -0.036,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 1,
+   "r": 0.021,
+   "r_h1": 0.073,
+   "r_h2": 0.024,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 2,
+   "r": 0.012,
+   "r_h1": 0.04,
+   "r_h2": 0.047,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 3,
+   "r": -0.001,
+   "r_h1": 0.003,
+   "r_h2": 0.058,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 5,
+   "r": -0.018,
+   "r_h1": -0.04,
+   "r_h2": 0.068,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "正向",
+   "pair": "上游→下游",
+   "lag": 10,
+   "r": -0.092,
+   "r_h1": -0.082,
+   "r_h2": -0.058,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 1,
+   "r": 0.047,
+   "r_h1": 0.029,
+   "r_h2": 0.074,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 2,
+   "r": 0.061,
+   "r_h1": 0.032,
+   "r_h2": 0.123,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 3,
+   "r": 0.081,
+   "r_h1": 0.037,
+   "r_h2": 0.181,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 5,
+   "r": 0.113,
+   "r_h1": 0.052,
+   "r_h2": 0.248,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "正向",
+   "pair": "中游→下游",
+   "lag": 10,
+   "r": 0.081,
+   "r_h1": 0.027,
+   "r_h2": 0.154,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 1,
+   "r": -0.03,
+   "r_h1": -0.001,
+   "r_h2": -0.055,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 2,
+   "r": -0.024,
+   "r_h1": 0.005,
+   "r_h2": -0.047,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 3,
+   "r": -0.025,
+   "r_h1": -0.008,
+   "r_h2": -0.031,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 5,
+   "r": -0.024,
+   "r_h1": -0.045,
+   "r_h2": 0.03,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "反向",
+   "pair": "中游→上游",
+   "lag": 10,
+   "r": -0.04,
+   "r_h1": -0.141,
+   "r_h2": 0.097,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 1,
+   "r": -0.013,
+   "r_h1": 0.045,
+   "r_h2": -0.028,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 2,
+   "r": -0.023,
+   "r_h1": 0.021,
+   "r_h2": -0.015,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 3,
+   "r": -0.027,
+   "r_h1": -0.001,
+   "r_h2": 0.006,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 5,
+   "r": -0.025,
+   "r_h1": -0.066,
+   "r_h2": 0.095,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "反向",
+   "pair": "下游→上游",
+   "lag": 10,
+   "r": -0.059,
+   "r_h1": -0.234,
+   "r_h2": 0.179,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 1,
+   "r": 0.022,
+   "r_h1": 0.008,
+   "r_h2": -0.019,
+   "same_sign": false,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 2,
+   "r": 0.041,
+   "r_h1": 0.026,
+   "r_h2": 0.001,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 3,
+   "r": 0.063,
+   "r_h1": 0.051,
+   "r_h2": 0.024,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 5,
+   "r": 0.091,
+   "r_h1": 0.077,
+   "r_h2": 0.047,
+   "same_sign": true,
+   "pass": false
+  },
+  {
+   "chain": "醫療器材",
+   "dir": "反向",
+   "pair": "下游→中游",
+   "lag": 10,
+   "r": 0.144,
+   "r_h1": 0.133,
+   "r_h2": 0.087,
+   "same_sign": true,
+   "pass": false
+  }
+ ],
+ "walk_forward": {
+  "20": {
+   "1": {
+    "ic": 0.0089,
+    "t": 0.36,
+    "n": 154
+   },
+   "2": {
+    "ic": -0.0214,
+    "t": -0.84,
+    "n": 154
+   },
+   "3": {
+    "ic": -0.0317,
+    "t": -1.2,
+    "n": 154
+   },
+   "5": {
+    "ic": -0.0068,
+    "t": -0.29,
+    "n": 154
+   },
+   "10": {
+    "ic": 0.0259,
+    "t": 1.07,
+    "n": 154
+   }
+  },
+  "40": {
+   "1": {
+    "ic": 0.0086,
+    "t": 0.34,
+    "n": 154
+   },
+   "2": {
+    "ic": -0.0222,
+    "t": -0.93,
+    "n": 154
+   },
+   "3": {
+    "ic": -0.0318,
+    "t": -1.34,
+    "n": 154
+   },
+   "5": {
+    "ic": -0.0102,
+    "t": -0.42,
+    "n": 154
+   },
+   "10": {
+    "ic": 0.0012,
+    "t": 0.05,
+    "n": 154
+   }
+  },
+  "60": {
+   "1": {
+    "ic": -0.0409,
+    "t": -1.83,
+    "n": 152
+   },
+   "2": {
+    "ic": -0.035,
+    "t": -1.48,
+    "n": 152
+   },
+   "3": {
+    "ic": -0.025,
+    "t": -1.01,
+    "n": 152
+   },
+   "5": {
+    "ic": -0.0148,
+    "t": -0.61,
+    "n": 152
+   },
+   "10": {
+    "ic": -0.0205,
+    "t": -0.85,
+    "n": 152
+   }
+  },
+  "120": {
+   "1": {
+    "ic": -0.0282,
+    "t": -1.17,
+    "n": 146
+   },
+   "2": {
+    "ic": -0.0392,
+    "t": -1.61,
+    "n": 146
+   },
+   "3": {
+    "ic": -0.0356,
+    "t": -1.46,
+    "n": 146
+   },
+   "5": {
+    "ic": -0.0077,
+    "t": -0.32,
+    "n": 146
+   },
+   "10": {
+    "ic": 0.0302,
+    "t": 1.28,
+    "n": 146
+   }
+  },
+  "250": {
+   "1": {
+    "ic": -0.0185,
+    "t": -0.71,
+    "n": 133
+   },
+   "2": {
+    "ic": -0.019,
+    "t": -0.76,
+    "n": 133
+   },
+   "3": {
+    "ic": -0.0075,
+    "t": -0.29,
+    "n": 133
+   },
+   "5": {
+    "ic": -0.0103,
+    "t": -0.41,
+    "n": 133
+   },
+   "10": {
+    "ic": -0.0031,
+    "t": -0.12,
+    "n": 133
+   }
+  }
+ }
+}

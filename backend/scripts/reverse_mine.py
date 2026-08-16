@@ -35,14 +35,20 @@ def _log(m):
 
 
 def run_side(name: str, mine: pd.DataFrame, hold: pd.DataFrame,
-             conds_m, conds_h, negative: bool) -> list[dict]:
-    """negative=True：保留顯著為負（避開名單）；False：一般正向（下跌目標用）。"""
-    ev = mm.Evaluator(mine)
+             conds_m, conds_h, negative: bool,
+             target: str = "hit10", cost: str = "mae10") -> list[dict]:
+    """negative=True：保留顯著為負（避開名單）；False：一般正向（下跌目標用）。
+
+    target/cost 顯式傳給 Evaluator。早期版本靠呼叫端指派 df["hit"] 換標籤，
+    但 mega_mine 目標常數化之後那種寫法會無聲失效（B 段會被算成上漲目標）。
+    """
+    ev = mm.Evaluator(mine, target, cost)
     dts = np.sort(mine["date"].unique())
     fold_evs = []
     for fi in range(3):
         fd = set(dts[fi * len(dts) // 3:(fi + 1) * len(dts) // 3])
-        fold_evs.append((mm.Evaluator(mine[mine["date"].isin(fd)]), mine["date"].isin(fd).to_numpy()))
+        fold_evs.append((mm.Evaluator(mine[mine["date"].isin(fd)], target, cost),
+                         mine["date"].isin(fd).to_numpy()))
 
     results = []
     for k, (cname, mask) in enumerate(conds_m):
@@ -69,7 +75,7 @@ def run_side(name: str, mine: pd.DataFrame, hold: pd.DataFrame,
             continue
         results.append({"cond": cname, **r})
 
-    ev_h = mm.Evaluator(hold)
+    ev_h = mm.Evaluator(hold, target, cost)
     hmap = dict(conds_h)
     out = []
     for r in results:
@@ -94,20 +100,18 @@ def main() -> None:
     hold = df[df["date"].astype(str) >= mm._HOLD_LO].reset_index(drop=True)
 
     # ── A. 避開名單：目標=10日碰+10%（hit10），保留顯著為負 ──
-    mine_a = mine.copy(); mine_a["hit"] = mine_a["hit10"]
-    hold_a = hold.copy(); hold_a["hit"] = hold_a["hit10"]
-    conds_m = mm.gen_conditions_fixed(mine_a, mine_a)
-    conds_h = mm.gen_conditions_fixed(mine_a, hold_a)
-    _log(f"條件數 {len(conds_m)}；A 基率 {mine_a['hit'].mean()*100:.1f}%")
-    avoid = run_side("避開", mine_a, hold_a, conds_m, conds_h, negative=True)
+    conds_m = mm.gen_conditions_fixed(mine, mine)
+    conds_h = mm.gen_conditions_fixed(mine, hold)
+    _log(f"條件數 {len(conds_m)}；A 基率 {mine['hit10'].mean()*100:.1f}%")
+    avoid = run_side("避開", mine, hold, conds_m, conds_h, negative=True)
 
-    # ── B. 下跌目標：hit=10日碰−10%（mae10≤−10），保留顯著為正 ──
-    mine_b = mine.copy(); mine_b["hit"] = (mine_b["mae10"] <= -10).astype(float).where(mine_b["mae10"].notna())
-    hold_b = hold.copy(); hold_b["hit"] = (hold_b["mae10"] <= -10).astype(float).where(hold_b["mae10"].notna())
-    _log(f"B 基率（10日碰-10%）{mine_b['hit'].mean()*100:.1f}%")
-    conds_mb = mm.gen_conditions_fixed(mine_b, mine_b)
-    conds_hb = mm.gen_conditions_fixed(mine_b, hold_b)
-    down = run_side("下跌", mine_b, hold_b, conds_mb, conds_hb, negative=False)
+    # ── B. 下跌目標：down10＝10 日碰 −10%（mae10≤−10），保留顯著為正 ──
+    # 做空的不利走勢是上檔，故 cost 用 mfe10（不是 mae10）
+    for d in (mine, hold):
+        d["down10"] = (d["mae10"] <= -10).astype(float).where(d["mae10"].notna())
+    _log(f"B 基率（10日碰-10%）{mine['down10'].mean()*100:.1f}%")
+    down = run_side("下跌", mine, hold, conds_m, conds_h, negative=False,
+                    target="down10", cost="mfe10")
 
     with open(_OUT, "w", encoding="utf-8") as fh:
         json.dump({"generated_at": time.strftime("%Y-%m-%d %H:%M"),

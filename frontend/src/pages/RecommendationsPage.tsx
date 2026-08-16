@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  bestTagLift,
   comboKeyOf,
   COMBO_FILTER_KEY,
   readComboFilters,
@@ -7,12 +8,13 @@ import {
   useRecommendationsLookback,
   useRecommendationsLookbackCalendar,
   type RecommendationItem,
+  type TagStatEntry,
   type Track,
   type WaveStyle,
   useTagComboStats,
 } from "../api/client";
 import { RecommendationCard } from "../components/RecommendationCard";
-import { CornerSignalsPanel } from "../components/CornerSignalsPanel";
+import { CornerSignalsStrip } from "../components/CornerSignalsPanel";
 import { LookbackCalendar } from "../components/LookbackCalendar";
 import { changeColor, consolidationMeta, fmtPct, positionMeta, rangePositionMeta, TRACK_LABELS } from "../lib/format";
 
@@ -24,6 +26,24 @@ const COMBO_LABELS: Record<string, string> = {
   punish: "處置", notice: "注意",
 };
 const comboLabelOf = (k: string) => k.split("+").map((t) => COMBO_LABELS[t] ?? t).join("+");
+
+// 標籤開關列：命中率與量能加成一律讀 tag_combo_stats（10 日窗實證，
+// scripts/build_tag_combo_stats.py 重跑即更新），完全不手抄。
+const TAG_TOGGLES: [string, string][] = [
+  ["pop", "會噴"],
+  ["explosive", "爆發"],
+  ["strong", "強勢延伸"],
+  ["story", "故事股"],
+  ["crash", "深跌反攻"],
+];
+
+// 雙段/單段標註：深跌反攻要大盤深崩才會出現，切點之後沒再崩過＝holdout 無樣本，
+// 它的命中率只是挖掘窗內的單段實證，與其他標籤性質不同，得講清楚。
+function segNote(st: TagStatEntry | undefined, cut?: string): string {
+  if (!st || st.hit_tr == null) return "";
+  if (st.hit_ho != null) return `雙段 ${st.hit_tr}%/${st.hit_ho}%（${cut ?? ""} 前/後）`;
+  return `⚠ 單段實證：樣本全在 ${cut ?? "切點"} 前（該市況近期未再出現），未經 holdout 驗證`;
+}
 
 // 位階/買點篩選（個人偏好，不影響會噴分數）。"all" 不篩；"低位盤整"＝相對低 且 波動收斂打底。
 type PosFilter = "all" | "相對低" | "中性" | "偏高" | "低位盤整";
@@ -313,9 +333,6 @@ export default function RecommendationsPage() {
         </div>
       )}
 
-      {/* 高確信角落影子軌（實驗）：與排序無關的觀察層；防禦期也顯示（深崩角落正是那時亮） */}
-      {track === "wave" && !isLookback && <CornerSignalsPanel />}
-
       {/* 回看摘要（清單為空時隱掉，避免和下方空狀態重複） */}
       {isLookback && lbSummary && lbSummary.n > 0 && (
         <div className="mb-4 rounded-lg border border-sky-700/40 bg-sky-950/30 px-3.5 py-2.5 text-xs leading-relaxed">
@@ -357,25 +374,32 @@ export default function RecommendationsPage() {
       {track === "wave" && !gateClosed && (
         <div className="mb-3 flex flex-wrap items-center gap-1.5 text-sm">
           <span className="text-xs text-muted">標籤</span>
-          {([
-            ["pop", "會噴", "31%/35%"],
-            ["explosive", "爆發", "56%/40%（×量增→67%/52%）"],
-            ["strong", "強勢延伸", "51%/52%"],
-            ["story", "故事股", "49%/36%（×量縮→56%/51%）"],
-            ["crash", "深跌反攻", "歷史地板 77%（樣本稀）"],
-          ] as [string, string, string][]).map(([key, label, rateStr]) => {
+          {TAG_TOGGLES.map(([key, label]) => {
             const off = hiddenTags.has(key);
+            const st = tagStats?.stats[`any:${key}`];
+            const lift = bestTagLift(tagStats?.stats, key);
+            const rate = st ? `${Math.round(st.hit)}%` : "—";
             return (
               <button key={key} onClick={() => toggleTag(key)}
-                title={`實測命中 ${rateStr}。點擊${off ? "開啟" : "關閉"}此標籤`}
+                title={[
+                  st ? `實證命中 ${st.hit}%（n=${st.n.toLocaleString()}、平均最深回撤 ${st.avg_mae}%）`
+                     : "實證統計尚未產出",
+                  segNote(st, tagStats?.holdout_from),
+                  lift ? `加成條件 ${lift.label}：${lift.hitTr}%/${lift.hitHo}%`
+                       + `（雙段 ${lift.liftTr > 0 ? "+" : ""}${lift.liftTr.toFixed(1)}`
+                       + `/${lift.liftHo > 0 ? "+" : ""}${lift.liftHo.toFixed(1)}pp，n=${lift.n.toLocaleString()}）` : "",
+                  `點擊${off ? "開啟" : "關閉"}此標籤`,
+                ].filter(Boolean).join("。")}
                 className={`rounded-full px-2.5 py-1 text-xs transition ${
                   off ? "bg-panel2 text-gray-600 line-through" : "bg-panel2 text-gray-200"
                 }`}>
-                {label} <span className={off ? "" : "text-muted"}>{rateStr.split("（")[0]}</span>
+                {label} <span className={off ? "" : "text-muted"}>{rate}</span>
               </button>
             );
           })}
-          <span className="text-xs text-muted">點擊開關；關閉＝不顯示也不入主清單</span>
+          <span className="text-xs text-muted">
+            %＝五年實證命中（隔日高錨、10 日內摸 +10%，全市場基率約 19%）；點擊開關，關閉＝不顯示也不入主清單
+          </span>
         </div>
       )}
 
@@ -404,7 +428,7 @@ export default function RecommendationsPage() {
       {track === "wave" && !isLookback && !gateClosed && (
         <div className="mb-4 rounded-lg border border-amber-700/50 bg-amber-950/30 px-3.5 py-2.5 text-xs leading-relaxed text-amber-200/90">
           每檔的大字＝<b>達標機率</b>：同條件（會噴排名帶 × 波動帶 × 大盤狀態）在 2021 年起歷史裡
-          「<b>隔天最高價進場、30 個交易日內曾摸到 +10%</b>」的實際比率——是<b>歷史條件機率，不是保證</b>，
+          「<b>隔天最高價進場、10 個交易日內曾摸到 +10%</b>」的實際比率——是<b>歷史條件機率，不是保證</b>，
           旁邊的 n 是該條件的歷史樣本數。機率高的通常是<b>高波動股、雙面刃</b>（同條件的平均最深回撤一併標出）：
           ①會噴的也會崩，請小部位；②能不能入袋全看<b>出場紀律</b>（沒到價要停損）；
           ③大盤狀態變了機率就變（同一檔在深崩/正常日的機率不同）。
@@ -539,6 +563,10 @@ export default function RecommendationsPage() {
         ))}
       </div>
       )}
+
+      {/* 高確信角落影子軌（實驗）：與排序無關的獨立分區，亮燈才佔版面；
+          防禦期也顯示（深崩角落正是那時亮，主清單反而關著）。完整檢視在實驗室。 */}
+      {track === "wave" && !isLookback && <CornerSignalsStrip />}
 
       {/* 觀察區折疊 */}
       {extra.length > 0 && !gateClosed && (

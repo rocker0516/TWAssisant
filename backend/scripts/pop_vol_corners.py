@@ -7,9 +7,19 @@
     2025/26 軟檢查、Jaccard>0.5 視為同角落去重
 
 原子定義與線上引擎共用 app/engines/corner_defs.py（同一份定義兩邊跑）。
+
+2026-08 兩項修正
+  目標  原本用 hit（mfe30≥10，30 日碰到），與波段軌定版口徑不符；改為 hit10
+        （mfe10≥10）。兩者基率差一倍以上，分年地板不可互比 —— 舊的
+        data/corners.json 是 30 日產物。--target hit 可跑舊口徑對照。
+  大盤  24/30 角落依賴 mkt_ret20 / mkt_bias60，而 market_index 一度只剩 106 列
+        （覆蓋 1.3~4.5%），那些角落的分年統計等於建在殘缺資料上。已由
+        scripts/backfill_market_index.py 回補、判官快取重建，此處直接讀即可。
+
 用法：
-  .venv/bin/python scripts/pop_vol_corners.py            # 掃描並列印
-  .venv/bin/python scripts/pop_vol_corners.py --export   # 另寫 data/corners.json（影子軌凍結產物）
+  .venv/Scripts/python scripts/pop_vol_corners.py                 # 掃描並列印（hit10）
+  .venv/Scripts/python scripts/pop_vol_corners.py --export        # 另寫 data/corners.json
+  .venv/Scripts/python scripts/pop_vol_corners.py --target hit    # 舊 30 日口徑對照
 """
 from __future__ import annotations
 
@@ -25,7 +35,12 @@ from pop_condition_judge import _CACHE  # noqa: E402
 from app.engines.corner_defs import ATOM_SPECS, eval_atom  # noqa: E402
 
 MINE = (0, 1, 2, 3)
-FLOOR_MIN, MINE_N_MIN, MINE_YEARS_MIN = 70.0, 200, 3
+# 地板門檻以「基率的幾倍」為準，不是抄絕對數字：原紀律 70% 是在 30 日基率 32.8%
+# 下訂的（=2.1× 基率）；10 日基率只有 14.5%，沿用 70% 等於要求 4.8× 基率，
+# 難度不同一個量級（實測只剩 1 個角落存活）。取 50%（=3.5× 基率）——
+# 比原紀律嚴格得多，且剛好填滿 30 個獨立角落。門檻懸崖：50%→30 個、
+# 55%→24 個、60%→7 個、65%→1 個。--floor 可覆寫。
+FLOOR_MIN, MINE_N_MIN, MINE_YEARS_MIN = 50.0, 200, 3
 JACCARD_MAX = 0.5
 KEEP = 30
 ANCHORS = ("atr>6", "atr>8", "atr>10")
@@ -33,11 +48,21 @@ _OUT = __file__.replace("\\", "/").rsplit("/scripts/", 1)[0] + "/data/corners.js
 
 
 def main() -> None:
+    global FLOOR_MIN
+    target = "hit10"
+    if "--target" in sys.argv:
+        target = sys.argv[sys.argv.index("--target") + 1]
+    if "--floor" in sys.argv:
+        FLOOR_MIN = float(sys.argv[sys.argv.index("--floor") + 1])
     m = pd.read_pickle(_CACHE)
     m = m[m["date"] >= "2021-01-01"].reset_index(drop=True)
     m["date"] = m["date"].astype(str)
     ycode = (m["date"].str[:4].astype(int) - 2021).to_numpy()
-    hit = m["hit"].to_numpy(dtype=float)
+    base = m[target].mean() * 100
+    print(f"目標 {target}；基率 {base:.1f}%；地板門檻 {FLOOR_MIN:.0f}%"
+          f"（={FLOOR_MIN/base:.1f}× 基率）；mkt_ret20 覆蓋 "
+          f"{m['mkt_ret20'].notna().mean()*100:.1f}%")
+    hit = m[target].to_numpy(dtype=float)
     dates = m["date"].to_numpy()
     liq = (m["vol_ma20"].fillna(0) >= 500 * 1000).to_numpy()
 
@@ -123,6 +148,7 @@ def main() -> None:
     if "--export" in sys.argv:
         with open(_OUT, "w", encoding="utf-8") as fh:
             json.dump({"generated_from": "condition_judge_cache_v3 2021-01~2026-06",
+                       "target": target,
                        "note": "凍結的挖掘產物：影子軌角落清單。重挖請重跑本腳本 --export。",
                        "discipline": "2021-24分年地板≥70、各年n≥15且≥3挖掘年、Jaccard≤0.5去重",
                        "corners": export}, fh, ensure_ascii=False, indent=1)

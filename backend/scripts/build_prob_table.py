@@ -64,7 +64,7 @@ def main() -> None:
 
     table = {
         "window": {"from": str(m["date"].min())[:10], "to": str(m["date"].max())[:10]},
-        "note": "同條件歷史命中率（隔日高錨、30交易日摸+10%）；描述統計非保證。",
+        "note": "同條件歷史命中率（隔日高錨、10交易日摸+10%）；描述統計非保證。",
         "bins": {"score": SCORE_BINS, "score_labels": SCORE_LABELS,
                  "atr": ATR_BINS, "atr_labels": ATR_LABELS,
                  "mkt": MKT_BINS, "mkt_labels": MKT_LABELS},

@@ -438,7 +438,7 @@ def lookback_cooccurrence(
         else:
             matrix.append([round(n_both[a][b2] / n_tag[a] * 100, 1) for b2 in range(len(_COOC_TAGS))])
 
-    # 精確組合全枚舉（n≥30）＋ 成效（與分組統計同口徑：隔日高錨、30日窗）
+    # 精確組合全枚舉（n≥30）＋ 成效（與分組統計同口徑：隔日高錨、10日窗，見 _sample_metrics）
     big = {k: v for k, v in combo_samples.items() if len(v) >= 30}
     sids = {sid for v in big.values() for _, sid in v}
     px = _load_prices(session, sids, since)

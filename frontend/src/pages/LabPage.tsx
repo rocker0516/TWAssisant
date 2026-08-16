@@ -14,6 +14,7 @@ import {
   type PaperSimResponse,
   type LabStyle,
 } from "../api/client";
+import { CornerLabSection } from "../components/CornerSignalsPanel";
 import { Modal } from "../components/Modal";
 import { changeColor, fmtNum, fmtPct } from "../lib/format";
 
@@ -66,6 +67,7 @@ export default function LabPage() {
       <CooccurrenceSection since={since} />
       <SignalDecaySection />
       <SensitivitySection since={since} />
+      <CornerLabSection />
     </div>
   );
 }

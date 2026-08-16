@@ -46,6 +46,12 @@ _MIN_DAYS = 60          # 有效日下限
 _MIN_PICKS = 5          # 每日最少選中檔數（沿判官）
 _T_GATE = 4.0           # 晉級 t 門檻（~p<.05/1000）
 
+# 2026-08 口徑修正：本腳本原本用 hit（mfe30≥10，30 日碰到），與波段軌定版目標
+# 不一致。定版是「10 日內碰到 +10%」，兩者基率差很大（挖掘窗 30 日約 32%、
+# 10 日約 14%），舊的 data/mega_mine_results.json 是 30 日數字，不可與新結果互比。
+_TARGET = "hit10"
+_COST = "mae10"
+
 
 def _log(msg: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
@@ -186,7 +192,53 @@ def build_features() -> pd.DataFrame:
     df = df.merge(fgd.rename(columns={"date": "date_str"}), on="date_str", how="left")
     df = df.drop(columns=["date_str", "ev_n", "ev_p", "ev_times"])
 
+    df = add_sector_neutral(df)
     _log(f"特徵擴充完成，共 {df.shape[1]} 欄")
+    return df
+
+
+# ── 由 feature_contamination_audit.py 的稽核結果驅動 ──
+# 放在 build_features() 裡（而非各挖掘腳本各自處理），讓所有吃 mega_mine_features.pkl
+# 的下游（mega_mine2 / ml_synth / build_ml_consensus / clean_mine / first_touch_race）
+# 一次修好，避免同一個缺陷在多份特徵表裡各自漂移。
+#
+# 註：曾另有 add_market_layer() 重算 mkt_bias60/mkt_ret20/fg，那是 market_index 只剩
+# 106 列時的權宜措施。該表已由 scripts/backfill_market_index.py 回補（2020-01 起
+# 1,607 個交易日），判官快取也已重建，上方「市場情緒」段的 len(mkt) > 70 分支
+# 恢復正常，故該函式已移除——修在資料層，不要在特徵層補丁。
+
+
+def add_sector_neutral(df: pd.DataFrame) -> pd.DataFrame:
+    """市場中性化的類股特徵。
+
+    稽核顯示 sec_ret20（類股 ret20 中位數）市場成分 0.672、holdout 分層價差 −0.72pp；
+    sec_breadth 市場成分 0.708、holdout 僅 +0.13pp —— 兩者都是「水位型」指標，
+    多頭時全市場一起升高，挖掘窗看起來有效只是因為那段大盤自身有動能。
+    改成減去當日全市場同指標的相對版本後，holdout 分別回到 +5.35pp / +5.70pp。
+    （peer_surge5 市場成分 0.371 但 +14.4→+17.8pp 又穩又強，保留原版並另加相對版。）
+    """
+    con = sqlite3.connect(f"file:{judge._DB}?mode=ro", uri=True)
+    px = pd.read_sql_query(
+        "SELECT p.stock_id, p.date, p.close, s.sector_id FROM daily_prices p "
+        "JOIN stocks s ON s.id = p.stock_id "
+        "WHERE p.close IS NOT NULL AND s.sector_id IS NOT NULL "
+        "ORDER BY p.stock_id, p.date", con)
+    con.close()
+    px["r"] = (px["close"] / px.groupby("stock_id", sort=False)["close"].shift(1) - 1.0) * 100
+    px = px.dropna(subset=["r"])
+
+    mkt = px.groupby("date")["r"].mean()
+    sec = px.groupby(["date", "sector_id"])["r"].mean().unstack().sub(mkt, axis=0)
+    for h in (5, 10, 20):
+        rel = sec.rolling(h, max(2, h // 2)).sum().stack().rename(f"sec_rel{h}").reset_index()
+        rel.columns = ["date", "sector_id", f"sec_rel{h}"]
+        df = df.merge(rel, on=["date", "sector_id"], how="left")
+
+    mb = df.groupby("date")["c_over_ma20"].transform(lambda s: (s > 0).mean() * 100)
+    df["sec_breadth_rel"] = df["sec_breadth"] - mb
+    ms = df.groupby("date")["ret5"].transform(lambda s: (s > 10).mean() * 100)
+    df["peer_surge5_rel"] = df["peer_surge5"] - ms
+    _log("  市場中性化類股特徵：sec_rel5/10/20、sec_breadth_rel、peer_surge5_rel")
     return df
 
 
@@ -196,19 +248,21 @@ def build_features() -> pd.DataFrame:
 class Evaluator:
     """向量化日層級評估：lift、ATR 桶控波動增量、MAE 代價、t 值。"""
 
-    def __init__(self, df: pd.DataFrame):
-        self.df = df.reset_index(drop=True)
-        self.date_codes, self.dates = pd.factorize(self.df["date"], sort=True)
+    def __init__(self, df: pd.DataFrame, target: str = _TARGET, cost: str = _COST):
+        """target/cost 可覆寫，供反向挖掘等換標籤的用途（如 down10＝10 日碰 −10%）。
+
+        早期版本靠呼叫端指派 df["hit"] 來換標籤；目標常數化之後那種寫法會無聲失效，
+        因此改成顯式參數。
+        """
+        sub = df[["date", "atr_bucket", target, cost]].reset_index(drop=True)
+        self.date_codes, self.dates = pd.factorize(sub["date"], sort=True)
         self.n_dates = len(self.dates)
-        day_base = self.df.groupby("date")["hit"].mean()
-        self.day_base = day_base.reindex(self.dates).to_numpy()
-        bkt = self.df.groupby(["date", "atr_bucket"])
-        self.df["_bexp"] = bkt["hit"].transform("mean")
-        self.df["_bmae"] = bkt["mae30"].transform("mean")
-        self.hit = self.df["hit"].to_numpy()
-        self.mae = self.df["mae30"].to_numpy()
-        self.bexp = self.df["_bexp"].to_numpy()
-        self.bmae = self.df["_bmae"].to_numpy()
+        self.day_base = sub.groupby("date")[target].mean().reindex(self.dates).to_numpy()
+        bkt = sub.groupby(["date", "atr_bucket"])
+        self.hit = sub[target].to_numpy(dtype=float)
+        self.mae = sub[cost].to_numpy(dtype=float)
+        self.bexp = bkt[target].transform("mean").to_numpy(dtype=float)
+        self.bmae = bkt[cost].transform("mean").to_numpy(dtype=float)
 
     def run(self, mask: np.ndarray) -> dict | None:
         idx = np.flatnonzero(mask)
@@ -253,17 +307,25 @@ class Evaluator:
 # ─────────────────────────── 條件生成 ───────────────────────────
 
 # 數值特徵（單變量掃門檻用）
+# 依 feature_contamination_audit.py 整理，與 mega_mine2 同一份規則：
+#   翻號 → 移出池；覆蓋不足 → 重建；市場成分過重且失效 → 改中性化版
+# 移除：vol_trend_chg / ret5_accel / dh_chg5 / dist_60d_high（挖掘 vs holdout 分層價差翻號）
+#      sec_ret20 → sec_rel5/10/20、sec_breadth → sec_breadth_rel（市場成分 0.67/0.71）
+#      fg / fg_chg5 / mkt_bias60 / mkt_ret20（ts_share=1.0，同日對所有股票同值，在
+#      「日內同 ATR 桶」的控波動比較裡變異為零，只會製造日期選擇效應；市場層 regime
+#      研究改在 market_base_gate.py）
 _NUMERIC = [
-    # 網絡/事件/變化值（本輪新特徵）
+    # 網絡/事件/變化值
     "sec_att5", "sec_att_chg", "node_att5", "node_att_chg", "node_surge5", "att_times",
-    "inst_f5_chg", "inst_t5_chg", "vol_trend_chg", "atr_pct_chg", "ret5_accel",
-    "bias20_chg", "pos52_chg20", "pe_chg20", "dh_chg5", "fg", "fg_chg5",
+    "inst_f5_chg", "inst_t5_chg", "atr_pct_chg",
+    "bias20_chg", "pos52_chg20", "pe_chg20",
     # 既有代表特徵
-    "atr_pct", "vol_ratio", "vol_trend", "c_over_ma20", "pos_52w", "dist_60d_high",
+    "atr_pct", "vol_ratio", "vol_trend", "c_over_ma20", "pos_52w",
     "ret5", "ret20", "inst_f5", "inst_t5", "inst_tot10", "inst_streak",
     "sq_ratio", "short_chg5", "margin_chg5", "pe", "pb",
-    "sec_ret20", "sec_breadth", "peer_surge5", "rel_ret20",
-    "mkt_bias60", "mkt_ret20", "kd_k", "bias_20", "bias_60", "macd_hist",
+    "sec_rel5", "sec_rel10", "sec_rel20", "sec_breadth_rel",
+    "peer_surge5", "peer_surge5_rel", "rel_ret20",
+    "kd_k", "bias_20", "bias_60", "macd_hist",
 ]
 
 
@@ -282,7 +344,8 @@ def main() -> None:
 
     mine = df[(df["date"].astype(str) >= _MINE_LO) & (df["date"].astype(str) <= _MINE_HI)].reset_index(drop=True)
     hold = df[df["date"].astype(str) >= _HOLD_LO].reset_index(drop=True)
-    _log(f"挖掘窗 {len(mine):,} 列 / holdout {len(hold):,} 列；基率 {mine['hit'].mean()*100:.1f}%")
+    _log(f"挖掘窗 {len(mine):,} 列 / holdout {len(hold):,} 列；"
+         f"{_TARGET} 基率 {mine[_TARGET].mean()*100:.1f}%")
 
     conds = gen_conditions_fixed(mine, mine)
     _log(f"總條件數 {len(conds)}")
@@ -300,7 +363,7 @@ def main() -> None:
     for k, (name, mask) in enumerate(conds):
         if k % 200 == 0:
             _log(f"  評估 {k}/{len(conds)}…")
-        mask = np.asarray(mask, dtype=bool) & ~pd.isna(mine["hit"].to_numpy())
+        mask = np.asarray(mask, dtype=bool) & ~pd.isna(mine[_TARGET].to_numpy())
         r = ev_all.run(mask)
         if r is None or r["t_ctrl"] < _T_GATE or r["ctrl"] <= 0:
             continue
@@ -350,15 +413,16 @@ def main() -> None:
 _PRED_SPEC = [
     ("sec_att5", True), ("sec_att_chg", True), ("node_att5", True), ("node_att_chg", True),
     ("node_surge5", True), ("inst_f5_chg", True), ("inst_t5_chg", True),
-    ("vol_trend_chg", True), ("ret5_accel", True), ("pos52_chg20", True),
-    ("fg", False), ("fg_chg5", True), ("dh_chg5", True), ("atr_pct_chg", True),
+    ("pos52_chg20", True), ("atr_pct_chg", True),
     ("vol_ratio", True), ("vol_trend", True), ("inst_f5", True), ("inst_t5", True),
-    ("inst_streak", True), ("sq_ratio", True), ("peer_surge5", True), ("sec_breadth", True),
+    ("inst_streak", True), ("sq_ratio", True), ("peer_surge5", True),
+    ("peer_surge5_rel", True), ("sec_breadth_rel", True),
     ("rel_ret20", True), ("pos_52w", True), ("atr_pct", True), ("c_over_ma20", True),
-    ("mkt_bias60", True), ("ret20", False), ("bias_60", False), ("pe_chg20", True),
-    ("margin_chg5", False), ("short_chg5", True), ("sec_ret20", True), ("dist_60d_high", True),
+    ("ret20", False), ("bias_60", False), ("pe_chg20", True),
+    ("margin_chg5", False), ("short_chg5", True),
+    ("sec_rel5", True), ("sec_rel10", True), ("sec_rel20", True),
     ("kd_k", True), ("macd_hist", True), ("bias_20", False), ("pos52_chg20", False),
-    ("fg_chg5", False), ("inst_f5_chg", False), ("node_surge5", False), ("mkt_ret20", False),
+    ("inst_f5_chg", False), ("node_surge5", False),
 ]
 
 

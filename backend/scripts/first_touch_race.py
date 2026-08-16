@@ -44,9 +44,11 @@ def build_signals(df: pd.DataFrame) -> dict[str, np.ndarray]:
         "乾淨×熱區×高位": clean
                       & (df["sec_att5"].to_numpy(float) > q80("sec_att5"))
                       & (df["pos_52w"].to_numpy(float) > q80("pos_52w")),
+        # 類股動能改用市場中性化的 sec_rel20：原 sec_ret20 市場成分 0.672、
+        # holdout 分層價差 −0.72pp（中性化後 +5.35pp），見 feature_contamination_audit.py
         "乾淨×高位×類股動能": clean
                        & (df["pos_52w"].to_numpy(float) > q80("pos_52w"))
-                       & (df["sec_ret20"].to_numpy(float) > q80("sec_ret20")),
+                       & (df["sec_rel20"].to_numpy(float) > q80("sec_rel20")),
         "爆發×量增(對照)": (df["atr_pct"].to_numpy(float) > 0.05)
                       & (df["c_over_ma20"].to_numpy(float) > 0)
                       & df["ma20_up5"].fillna(False).to_numpy(bool)

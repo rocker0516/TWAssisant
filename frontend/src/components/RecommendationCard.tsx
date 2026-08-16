@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import type { RecommendationItem } from "../api/client";
+import { bestTagLift, type RecommendationItem, type TagComboStats } from "../api/client";
 import { changeColor, consolidationMeta, entryTimingMeta, fmtNum, fmtPct, positionMeta, rangePositionMeta, TRACK_LABELS } from "../lib/format";
 import { hasNegative, marketSegments, type NarrativeTone } from "../lib/narrative";
 import { ConfidenceBadge } from "./ConfidenceBadge";
@@ -42,7 +42,14 @@ function toneClass(tone: NarrativeTone): string {
   return "text-gray-500";
 }
 
-type TagStat = { n: number; hit: number; avg_mae: number };
+// 量能共振徽章：條件與門檻不寫死，由 bestTagLift 從 tag_combo_stats 的雙段檢定決定，
+// 撐不起來的組合（重驗後 lift ≤4pp）自動消失——避免徽章繼續宣稱過期的命中率。
+const LIFT_BADGE: Record<string, { label: string; cls: string; ok: (volRatio: number) => boolean; how: string }> = {
+  volup: { label: "⚡量增共振", cls: "bg-red-500/20 text-red-200",
+    ok: (v) => v > 1.5, how: "5日均量/20日均量 >1.5" },
+  voldn: { label: "🤫量縮惜售", cls: "bg-violet-500/20 text-violet-200",
+    ok: (v) => v < 0.8, how: "5日均量/20日均量 <0.8（籌碼惜售）" },
+};
 
 const TAG_ORDER = ["pop", "explosive", "strong", "story", "crash"];
 
@@ -55,12 +62,16 @@ export function RecommendationCard({
   item: RecommendationItem;
   sparkDays?: number; // 走勢取近幾個交易日（由推薦頁切換；不傳＝全部）
   popQualified?: boolean; // 會噴標籤（過硬篩且分數達橫桿；由推薦頁依橫桿算）
-  tagStats?: Record<string, TagStat>; // （已停用：機率統一走達標機率查表；保留簽名相容）
+  tagStats?: TagComboStats["stats"]; // 量能共振徽章的雙段實證來源（機率本身走達標機率查表）
 }) {
-  void tagStats; // 機率已統一為達標機率查表，標籤實證行移除
   const tags = TAG_ORDER.filter(
     (t) => (t === "pop" ? popQualified : item.passed_styles?.includes(t)),
   ).filter((t) => STYLE_TAGS[t]);
+  const volLifts = item.vol_ratio == null ? [] : tags.flatMap((tag) => {
+    const lift = bestTagLift(tagStats, tag);
+    const badge = lift ? LIFT_BADGE[lift.cond] : undefined;
+    return lift && badge && badge.ok(item.vol_ratio!) ? [{ tag, lift, badge }] : [];
+  });
   const [open, setOpen] = useState(false);
   const hasDetails = (item.details?.length ?? 0) > 0;
   const segments = marketSegments(item);
@@ -83,20 +94,17 @@ export function RecommendationCard({
               {STYLE_TAGS[t].label}
             </span>
           ))}
-          {/* 共振徽章（2026-08 標籤×量能挖掘，train/holdout 雙段驗證）：
-              爆發×量增 命中 67%/52%（vs 爆發整體 56%/40%）；故事×量縮 56%/51%（vs 49%/36%） */}
-          {tags.includes("explosive") && item.vol_ratio != null && item.vol_ratio > 1.5 && (
-            <span title={`爆發標籤＋5日均量/20日均量=${item.vol_ratio}（>1.5）：歷史雙段命中 67%/52%，比爆發整體高 10pp+`}
-              className="rounded bg-red-500/20 px-1.5 py-0.5 text-xs font-medium text-red-200">
-              ⚡量增共振
+          {/* 量能共振徽章：只在該標籤的加成條件通過雙段檢定（10 日窗，挖掘窗＋holdout
+              皆 >4pp）時才掛，數字一律從 tag_combo_stats 讀，不手抄 */}
+          {item.vol_ratio != null && volLifts.map(({ tag, lift, badge }) => (
+            <span key={`${tag}|${lift.cond}`}
+              title={`${STYLE_TAGS[tag].label}＋${badge.how}（現值 ${item.vol_ratio}）：`
+                + `雙段命中 ${lift.hitTr}%/${lift.hitHo}%，比${STYLE_TAGS[tag].label}整體 `
+                + `+${lift.liftTr.toFixed(1)}/+${lift.liftHo.toFixed(1)}pp（n=${lift.n.toLocaleString()}）`}
+              className={`rounded px-1.5 py-0.5 text-xs font-medium ${badge.cls}`}>
+              {badge.label}
             </span>
-          )}
-          {tags.includes("story") && item.vol_ratio != null && item.vol_ratio < 0.8 && (
-            <span title={`故事股標籤＋量縮（量比=${item.vol_ratio}<0.8，籌碼惜售）：歷史雙段命中 56%/51%，比故事股整體穩定`}
-              className="rounded bg-violet-500/20 px-1.5 py-0.5 text-xs font-medium text-violet-200">
-              🤫量縮惜售
-            </span>
-          )}
+          ))}
           {/* 注意/處置動能徽章（2026-08 判官驗證，train/holdout 雙段 + ATR桶控波動）：
               處置後10日 命中61%/71%、控波動+16~19pp；注意×上升結構 +5~7pp。回檔亦深（MAE -19%），非無風險 */}
           {item.ml_consensus === true && (

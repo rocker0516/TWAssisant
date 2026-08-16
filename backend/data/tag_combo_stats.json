@@ -1,115 +1,290 @@
 {
- "generated_at": "2026-07-30",
+ "generated_at": "2026-08-17",
  "window": {
   "from": "2021-01-04",
-  "to": "2026-06-10"
+  "to": "2026-07-01"
  },
- "note": "五年實證：同標籤組合隔日高錨、30交易日內摸+10%比率；pop=預設前20%口徑(無遲滯)",
+ "holdout_from": "2025-07-01",
+ "note": "五年實證：同標籤組合隔日高錨、10交易日內摸+10%比率；pop=預設前20%口徑(無遲滯)",
  "stats": {
   "explosive": {
-   "n": 7839,
-   "hit": 56.9,
-   "avg_mae": -19.3
+   "n": 7992,
+   "hit": 40.7,
+   "avg_mae": -14.4,
+   "n_tr": 4666,
+   "hit_tr": 34.1,
+   "n_ho": 3326,
+   "hit_ho": 50.1
   },
   "explosive+story": {
-   "n": 1538,
-   "hit": 71.7,
-   "avg_mae": -18.4
+   "n": 1397,
+   "hit": 54.4,
+   "avg_mae": -13.8,
+   "n_tr": 334,
+   "hit_tr": 39.2,
+   "n_ho": 1063,
+   "hit_ho": 59.2
   },
   "explosive+story+crash": {
-   "n": 81,
-   "hit": 60.5,
-   "avg_mae": -16.1
+   "n": 52,
+   "hit": 36.5,
+   "avg_mae": -14.1,
+   "n_tr": 52,
+   "hit_tr": 36.5,
+   "n_ho": 0,
+   "hit_ho": null
   },
   "explosive+strong": {
-   "n": 440,
-   "hit": 61.4,
-   "avg_mae": -22.0
+   "n": 439,
+   "hit": 46.9,
+   "avg_mae": -16.1,
+   "n_tr": 213,
+   "hit_tr": 36.6,
+   "n_ho": 226,
+   "hit_ho": 56.6
   },
   "explosive+strong+crash": {
-   "n": 46,
-   "hit": 47.8,
-   "avg_mae": -22.2
+   "n": 58,
+   "hit": 34.5,
+   "avg_mae": -15.7,
+   "n_tr": 58,
+   "hit_tr": 34.5,
+   "n_ho": 0,
+   "hit_ho": null
   },
   "explosive+strong+story": {
-   "n": 120,
-   "hit": 81.7,
-   "avg_mae": -17.1
+   "n": 95,
+   "hit": 56.8,
+   "avg_mae": -14.2,
+   "n_tr": 15,
+   "hit_tr": null,
+   "n_ho": 80,
+   "hit_ho": 61.3
   },
   "pop": {
-   "n": 91852,
-   "hit": 44.4,
-   "avg_mae": -13.7
+   "n": 93708,
+   "hit": 23.7,
+   "avg_mae": -8.5,
+   "n_tr": 79668,
+   "hit_tr": 22.0,
+   "n_ho": 14040,
+   "hit_ho": 33.4
   },
   "pop+explosive": {
-   "n": 1561,
-   "hit": 60.5,
-   "avg_mae": -13.9
+   "n": 1242,
+   "hit": 38.4,
+   "avg_mae": -10.9,
+   "n_tr": 800,
+   "hit_tr": 34.6,
+   "n_ho": 442,
+   "hit_ho": 45.2
   },
   "pop+explosive+story": {
-   "n": 141,
-   "hit": 66.0,
-   "avg_mae": -17.5
+   "n": 107,
+   "hit": 32.7,
+   "avg_mae": -14.6,
+   "n_tr": 26,
+   "hit_tr": null,
+   "n_ho": 81,
+   "hit_ho": 28.4
   },
   "pop+story": {
-   "n": 2381,
-   "hit": 59.1,
-   "avg_mae": -15.3
+   "n": 1902,
+   "hit": 34.5,
+   "avg_mae": -9.9,
+   "n_tr": 1318,
+   "hit_tr": 27.1,
+   "n_ho": 584,
+   "hit_ho": 51.2
   },
   "pop+story+crash": {
-   "n": 87,
-   "hit": 64.4,
-   "avg_mae": -15.8
+   "n": 73,
+   "hit": 47.9,
+   "avg_mae": -11.1,
+   "n_tr": 73,
+   "hit_tr": 47.9,
+   "n_ho": 0,
+   "hit_ho": null
   },
   "story": {
-   "n": 15656,
-   "hit": 60.8,
-   "avg_mae": -16.3
+   "n": 13573,
+   "hit": 35.7,
+   "avg_mae": -11.6,
+   "n_tr": 7966,
+   "hit_tr": 28.0,
+   "n_ho": 5607,
+   "hit_ho": 46.5
   },
   "story+crash": {
-   "n": 1927,
-   "hit": 71.1,
-   "avg_mae": -14.6
+   "n": 1500,
+   "hit": 46.6,
+   "avg_mae": -10.5,
+   "n_tr": 1500,
+   "hit_tr": 46.6,
+   "n_ho": 0,
+   "hit_ho": null
   },
   "strong": {
-   "n": 15254,
-   "hit": 59.5,
-   "avg_mae": -20.3
+   "n": 15978,
+   "hit": 42.4,
+   "avg_mae": -14.4,
+   "n_tr": 10760,
+   "hit_tr": 40.0,
+   "n_ho": 5218,
+   "hit_ho": 47.3
   },
   "strong+crash": {
-   "n": 215,
-   "hit": 55.8,
-   "avg_mae": -23.1
+   "n": 212,
+   "hit": 36.3,
+   "avg_mae": -17.2,
+   "n_tr": 212,
+   "hit_tr": 36.3,
+   "n_ho": 0,
+   "hit_ho": null
   },
   "strong+story": {
-   "n": 1668,
-   "hit": 71.2,
-   "avg_mae": -19.2
+   "n": 1470,
+   "hit": 52.6,
+   "avg_mae": -15.0,
+   "n_tr": 431,
+   "hit_tr": 42.5,
+   "n_ho": 1039,
+   "hit_ho": 56.8
   },
   "any:pop": {
-   "n": 96051,
-   "hit": 45.1,
-   "avg_mae": -13.7
+   "n": 97049,
+   "hit": 24.1,
+   "avg_mae": -8.6,
+   "n_tr": 81902,
+   "hit_tr": 22.2,
+   "n_ho": 15147,
+   "hit_ho": 34.4
   },
   "any:explosive": {
-   "n": 11789,
-   "hit": 59.9,
-   "avg_mae": -18.5
+   "n": 11393,
+   "hit": 42.4,
+   "avg_mae": -14.0,
+   "n_tr": 6175,
+   "hit_tr": 34.7,
+   "n_ho": 5218,
+   "hit_ho": 51.6
   },
   "any:strong": {
-   "n": 17758,
-   "hit": 60.7,
-   "avg_mae": -20.3
+   "n": 18259,
+   "hit": 43.3,
+   "avg_mae": -14.5,
+   "n_tr": 11696,
+   "hit_tr": 39.9,
+   "n_ho": 6563,
+   "hit_ho": 49.3
   },
   "any:story": {
-   "n": 23632,
-   "hit": 63.1,
-   "avg_mae": -16.4
+   "n": 20182,
+   "hit": 39.0,
+   "avg_mae": -11.8,
+   "n_tr": 11728,
+   "hit_tr": 31.4,
+   "n_ho": 8454,
+   "hit_ho": 49.7
   },
   "any:crash": {
-   "n": 2388,
-   "hit": 68.7,
-   "avg_mae": -15.6
+   "n": 1907,
+   "hit": 44.9,
+   "avg_mae": -11.5,
+   "n_tr": 1907,
+   "hit_tr": 44.9,
+   "n_ho": 0,
+   "hit_ho": null
+  },
+  "lift:pop|volup": {
+   "n": 28544,
+   "hit": 24.1,
+   "avg_mae": -8.9,
+   "n_tr": 23881,
+   "hit_tr": 22.0,
+   "n_ho": 4663,
+   "hit_ho": 35.1
+  },
+  "lift:pop|voldn": {
+   "n": 24740,
+   "hit": 23.3,
+   "avg_mae": -8.5,
+   "n_tr": 21133,
+   "hit_tr": 21.6,
+   "n_ho": 3607,
+   "hit_ho": 33.2
+  },
+  "lift:explosive|volup": {
+   "n": 2707,
+   "hit": 41.9,
+   "avg_mae": -13.7,
+   "n_tr": 1620,
+   "hit_tr": 34.5,
+   "n_ho": 1087,
+   "hit_ho": 52.8
+  },
+  "lift:explosive|voldn": {
+   "n": 3126,
+   "hit": 47.1,
+   "avg_mae": -14.0,
+   "n_tr": 1580,
+   "hit_tr": 36.2,
+   "n_ho": 1546,
+   "hit_ho": 58.2
+  },
+  "lift:strong|volup": {
+   "n": 11060,
+   "hit": 41.1,
+   "avg_mae": -13.9,
+   "n_tr": 7796,
+   "hit_tr": 39.0,
+   "n_ho": 3264,
+   "hit_ho": 46.1
+  },
+  "lift:strong|voldn": {
+   "n": 2262,
+   "hit": 53.8,
+   "avg_mae": -16.4,
+   "n_tr": 1186,
+   "hit_tr": 46.2,
+   "n_ho": 1076,
+   "hit_ho": 62.2
+  },
+  "lift:story|volup": {
+   "n": 2725,
+   "hit": 38.3,
+   "avg_mae": -12.2,
+   "n_tr": 1601,
+   "hit_tr": 29.9,
+   "n_ho": 1124,
+   "hit_ho": 50.4
+  },
+  "lift:story|voldn": {
+   "n": 7509,
+   "hit": 40.4,
+   "avg_mae": -11.6,
+   "n_tr": 4451,
+   "hit_tr": 31.6,
+   "n_ho": 3058,
+   "hit_ho": 53.2
+  },
+  "lift:crash|volup": {
+   "n": 342,
+   "hit": 41.8,
+   "avg_mae": -14.0,
+   "n_tr": 342,
+   "hit_tr": 41.8,
+   "n_ho": 0,
+   "hit_ho": null
+  },
+  "lift:crash|voldn": {
+   "n": 598,
+   "hit": 43.1,
+   "avg_mae": -10.5,
+   "n_tr": 598,
+   "hit_tr": 43.1,
+   "n_ho": 0,
+   "hit_ho": null
   }
  }
 }

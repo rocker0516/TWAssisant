@@ -1,0 +1,37 @@
+{
+ "generated_at": "2026-08-16 19:48",
+ "top_pct": 0.02,
+ "results": [
+  {
+   "name": "legacy",
+   "auc": 0.712,
+   "base": 16.62,
+   "top_hit": 48.06,
+   "top_ctrl": 9.58,
+   "n_top": 14065,
+   "n_feats": 48,
+   "trees": 600
+  },
+  {
+   "name": "neutral",
+   "auc": 0.7129,
+   "base": 16.62,
+   "top_hit": 49.5,
+   "top_ctrl": 10.1,
+   "n_top": 14065,
+   "n_feats": 51,
+   "trees": 600
+  },
+  {
+   "name": "no_flip",
+   "auc": 0.7134,
+   "base": 16.62,
+   "top_hit": 49.48,
+   "top_ctrl": 9.9,
+   "n_top": 14065,
+   "n_feats": 47,
+   "trees": 600
+  }
+ ],
+ "best": "neutral"
+}

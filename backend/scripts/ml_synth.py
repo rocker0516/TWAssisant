@@ -28,20 +28,49 @@ _MIN_VOL = 500 * 1000
 _TOP = 0.80
 
 # 衍生 PIT 特徵（不含原始價量水平/標籤/識別）
+#
+# 2026-08 特徵稽核（feature_contamination_audit.py）後的調整：
+#   sec_ret20  → sec_rel5/10/20   市場成分 0.672、holdout 分層價差 −0.72pp（中性化後 +5.35pp）
+#   sec_breadth→ sec_breadth_rel  市場成分 0.708、holdout +0.13pp（中性化後 +5.70pp）
+#   另加 peer_surge5_rel（+5.71pp）；peer_surge5 原版又穩又強（+14.4→+17.8pp）故保留兩者
+#   mkt_bias60 / mkt_ret20 / fg / fg_chg5 保留 —— 它們原本覆蓋率只有 1.3~4.5%（source 的
+#     market_index 表只剩 106 列），已由 backfill_market_index.py 回補加權指數歷史
+#     （2020-01 起 1,607 個交易日）後重算到 100%。對「機率」模型而言 regime 資訊是合理
+#     輸入（不同於橫斷面挖掘——那裡同日對所有股票同值、日內變異為零，所以要移除）
+# 已移除 4 個 holdout 單因子翻號的特徵（見 _FLIPPERS），理由是**精簡**而非效能：
+# ml_feature_ab.py 在 market_index 回補後重測（holdout 2025+，3 個種子）
+#   neutral（含翻號 51 個）  前2%命中 49.82±0.24   控波動 10.08±0.09pp
+#   no_flip（現行 47 個）    前2%命中 49.79±0.36   控波動  9.99±0.06pp
+# 差距落在一個標準差內，**沒有實質差異**——大盤層修好後那 4 個既不幫也不害，
+# 取較少特徵的一組。（回補前 no_flip 曾贏 1.18pp，那個結論已被推翻，別再引用。）
+#
+# 真正有效的是資料修正本身：market_index 回補後三組的前 2% 命中一起跳升 2~3pp
+#   （legacy 45.99→48.06、neutral 46.61→49.50、no_flip 47.79→49.48）。
+#
+# 選指標注意：模型當「確認器」用只看最高分那一小撮，AUC 是全分布排序品質，
+# 對這個用途不敏感（回補前三組 AUC 只差 0.0004），別用 AUC 做取捨。
 FEATS = [
     "atr_pct", "ma_align", "vol_ratio", "vol_trend", "c_over_ma20", "pos_52w",
-    "dist_60d_high", "ret5", "ret20", "bias_20", "bias_60", "kd_k", "kd_d",
+    "ret5", "ret20", "bias_20", "bias_60", "kd_k", "kd_d",
     "macd_hist", "pe", "pb",
     "inst_f5", "inst_t5", "inst_tot10", "inst_streak", "sq_ratio",
     "short_chg5", "margin_chg5",
+    # 加權指數大盤層。market_index 已由 backfill_market_index.py 回補到
+    # 2020-01 起 1,607 個交易日（原本只有 106 列、覆蓋 1.3%/4.5%），
+    # 與 app/engines/corners.py 同定義同量尺。
     "mkt_bias60", "mkt_ret20",
-    "sec_ret20", "sec_breadth", "peer_surge5", "rel_ret20",
-    # 本輪新特徵：網絡/事件/變化值/情緒
+    "sec_rel5", "sec_rel10", "sec_rel20", "sec_breadth_rel",
+    "peer_surge5", "peer_surge5_rel", "rel_ret20",
+    # 網絡/事件/變化值/情緒
     "sec_att5", "sec_att_chg", "node_att5", "node_att_chg", "node_surge5",
     "att_times", "att_notice5", "att_punish10",
-    "inst_f5_chg", "inst_t5_chg", "vol_trend_chg", "atr_pct_chg", "ret5_accel",
-    "bias20_chg", "pos52_chg20", "pe_chg20", "dh_chg5", "fg", "fg_chg5",
+    "inst_f5_chg", "inst_t5_chg", "atr_pct_chg",
+    "bias20_chg", "pos52_chg20", "pe_chg20", "fg", "fg_chg5",
 ]
+
+# 稽核判定「holdout 翻號」的 4 個單因子，已移出 FEATS；保留清單供 ml_feature_ab.py 重現對照
+_FLIPPERS = ["dist_60d_high", "ret5_accel", "dh_chg5", "vol_trend_chg"]
+FEATS_WITH_FLIP = FEATS + _FLIPPERS
 
 
 def _log(m):

@@ -175,6 +175,21 @@ class TwseSource(BaseSource, PriceProvider, ChipProvider, FundamentalProvider, N
                 yield d
             d += timedelta(days=1)
 
+    # ── 共用：抓整月 JSON（TWSE 部分報表以「月」為單位回傳）──
+
+    def _month_json(self, path: str, first: date) -> dict | None:
+        params = {"response": "json", "date": first.strftime("%Y%m%d")}
+        resp = self._request(path, params=params)
+        body = resp.json()
+        return body if body.get("stat") == "OK" else None
+
+    def _iter_months(self, start: date, end: date):
+        """回傳涵蓋 [start, end] 的每個月 1 日。"""
+        d = date(start.year, start.month, 1)
+        while d <= end:
+            yield d
+            d = date(d.year + 1, 1, 1) if d.month == 12 else date(d.year, d.month + 1, 1)
+
     # ── PriceProvider ──
 
     def fetch_prices(
@@ -410,28 +425,35 @@ class TwseSource(BaseSource, PriceProvider, ChipProvider, FundamentalProvider, N
     def fetch_index(
         self, start: date, end: date, stock_ids: list[str] | None = None
     ) -> pd.DataFrame:
-        """加權指數日線（MI_INDEX「價格指數(臺灣證券交易所)」表中『發行量加權股價指數』收盤）。
+        """加權指數日線（FMTQIK 市場成交資訊的『發行量加權股價指數』收盤）。
+
+        用 FMTQIK 而非 MI_INDEX：前者一個請求回傳**整月**（約 22 個交易日），
+        後者一個請求只回一天、且要拖回全市場報價表才為了取一個數字。
+        回補 2020-01 起約 1,600 個交易日：80 個請求 vs 1,600 個。
+        兩者數值已對帳過（2026-04~05 重疊 40 日完全相同，最大差 0.0000）。
 
         欄位見 schemas.MARKET_INDEX_COLS。無 stock_id（PK=date）。
         """
         rows: list[dict] = []
-        for d in self._iter_days(start, end):
-            body = self._day_json("/exchangeReport/MI_INDEX", d, {"type": "ALLBUT0999"})
+        seen: set[date] = set()
+        for first in self._iter_months(start, end):
+            body = self._month_json("/exchangeReport/FMTQIK", first)
             if not body:
                 continue
-            table = self._pick_table(body, "價格指數(臺灣證券交易所)")
-            if not table:
+            idx = {name: i for i, name in enumerate(body.get("fields") or [])}
+            di, ci = idx.get("日期"), idx.get("發行量加權股價指數")
+            if di is None or ci is None:
                 continue
-            idx = {name: i for i, name in enumerate(table["fields"])}
-            for r in table["data"]:
-                if str(_cell(r, idx.get("指數")) or "").strip() == "發行量加權股價指數":
-                    close = _num(_cell(r, idx.get("收盤指數")))
-                    if close is not None:
-                        rows.append({"date": d, "close": close})
-                    break
+            for r in body.get("data") or []:
+                d = _roc_date(_cell(r, di) or "")
+                close = _num(_cell(r, ci))
+                if d is None or close is None or not (start <= d <= end) or d in seen:
+                    continue
+                seen.add(d)
+                rows.append({"date": d, "close": close})
         if not rows:
             return pd.DataFrame(columns=schemas.MARKET_INDEX_COLS)
-        return pd.DataFrame(rows)[schemas.MARKET_INDEX_COLS]
+        return pd.DataFrame(rows).sort_values("date")[schemas.MARKET_INDEX_COLS]
 
     # ── FundamentalProvider（TWSE 全市場免費）──
 

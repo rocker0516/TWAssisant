@@ -171,11 +171,44 @@ export type WaveStyle = "pop" | "explosive" | "strong" | "story" | "crash";
 // 策略室限定：注意/處置事件策略（推薦頁風格篩選不含）
 export type LabStyle = WaveStyle | "punish" | "notice";
 
+export type TagStatEntry = {
+  n: number; hit: number; avg_mae: number;
+  n_tr?: number; hit_tr?: number | null;   // 挖掘窗（< 2025-07-01）
+  n_ho?: number; hit_ho?: number | null;   // holdout（≥ 2025-07-01）
+};
 export type TagComboStats = {
   generated_at?: string;
   note?: string;
-  stats: Record<string, { n: number; hit: number; avg_mae: number }>;
+  holdout_from?: string; // 雙段切點；用來判斷某標籤是不是「單段實證」
+  stats: Record<string, TagStatEntry>;
 };
+
+// 量能加成條件（鍵與 build_tag_combo_stats.py 的 lift:<tag>|<cond> 一致）
+const LIFT_CONDS: [string, string][] = [["volup", "×量增>1.5"], ["voldn", "×量縮<0.8"]];
+
+export type TagLift = {
+  cond: string; label: string; n: number;
+  hitTr: number; hitHo: number; liftTr: number; liftHo: number;
+};
+
+/** 某標籤最強的「雙段都贏基線 ≥minPp」加成條件；沒有就回 null（不再手抄過期數字）。 */
+export function bestTagLift(
+  stats: TagComboStats["stats"] | undefined, tag: string, minPp = 4,
+): TagLift | null {
+  const base = stats?.[`any:${tag}`];
+  if (!stats || base?.hit_tr == null || base?.hit_ho == null) return null; // crash 無 holdout 段
+  let best: TagLift | null = null;
+  for (const [cond, label] of LIFT_CONDS) {
+    const v = stats[`lift:${tag}|${cond}`];
+    if (v?.hit_tr == null || v.hit_ho == null) continue;
+    const liftTr = v.hit_tr - base.hit_tr, liftHo = v.hit_ho - base.hit_ho;
+    if (Math.min(liftTr, liftHo) < minPp) continue;
+    if (!best || Math.min(liftTr, liftHo) > Math.min(best.liftTr, best.liftHo)) {
+      best = { cond, label, n: v.n, hitTr: v.hit_tr, hitHo: v.hit_ho, liftTr, liftHo };
+    }
+  }
+  return best;
+}
 
 // 標籤組合五年實證命中（靜態統計，卡片顯示用）
 export function useTagComboStats() {
