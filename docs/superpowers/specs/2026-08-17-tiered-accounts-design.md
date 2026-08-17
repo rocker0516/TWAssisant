@@ -49,7 +49,7 @@ TWAssistant 目前是**單租戶單人工具**：
 | 區域 | 內容 |
 |---|---|
 | 今日總覽 | 全開，含每日批次 AI 盤勢總結（已快取共用，邊際成本為零） |
-| 進場推薦 | 全開：雙軌、買進區間、參考停損、理由、標籤徽章 |
+| 進場推薦 | 雙軌完整名單、分數、買進區間、參考停損、理由、走勢、標籤徽章、質化風險等級（欄位級分層見 4.4） |
 | 類股行情 | 熱力圖、強弱排行、類股詳情、每日批次 AI 解讀 |
 | 消息面 | `/intel` 全開 |
 | 籌碼流向 | 基礎：大盤資金流、類股資金流 |
@@ -86,6 +86,57 @@ TWAssistant 目前是**單租戶單人工具**：
 | `/lab/paper/simulate`（**任意參數**） | 可調參研究模式。非獨立註冊項，見 5.5 |
 | `/corners/review` | 角落訊號覆盤 |
 | `/settings/system/*` | 排程時間與開關 |
+
+---
+
+### 4.4 進場推薦的欄位級分層
+
+推薦頁是本設計中唯一需要**同端點、不同深度**的區域（`/lab/paper/simulate` 之外）。它並非單一功能，而是四層疊加：
+
+| 層 | 內容 | 回答 | 歸屬 |
+|---|---|---|---|
+| ① 名單 | 誰上榜、分數、走勢、標籤徽章 | 買什麼 | Free |
+| ② 操作參數 | 買進區間、參考停損、理由 | 怎麼買、哪裡跑 | Free |
+| ③ 信心與統計 | 命中率統計、可信度、逐面向證據、ML 共識、長線目標區間 | 憑什麼相信 | **Pro** |
+| ④ 篩選與排序工具 | 機率門檻、標籤開關、位階、價格、走勢視窗、排序、回看月曆 | 怎麼快速找到 | **Pro** |
+
+①② 屬「買什麼」→ 免費，符合第 3 節的收費哲學與法規考量。③④ 屬「深度」與「工具」→ 付費。
+
+#### `RecommendationItem` 欄位歸屬
+
+| Free | Pro |
+|---|---|
+| `stock_id`、`name`、`sector_name`、`track` | `coverage`、`confidence`、`stability` |
+| `total_score`、`sub_scores` | `details`（逐面向分數 ＋ 帶數字 evidence） |
+| `close`、`change_pct`、`spark` | `prob_hit`、`prob_n`、`prob_cond`、`prob_mae`（精確值） |
+| `buy_low`、`buy_high`、`stop_loss`、`loss_pct` | `ml_consensus` |
+| `reasons` | `target_zone`、`graduation`（長線軌） |
+| `passed_styles`、`passed_filter`、`vol_ratio` | `review`（回看模式） |
+| `attention`、`attention_tags` | |
+| 🆕 `prob_band`、`risk_band`（質化三級） | |
+
+#### 質化降級：`prob_band` / `risk_band`
+
+免費層不得完全看不到風險資訊——那會讓免費層顯得比實際更有把握，與 README「誠實定位」牴觸，等於**好消息免費送、壞消息收費**。
+
+| | Free | Pro |
+|---|---|---|
+| 命中率 | `prob_band`：偏低／中等／偏高 | `prob_hit` 精確 % ＋ `prob_n` 樣本數 ＋ `prob_cond` 條件描述 |
+| 回撤風險 | `risk_band`：低／中／高 | `prob_mae` 精確 % |
+
+升級動機從「有沒有」變為「模糊 vs 精確」，轉換力更強且不犧牲誠實。
+
+**實作約束（兩者皆為安全要求，非美化）：**
+
+1. **降級必須在後端完成。** 依 tier 決定 response 中放 `prob_hit` 或 `prob_band`，兩者**互斥**。若後端照回精確值、由前端換算顯示，開 DevTools 即可看到原值——付費牆架在渲染層等同不存在。
+
+2. **分級門檻必須用相對口徑，不可用絕對值。** 絕對命中率會隨大盤行情整體漂移（見既有結論：10 日 70% 為行情產物）。固定門檻會使多頭時全清單「偏高」、空頭時全部「偏低」，徽章退化為大盤指標而失去個股區辨力。採**當日清單內相對三分位**（與角落挖掘「門檻用基率倍數搬移」同一原理）。門檻常數為伺服器端常數，不進前端 bundle。
+
+#### 前端連帶調整
+
+- **預設排序**：頁面現為 `sort = "prob"`，但 `prob_hit` 屬 Pro。免費層預設須改為 `score`。
+- **排序選項須同步移除**，不可僅視覺灰掉——`compareBy("prob")` 對全 `null` 會產生不確定順序，看似亂排。**資料鎖了，依賴該資料的 UI 邏輯必須跟著調整**，此為功能分層常見破口。
+- **`comboFilters`（精確組合篩選）**：組合鍵由策略室寫入 localStorage、推薦頁純前端過濾，後端不參與。策略室轉 Admin 後，非 Admin 的 localStorage 恆為空，篩選自然失效。該區塊 UI 須條件式渲染，否則留下永遠無作用的入口。
 
 ---
 
@@ -170,7 +221,16 @@ PAPER_SIM_ALLOWED = {          # 僅適用非 Admin
 
 - **必須在伺服器端驗證**，超出白名單回 422。前端下拉選單只是 UI，Pro 用戶可直接 curl 送任意值。
 - Admin 不受限制。
-- **與註冊表的關係**：`/lab/paper/simulate` 在 `ROUTE_TIERS` 中登記為**單一等級 `PRO`**，維持「一路由一等級」的不變式；Admin 的可調參特權由 handler 內依 role 略過白名單檢查達成，**不是**第二筆註冊表項目。此為註冊表唯一的「同端點不同深度」案例，需在該 handler 明確註記。
+- **與註冊表的關係**：`/lab/paper/simulate` 在 `ROUTE_TIERS` 中登記為**單一等級 `PRO`**，維持「一路由一等級」的不變式；Admin 的可調參特權由 handler 內依 role 略過白名單檢查達成，**不是**第二筆註冊表項目。
+
+**「同端點不同深度」共兩處**，皆以「註冊表登記最低可存取等級 ＋ handler 內依 tier 調整回應」實作，不破壞一路由一等級：
+
+| 端點 | 註冊等級 | 更高等級額外獲得 |
+|---|---|---|
+| `/lab/paper/simulate` | `PRO` | Admin：參數不受白名單限制 |
+| `/recommendations` | `FREE` | Pro：統計與信心欄位（見 4.4） |
+
+兩者皆須在 handler 明確註記，並各自有測試斷言。
 - 白名單為伺服器端常數，日後可隨時收緊。
 - 已知取捨：12 種組合仍會揭露一張粗略的參數表現圖。若判定過寬，改用方案 b（固定官方參數）。
 
@@ -248,6 +308,8 @@ AI 助手鎖 Pro 後，漏財點是帳號共享（被當免費 Claude proxy）�
 | 未驗證 | 未登入打任何 `/api/*`（含各種 Accept 變體）→ 401 ✅ 已完成 |
 | 容量上限 | Free 第 101 檔持股 → 422；第 2 組清單 → 422 |
 | 參數白名單 | 非 Admin 送白名單外的 `paper/simulate` 參數 → 422 |
+| 欄位級分層 | Free 打 `/recommendations` 的回應**不得含** `prob_hit`／`prob_n`／`prob_cond`／`prob_mae`／`confidence`／`stability`／`coverage`／`details`／`ml_consensus`／`target_zone`／`graduation`；且**必須含** `prob_band`／`risk_band`。Pro 反之。以欄位名黑白名單斷言，避免日後新增欄位默默外洩 |
+| 質化分級穩健性 | 以多頭／空頭兩組模擬清單餵入，斷言三級各自都有成員（驗證相對分位未退化為大盤指標） |
 | 資料隔離 | Repository 在無 `user_id` 下無法建構 |
 
 ---
