@@ -1,7 +1,7 @@
 """高確信角落影子軌引擎（實驗）。
 
-每日盤後對全市場評估 data/corners.json 的 30 個角落（挖掘凍結產物），
-命中寫入 corner_signals 供前端影子區塊顯示與 forward 驗證累積。
+每日盤後對全市場評估 data/corners.json 的角落（挖掘凍結產物），命中寫入
+corner_signals 供前端影子區塊顯示與 forward 驗證累積。
 不影響既有排序/推薦——純標籤層。
 
 特徵計算逐項復刻研究快取（scripts/pop_condition_judge.py::_build_cache）：
@@ -148,20 +148,31 @@ def build_features(session: Session, td: date) -> pd.DataFrame:
 
 
 class CornerEngine(BaseEngine):
-    """影子軌：評估 30 角落 → corner_signals（冪等，重跑先清當日）。"""
+    """影子軌：評估角落 → corner_signals（冪等，重跑先清當日）。"""
 
     name = "corners"
 
-    def run(self, session: Session, trading_date: date) -> dict:
+    def run(self, session: Session, trading_date: date,
+            only_ids: set[str] | None = None) -> dict:
+        """only_ids：只重算這幾個角落（其餘當日訊號原封不動）。
+
+        新增角落要補進既有影子期時用。整日重算雖然冪等，但若期間有資料修訂，
+        會讓已累積的 forward 驗證紀錄在無聲中改變——影子軌的價值就在那份紀錄，
+        所以補跑一律走外科式，只動指定的 corner_id。
+        """
         corners = load_corners()
+        if only_ids is not None:
+            corners = [c for c in corners if c["id"] in only_ids]
         if not corners:
-            return {"corners": 0, "signals": 0, "note": "corners.json 不存在"}
+            return {"corners": 0, "signals": 0, "note": "corners.json 不存在或無指定角落"}
         day = build_features(session, trading_date)
         if day.empty:
             return {"corners": len(corners), "signals": 0, "note": "no data"}
 
-        session.execute(delete(models.CornerSignal)
-                        .where(models.CornerSignal.date == trading_date))
+        stmt = delete(models.CornerSignal).where(models.CornerSignal.date == trading_date)
+        if only_ids is not None:
+            stmt = stmt.where(models.CornerSignal.corner_id.in_(only_ids))
+        session.execute(stmt)
         n_sig = 0
         fired = 0
         for c in corners:

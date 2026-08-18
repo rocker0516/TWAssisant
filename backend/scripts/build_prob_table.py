@@ -31,6 +31,21 @@ MKT_BINS = [-999, -6, 0, 999]         # 大盤乖離季線 %
 MKT_LABELS = ["深崩", "偏弱", "正常"]
 
 
+def _wilson_lb(p: float, n: int, z: float = 1.96) -> float:
+    """Wilson 95% 下界。薄格子自動被壓低，厚格子幾乎不動。
+
+    walk-forward 實測（15 季樣本外）：裸命中率在高機率端系統性高估 +5.9pp，改用下界後
+    收斂到 −1.5pp，而 Brier(0.1461→0.1464)/AUC(0.666→0.664) 幾乎不變 —— 純賺。
+    對照組 isotonic 重校準與「只用近 2 年」都反而更差，shrink-to-base 則過度收縮成 −10.4pp。
+    """
+    if n <= 0:
+        return 0.0
+    d = 1.0 + z * z / n
+    c = (p + z * z / (2 * n)) / d
+    hw = z * ((p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5) / d
+    return max(0.0, c - hw)
+
+
 def main() -> None:
     import os
     m = pd.read_pickle(_CACHE) if os.path.exists(_CACHE) else _build_cache()
@@ -58,21 +73,24 @@ def main() -> None:
         out = {}
         for k, gsel in m.groupby(keys, observed=True):
             key = "|".join(k) if isinstance(k, tuple) else str(k)
-            out[key] = {"hit": round(float(gsel["hit"].mean()) * 100, 1), "n": int(len(gsel)),
-                        "mae": round(float(gsel["mae30"].mean()), 1)}
+            p, n = float(gsel["hit"].mean()), int(len(gsel))
+            out[key] = {"hit": round(p * 100, 1), "hit_lb": round(_wilson_lb(p, n) * 100, 1),
+                        "n": n, "mae": round(float(gsel["mae30"].mean()), 1)}
         return out
 
     table = {
         "window": {"from": str(m["date"].min())[:10], "to": str(m["date"].max())[:10]},
-        "note": "同條件歷史命中率（隔日高錨、10交易日摸+10%）；描述統計非保證。",
+        "note": ("同條件歷史命中率（隔日高錨、10交易日摸+10%）；serve 用 hit_lb"
+                 "（Wilson 95% 下界，修高機率端的系統性高估）；描述統計非保證。"),
         "bins": {"score": SCORE_BINS, "score_labels": SCORE_LABELS,
                  "atr": ATR_BINS, "atr_labels": ATR_LABELS,
                  "mkt": MKT_BINS, "mkt_labels": MKT_LABELS},
         "full": cells(["s_bin", "a_bin", "m_bin"]),   # 分數×波動×大盤
         "sa": cells(["s_bin", "a_bin"]),              # 回退1：去大盤
         "s": cells(["s_bin"]),                        # 回退2：只看分數
-        "global": {"hit": round(float(m["hit"].mean()) * 100, 1), "n": int(len(m)),
-                   "mae": round(float(m["mae30"].mean()), 1)},
+        "global": {"hit": round(float(m["hit"].mean()) * 100, 1),
+                   "hit_lb": round(_wilson_lb(float(m["hit"].mean()), int(len(m))) * 100, 1),
+                   "n": int(len(m)), "mae": round(float(m["mae30"].mean()), 1)},
     }
     with open(_OUT, "w", encoding="utf-8") as fh:
         json.dump(table, fh, ensure_ascii=False, indent=1)

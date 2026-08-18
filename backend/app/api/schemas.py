@@ -1229,16 +1229,51 @@ class LookbackStatsResponse(BaseModel):
 
 
 class SensitivityPoint(BaseModel):
+    """累積門檻（prob ≥ X）的成效。
+
+    days 才是有效樣本數：同一天的個股命中高度相關，n=22 若只落在 2 天，統計上就是
+    2 個觀測。故 reliable 以 days 為主判準，前端據此把不可信的列灰化。
+    """
+
     prob_min: float
-    n: int                  # 全期樣本數
-    avg_daily_n: float | None  # 平均每日推薦檔數
+    n: int                     # 個股樣本數（同日高度相關，勿當獨立觀測）
+    days: int                  # 有貨的進場日數 ← 有效樣本數
+    day_cover: float | None    # 有貨日 / 全部進場日（揭露「集中在少數幾天」）
+    avg_daily_n: float | None  # 平均每日推薦檔數（分母=全部進場日）
     hit_count: int
-    hit_rate: float | None
-    avg_return_pct: float | None
+    hit_rate: float | None     # 個股級碰到率
+    hit_rate_lo: float | None  # Wilson 95% 下界（以 days 為有效 n 調整）
+    hit_rate_hi: float | None
+    day_hit_rate: float | None  # 日層級（每日一觀測取平均，不被大日子灌權重）
+    lift: float | None          # vs 無門檻基準的倍數
+    avg_return_pct: float | None       # 隔日高錨（保守／最壞追高）
+    avg_return_open_pct: float | None  # 隔日開盤錨（貼近實務）
+    avg_mfe_pct: float | None
+    avg_mae_pct: float | None
+    reliable: bool
+
+
+class CalibrationBin(BaseModel):
+    """非累積分箱：預測機率 vs 實現碰到率，看查表準不準（累積門檻看不出來）。"""
+
+    lo: float
+    hi: float
+    n: int
+    days: int
+    pred_avg: float             # 該箱預測機率均值
+    hit_rate: float | None      # 該箱實現碰到率
+    hit_rate_lo: float | None
+    hit_rate_hi: float | None
+    err_pp: float | None        # 實現 − 預測（負＝機率高估）
+    reliable: bool
 
 
 class SensitivityResponse(BaseModel):
     since: date | None
     today_date: date | None
     min_age_days: int
+    entry_days: int                 # 統計涵蓋的進場日總數
+    base_hit_rate: float | None     # 不設門檻的碰到率（lift 的分母）
     points: list[SensitivityPoint]
+    calibration: list[CalibrationBin]
+    note: str

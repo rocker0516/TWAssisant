@@ -204,7 +204,12 @@ def _bin_label(v: float, edges: list[float], labels: list[str]) -> str | None:
 
 def _prob_lookup(score: float | None, atr_pct: float | None,
                  mkt_bias60: float | None) -> tuple[float | None, int | None, str | None, float | None]:
-    """回 (同條件歷史命中%, n, 條件描述, 平均最深回撤%)。樣本薄逐層回退。"""
+    """回 (同條件歷史命中%, n, 條件描述, 平均最深回撤%)。樣本薄逐層回退。
+
+    命中率取 Wilson 95% **下界**(hit_lb)：裸命中率在高機率端 walk-forward 實測系統性
+    高估 +5.9pp（薄格子最嚴重），改下界後收斂到 −1.5pp 而鑑別度不變。舊版 prob_table.json
+    沒有 hit_lb 欄，退回裸值以免整站沒機率。
+    """
     t = _prob_table()
     if t is None or score is None:
         return None, None, None, None
@@ -212,20 +217,25 @@ def _prob_lookup(score: float | None, atr_pct: float | None,
     s = _bin_label(score, b["score"], b["score_labels"])
     a = _bin_label(atr_pct * 100, b["atr"], b["atr_labels"]) if atr_pct is not None else None
     mk = _bin_label(mkt_bias60, b["mkt"], b["mkt_labels"]) if mkt_bias60 is not None else None
+
+    def _p(c: dict) -> float:
+        v = c.get("hit_lb")
+        return c["hit"] if v is None else v
+
     if s and a and mk:
         c = t["full"].get(f"{s}|{a}|{mk}")
         if c and c["n"] >= _PROB_MIN_N:
-            return c["hit"], c["n"], f"分數{s}×波動{a}%×大盤{mk}", c.get("mae")
+            return _p(c), c["n"], f"分數{s}×波動{a}%×大盤{mk}", c.get("mae")
     if s and a:
         c = t["sa"].get(f"{s}|{a}")
         if c and c["n"] >= _PROB_MIN_N:
-            return c["hit"], c["n"], f"分數{s}×波動{a}%", c.get("mae")
+            return _p(c), c["n"], f"分數{s}×波動{a}%", c.get("mae")
     if s:
         c = t["s"].get(s)
         if c:
-            return c["hit"], c["n"], f"分數{s}", c.get("mae")
+            return _p(c), c["n"], f"分數{s}", c.get("mae")
     gl = t.get("global")
-    return (gl["hit"], gl["n"], "全市場", gl.get("mae")) if gl else (None, None, None, None)
+    return (_p(gl), gl["n"], "全市場", gl.get("mae")) if gl else (None, None, None, None)
 
 
 _ml_consensus_cache: dict = {}

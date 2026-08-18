@@ -875,8 +875,17 @@ export type CornerFired = {
   atoms: string[];
   family: "crash" | "dip" | "allweather";
   family_label: string;
+  /** floor=分年地板紀律（既有）；stable_edge=兩窗同日增量皆正（試跑中） */
+  origin: "floor" | "stable_edge";
   floor: number; // 挖掘窗(2021-24)分年地板命中 %
-  per_year: Record<string, { hit: number | null; n: number; days: number }>;
+  per_year: Record<string, { hit: number | null; n: number; days?: number }>;
+  edge_mine_pp: number | null;
+  edge_holdout_pp: number | null;
+  /** 真 OOS 期實測的同日同錨增量（試跑結果，可能與挖掘期反號） */
+  oos_edge_pp: number | null;
+  holdout_hit: number | null;
+  holdout_n: number | null;
+  caveat: string | null;
   stocks: CornerStock[];
 };
 export type CornerSignalsResponse = {
@@ -897,7 +906,11 @@ export function useCornerSignals() {
 }
 
 export type CornerReviewRow = {
-  id: string; atoms: string[]; family_label: string; floor: number;
+  id: string; atoms: string[]; family_label: string;
+  origin: "floor" | "stable_edge";
+  floor: number;
+  /** 該角落自己的及格線：floor 用地板、stable_edge 用它的 holdout 命中 */
+  benchmark: number;
   n: number; matured: number; hits: number; hit_rate: number | null;
   pending: number; early_hits: number;
 };
@@ -1080,12 +1093,23 @@ export function useSignalDecay() {
 }
 
 export type SensitivityPoint = {
-  prob_min: number; n: number; avg_daily_n: number | null;
-  hit_count: number; hit_rate: number | null; avg_return_pct: number | null;
+  prob_min: number; n: number; days: number; day_cover: number | null;
+  avg_daily_n: number | null; hit_count: number;
+  hit_rate: number | null; hit_rate_lo: number | null; hit_rate_hi: number | null;
+  day_hit_rate: number | null; lift: number | null;
+  avg_return_pct: number | null; avg_return_open_pct: number | null;
+  avg_mfe_pct: number | null; avg_mae_pct: number | null;
+  reliable: boolean;
+};
+export type CalibrationBin = {
+  lo: number; hi: number; n: number; days: number; pred_avg: number;
+  hit_rate: number | null; hit_rate_lo: number | null; hit_rate_hi: number | null;
+  err_pp: number | null; reliable: boolean;
 };
 export type SensitivityResponse = {
   since: string | null; today_date: string | null; min_age_days: number;
-  points: SensitivityPoint[];
+  entry_days: number; base_hit_rate: number | null;
+  points: SensitivityPoint[]; calibration: CalibrationBin[]; note: string;
 };
 
 export function useLookbackSensitivity(since?: string) {
