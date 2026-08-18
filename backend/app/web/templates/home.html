@@ -40,11 +40,11 @@
 </div>
 
 {% if sectors %}
-<h2>類股強弱</h2>
+<h2><a class="code" href="/sectors" style="color: var(--ink-2);">類股強弱 →</a></h2>
 <div class="boards" style="grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 10px;">
   {% for s in sectors %}
   <section style="padding: 12px 16px 10px;">
-    <div style="font-size: 13px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ s.name }}</div>
+    <div style="font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><a class="code" style="color: var(--ink-2);" href="/sectors/{{ s.id }}">{{ s.name }}</a></div>
     <div style="font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums;"
          >{{ "%.0f"|format(s.score) if s.score is not none else "—" }}
       <span class="{{ 'up' if s.mom and s.mom > 0 else ('down' if s.mom and s.mom < 0 else '') }}"
@@ -80,8 +80,24 @@
 <h2>探索</h2>
 <div class="boards" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
   <section style="padding: 18px 20px;">
+    <a class="code" href="/daily" style="font-size: 16px; font-weight: 700;">每日盤後報告 →</a>
+    <p style="font-size: 13.5px; color: var(--ink-2); margin: 6px 0 0;">每個交易日一頁：大盤、法人、市場情緒、類股、消息與盤後總評。</p>
+  </section>
+  <section style="padding: 18px 20px;">
     <a class="code" href="/rankings" style="font-size: 16px; font-weight: 700;">排行榜 →</a>
     <p style="font-size: 13.5px; color: var(--ink-2); margin: 6px 0 0;">漲跌幅、成交值、三大法人買超，每日盤後更新。</p>
+  </section>
+  <section style="padding: 18px 20px;">
+    <a class="code" href="/revenue" style="font-size: 16px; font-weight: 700;">月營收速報 →</a>
+    <p style="font-size: 13.5px; color: var(--ink-2); margin: 6px 0 0;">最新月份年增、月增、創歷史新高名單。</p>
+  </section>
+  <section style="padding: 18px 20px;">
+    <a class="code" href="/dividends" style="font-size: 16px; font-weight: 700;">除權息行事曆 →</a>
+    <p style="font-size: 13.5px; color: var(--ink-2); margin: 6px 0 0;">即將除息與近期已除息，附現金殖利率概算。</p>
+  </section>
+  <section style="padding: 18px 20px;">
+    <a class="code" href="/track-record" style="font-size: 16px; font-weight: 700;">公開戰績 →</a>
+    <p style="font-size: 13.5px; color: var(--ink-2); margin: 6px 0 0;">訊號當日寫下、不可改寫；10 日結算對大盤超額。</p>
   </section>
   <section style="padding: 18px 20px;">
     <a class="code" href="/stocks" style="font-size: 16px; font-weight: 700;">個股索引 →</a>

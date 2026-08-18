@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}類股行情｜TWAssistant{% endblock %}
+{% block description %}台股類股行情總表：強弱分數、短長線方向、輪動階段、動能、成交佔比與法人動向，每日盤後更新。{% endblock %}
+{% block content %}
+
+<h1 style="margin-top: 34px;">類股行情</h1>
+<p style="color: var(--ink-2); font-size: 15px; max-width: 64ch; margin: 0 0 22px;">
+  強弱分數＝動能／基本面／技術三維綜合（0~100）；方向與輪動為趨勢判讀、非預測。點類股名可看成分股。
+</p>
+
+<div class="tbl">
+  <table>
+    <thead><tr>
+      <th class="l">類股</th><th>強弱</th><th class="l">短線</th><th class="l">長線</th>
+      <th class="l">輪動階段</th><th>5日動能</th><th>20日動能</th>
+      <th>站上月線</th><th>成交佔比</th><th>法人5日(張)</th><th>檔數</th>
+    </tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="l" style="font-family: var(--sans); font-size: 14px;">
+          <a class="code" style="color: var(--ink);" href="/sectors/{{ r.id }}">{{ r.name }}</a></td>
+        <td style="font-weight: 700;">{{ "%.0f"|format(r.score) if r.score is not none else "—" }}</td>
+        <td class="l" style="font-size: 12.5px;">{{ r.trend_short or "—" }}</td>
+        <td class="l" style="font-size: 12.5px;">{{ r.trend_long or "—" }}</td>
+        <td class="l" style="font-size: 12.5px;">{{ r.stage or "—" }}</td>
+        <td class="{{ 'up' if r.mom5 and r.mom5 > 0 else ('down' if r.mom5 and r.mom5 < 0 else '') }}">
+          {{ "%+.1f%%"|format(r.mom5) if r.mom5 is not none else "—" }}</td>
+        <td class="{{ 'up' if r.mom20 and r.mom20 > 0 else ('down' if r.mom20 and r.mom20 < 0 else '') }}">
+          {{ "%+.1f%%"|format(r.mom20) if r.mom20 is not none else "—" }}</td>
+        <td>{{ "%.0f%%"|format(r.above_ma20 * 100) if r.above_ma20 is not none else "—" }}</td>
+        <td>{{ "%.1f%%"|format(r.turnover_share) if r.turnover_share is not none else "—" }}</td>
+        <td class="{{ 'up' if r.foreign_net and r.foreign_net > 0 else ('down' if r.foreign_net and r.foreign_net < 0 else '') }}">
+          {{ r.foreign_disp or "—" }}</td>
+        <td>{{ r.constituents or "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

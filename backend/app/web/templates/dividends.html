@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}除權息行事曆｜TWAssistant{% endblock %}
+{% block description %}台股除權息行事曆：即將除息與近期已除息個股，現金／股票股利、發放日與現金殖利率。{% endblock %}
+{% block content %}
+
+<h1 style="margin-top: 34px;">除權息行事曆</h1>
+<p style="color: var(--ink-2); font-size: 15px; max-width: 62ch; margin: 0 0 22px;">
+  以現金股利除息交易日排列；殖利率＝該期現金股利 ÷ 最新收盤，僅供概算。
+</p>
+
+{% macro div_table(rows) %}
+<div class="tbl">
+  <table>
+    <thead><tr>
+      <th class="l">除息日</th><th class="l">個股</th><th class="l">所屬期間</th>
+      <th>現金股利</th><th>股票股利</th><th>收盤</th><th>殖利率</th><th class="l">發放日</th>
+    </tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="l mono">{{ r.ex_date.isoformat() }}</td>
+        <td class="l"><a class="code" href="/stock/{{ r.stock_id }}">{{ r.stock_id }} {{ r.name }}</a></td>
+        <td class="l" style="font-size: 12.5px; color: var(--ink-2);">{{ r.period }}</td>
+        <td>{{ "%.2f"|format(r.cash) if r.cash else "—" }}</td>
+        <td>{{ "%.2f"|format(r.stock) if r.stock else "—" }}</td>
+        <td>{{ "%.2f"|format(r.close) if r.close else "—" }}</td>
+        <td style="color: var(--brand);">{{ "%.2f%%"|format(r.yield_pct) if r.yield_pct else "—" }}</td>
+        <td class="l mono">{{ r.pay_date.isoformat() if r.pay_date else "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endmacro %}
+
+<h2>即將除息（{{ today }} 起）</h2>
+{% if upcoming %}
+{{ div_table(upcoming) }}
+{% else %}
+<div class="tbl" style="padding: 22px 26px; font-size: 14px; color: var(--ink-2);">
+  近期沒有已公告的除息日程。
+</div>
+{% endif %}
+
+{% if recent %}
+<h2>近 60 日已除息</h2>
+{{ div_table(recent) }}
+{% endif %}
+
+{% endblock %}

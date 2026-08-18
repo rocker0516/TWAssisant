@@ -4,7 +4,7 @@
 {% block content %}
 <nav style="font-size: 13px; color: var(--ink-2); margin-top: 12px;">
   <a href="/stocks" style="color: var(--brand); text-decoration: none;">個股索引</a>
-  ›{{ sector_name or "未分類" }}
+  ›{% if sector_name and stock.sector_id %}<a href="/sectors/{{ stock.sector_id }}" style="color: var(--ink-2); text-decoration: none;">{{ sector_name }}</a>{% else %}{{ sector_name or "未分類" }}{% endif %}
 </nav>
 <h1>{{ stock.name }} <span style="color: var(--ink-2); font-weight: 400;">{{ stock.id }}</span></h1>
 <p style="color: var(--ink-2); font-size: 14px; margin: 0 0 16px;">
