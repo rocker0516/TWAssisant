@@ -1,7 +1,8 @@
 """資料存取層（架構⑥：Repository = 純 CRUD）。
 
-BaseRepository 提供冪等 upsert（結果覆寫）+ 增量查詢用的 max_date，
-是「整條 pipeline 冪等 → 可重跑/補跑」的關鍵。子類只綁 model。
+BaseRepository 提供冪等 upsert（結果覆寫）、append-only 用的 insert-ignore，
+與增量查詢用的 max_date，是「整條 pipeline 冪等 → 可重跑/補跑」的關鍵。子類只綁 model。
+SQLite 方言的 on_conflict 只出現在本檔——換 Postgres 時的改動面收斂在這裡。
 """
 
 from __future__ import annotations
@@ -53,6 +54,33 @@ class BaseRepository(Generic[M]):
             session.execute(stmt)
             total += len(batch)
         return total
+
+    def insert_ignore_many(
+        self, session: Session, rows: list[dict],
+        index_elements: list[str] | None = None,
+    ) -> int:
+        """append-only 表用：衝突就跳過，**已寫下的紀錄不被改寫**。
+
+        與 upsert_many 的差別是刻意的：upsert 是「結果覆寫」，適合可重算的快照表；
+        append-only 記的是「當初發生/宣告了什麼」，重跑不得改寫，否則公開戰績
+        就失去可驗證性（見 models.SignalLog）。
+
+        index_elements 預設用 PK；autoincrement PK 的表要傳自己的唯一鍵欄位。
+        回傳**實際新增筆數**而非傳入筆數——重跑時看到 0 才知道「沒有新東西」。
+        """
+        if not rows:
+            return 0
+        table = self.model.__table__
+        keys = index_elements or self._pk_cols
+        chunk = max(1, _MAX_SQL_VARS // len(table.columns))
+
+        inserted = 0
+        for i in range(0, len(rows), chunk):
+            batch = rows[i : i + chunk]
+            stmt = sqlite_insert(table).values(batch).on_conflict_do_nothing(
+                index_elements=keys)
+            inserted += max(0, session.execute(stmt).rowcount or 0)
+        return inserted
 
     def max_date(self, session: Session, stock_id: str | None = None) -> date_ | None:
         """此表已有的最新日期（增量抓的起點）。需 model 有 date 欄位。"""

@@ -46,7 +46,9 @@
 每日盤後排程抓資料 → 引擎全算好 → LLM 翻白話存快取 → Discord 通知；白天前端只讀算好的結果。
 依賴單向往下：**換來源 / 加指標 / 換模型只動一層**。
 
-**每日 pipeline 8 步**：Fetch → Indicator → Sector → News → Scoring → Exit → LLM → Notify。
+**每日 pipeline（以 `scheduler/run.py` 的清單為準）**：Fetch → Indicator → Sector → News →
+TargetPrice → Attention → Scoring → MLConsensus → Corners → **SignalLog** → Exit → Notify →
+PoppableEfficacy。LLM 翻白話已移出 pipeline，改端點首讀懶生成（`llm/lazy.py`）。
 整條冪等（增量補缺 + upsert 覆寫）→ 可重跑、關機後補跑安全。
 
 ---
@@ -143,7 +145,7 @@ backend/app/
   credentials.py       token 讀取（Keychain / toml）
   sources/             來源 adapter（base/interfaces/twse/tpex/combined/finmind/fugle/registry）
   storage/             models（六群表）/ repositories（冪等 upsert）/ database
-  engines/             indicators / sector / scoring / exit / news + rules(可插拔規則)
+  engines/             indicators / sector / scoring / exit / news / signal_log + rules(可插拔規則)
   llm/                 client / translators / batch / assistant / store
   services/            holding_service / settings_service
   scheduler/           pipeline / steps / run / trading_calendar

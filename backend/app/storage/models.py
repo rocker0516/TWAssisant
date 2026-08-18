@@ -4,7 +4,7 @@ A 主檔        : Sector, Stock
 B 行情運算    : DailyPrice, Indicator            （PK = stock_id + date）
 C 籌碼基本面  : Institutional, Margin, RevenueMonthly, FinancialQuarter, Valuation
 D 類股        : SectorDaily
-E 引擎結果    : Score（雙軌各一列）, Event          ← 前端只讀此群
+E 引擎結果    : Score（雙軌各一列）, Event, SignalLog   ← 前端只讀此群
 F 使用者      : Holding, Transaction, Watchlist, WatchlistItem, Setting, LlmCache
 排程 log      : PipelineRun
 
@@ -664,6 +664,47 @@ class CornerSignal(Base):
     date: Mapped[date_] = mapped_column(Date, primary_key=True, index=True)
     corner_id: Mapped[str] = mapped_column(String(8), primary_key=True)  # C01~C30
     close: Mapped[float | None] = mapped_column(Float)  # 訊號日收盤（回顧展示用）
+
+
+class SignalLog(Base):
+    """全站狀態變化事件（append-only）。
+
+    與 `events` 的分野：`events` 是**外部來的消息**（重訊/新聞，帶 url/source/is_risk）；
+    這裡記的是**本站自己算出來的東西發生了什麼變化**。名字不叫 `events` 是因為那個
+    名字已經被前者佔走——泛用名詞當表名，第二種事件出現時必然撞名。
+
+    為什麼要有這張表：通知、每日盤後、戰績三個功能要的都是「變化」而非「狀態」。
+    沒有它，三者會各自寫一套「比對昨天和今天」的邏輯，三份都會有各自的 bug。
+
+    append-only：只 insert 不 update、不 delete。pipeline 重跑靠 unique 約束去重
+    （`on_conflict_do_nothing`），故整條可重跑的性質不變，但**已寫下的紀錄不會被改寫**
+    ——這正是公開戰績可驗證的前提（scores 是 upsert 覆寫，重跑會改寫歷史，不能當戰績依據）。
+
+    date vs created_at vs backfilled：`date` 是事件所屬的交易日，`created_at` 是實際
+    寫入時間，回填歷史時兩者相差數月。`backfilled` 明確標記「這筆是事後從 scores 補的，
+    不是當天寫下的」——公開戰績只有 backfilled=False 的部分能宣稱「我們事前就說了」，
+    回填段落只能當背景參考。不用 created_at 反推是因為那個推論很脆弱（補跑一天前的
+    缺口也會讓兩者不同），而這裡不能有模稜兩可。
+
+    刻意不設通用的 ref/payload_key 欄位：kind 各自需要什麼鍵就開什麼欄位。
+    通用欄位在第三種 kind 出現時會變成「這一列的 ref 是什麼意思要看 kind」，
+    是泛用表名的同一個陷阱換一層。
+    """
+
+    __tablename__ = "signal_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    date: Mapped[date_] = mapped_column(Date, index=True)      # 事件所屬交易日
+    kind: Mapped[str] = mapped_column(String(24), index=True)  # listed / delisted
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), index=True)
+    track: Mapped[str] = mapped_column(String(10))             # wave / long
+    payload: Mapped[dict | None] = mapped_column(JSON)         # 事件當下的快照（見 engines/signal_log.py）
+    backfilled: Mapped[bool] = mapped_column(Boolean, default=False)  # 事後補的，非當日寫下
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("date", "kind", "stock_id", "track", name="uq_signal_log"),
+    )
 
 
 # ─────────────────────────── 排程 log ───────────────────────────

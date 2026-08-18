@@ -19,6 +19,7 @@ from ..engines.news_engine import NewsEngine
 from ..engines.poppability import PoppabilityEfficacyEngine
 from ..engines.scoring import ScoringEngine
 from ..engines.sector_engine import SectorEngine
+from ..engines.signal_log import SignalLogEngine
 from ..notify import build_daily_message, send_discord
 from ..sources import registry
 from ..sources.base import SourceError
@@ -375,6 +376,24 @@ class ScoringStep(PipelineStep):
 
     def run(self, ctx: PipelineContext) -> dict:
         return ScoringEngine().run(ctx.session, ctx.trading_date)
+
+
+class SignalLogStep(PipelineStep):
+    """名單進出 → signal_log（append-only）。
+
+    緊接 ScoringStep：它只依賴 scores.passed，而 ScoringStep 之後沒有任何 step
+    會再動那個欄位（MLConsensus/Corner 都是純標籤層）。放這裡而不是最後，是為了
+    讓後面的 NotifyStep 能直接讀事件、不必自己再比對一次兩日名單。
+
+    required=False：事件寫失敗不該擋掉當日推薦與出場評估——那是使用者當天要看的東西，
+    事件只影響通知與事後回顧，下次重跑會補上（insert-ignore 天生可重跑）。
+    """
+
+    name = "signal_log"
+    required = False
+
+    def run(self, ctx: PipelineContext) -> dict:
+        return SignalLogEngine().run(ctx.session, ctx.trading_date)
 
 
 class ExitStep(PipelineStep):

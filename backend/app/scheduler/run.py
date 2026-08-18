@@ -24,20 +24,22 @@ from .steps import (
     PoppableEfficacyStep,
     ScoringStep,
     SectorStep,
+    SignalLogStep,
     TargetPriceStep,
 )
 from .trading_calendar import is_trading_day, resolve_trading_date
 
 
 def build_pipeline() -> DailyPipeline:
-    # 依賴順序：Fetch→Indicator→Sector→News→Scoring→Exit→Notify→PoppableEfficacy。
+    # 依賴順序：Fetch→Indicator→Sector→News→Scoring→SignalLog→Exit→Notify→PoppableEfficacy。
     # LLM 翻白話不在 pipeline：改端點首讀懶生成（llm/lazy.py），只為看的內容花呼叫。
     # 會噴成效回測放最後：純歷史回測、非必要，掛了不影響當日推薦/通知。
     return DailyPipeline(
         steps=[
             FetchStep(), IndicatorStep(), SectorStep(), NewsStep(), TargetPriceStep(),
             AttentionStep(),
-            ScoringStep(), MLConsensusStep(), CornerStep(), ExitStep(), NotifyStep(),
+            ScoringStep(), MLConsensusStep(), CornerStep(), SignalLogStep(),
+            ExitStep(), NotifyStep(),
             PoppableEfficacyStep(),
         ]
     )
@@ -49,12 +51,15 @@ def build_backfill_pipeline() -> DailyPipeline:
     補一段缺口時，每個「非最新」交易日都跑這條（資料+指標+類股+消息+評分+出場齊全、
     推薦可用），但**不發 Discord 通知、不跑成效回測**——避免一次補 N 天就轟 N 則通知。
     最新那天才跑完整 build_pipeline()。
+
+    SignalLogStep 有進來：補洞的那幾天也是真的發生過上榜/掉榜，漏掉會讓戰績與每日
+    盤後在那段出現無聲的空窗。它不會發通知（那是 NotifyStep 的事），故無轟炸風險。
     """
     return DailyPipeline(
         steps=[
             FetchStep(), IndicatorStep(), SectorStep(), NewsStep(), TargetPriceStep(),
             AttentionStep(),
-            ScoringStep(), MLConsensusStep(), CornerStep(), ExitStep(),
+            ScoringStep(), MLConsensusStep(), CornerStep(), SignalLogStep(), ExitStep(),
         ]
     )
 
