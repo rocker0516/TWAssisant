@@ -35,3 +35,6 @@ frontend/dist/
 # pipeline 執行 log（launchd 寫入）
 backend/data/*.log
 backend/data/*.bin
+
+# 技能派工的工具狀態（只有每次 session 都會變的 UUID，不該進版控）
+.sf/
