@@ -228,3 +228,100 @@ def stock_page(stock_id: str, request: Request,
         "quarters": quarters,
         "dividends": dividends,
     })
+
+
+@router.get("/", response_class=HTMLResponse)
+def home(request: Request, session: Session = Depends(get_session)) -> HTMLResponse:
+    """公開首頁：大盤狀態磚＋今日通過篩選數（登入鉤子）＋類股強弱＋今日消息。
+
+    「今日 N 檔通過篩選」只給數字不給名單——具體數字比行銷文案有說服力，
+    名單本身屬登入牆後（見檔頭內容邊界）。
+    """
+    dates = _latest_dates(session, 2)
+    d0 = dates[0] if dates else None
+    if d0 is None:
+        return _templates.TemplateResponse(request, "home.html", {
+            "cutoff": "尚無資料", "idx_close": None, "idx_chg": None,
+            "turnover_total": None, "n_up": 0, "n_down": 0, "inst_total": None,
+            "n_passed": 0, "n_wave": 0, "n_long": 0,
+            "sectors": [], "news": [], "n_stocks": 0})
+
+    # 加權指數：取最近兩筆自算漲跌（index 表只有 close）
+    idx = session.execute(
+        select(models.MarketIndex.close).order_by(models.MarketIndex.date.desc()).limit(2)
+    ).scalars().all()
+    idx_close = idx[0] if idx else None
+    idx_chg = (idx[0] / idx[1] - 1) * 100 if len(idx) == 2 and idx[1] else None
+
+    turnover_total = session.execute(
+        select(func.sum(models.DailyPrice.turnover)).where(models.DailyPrice.date == d0)
+    ).scalar_one()
+    turnover_total = turnover_total / 1e8 if turnover_total else None
+
+    # 漲跌家數：兩日收盤配對
+    n_up = n_down = 0
+    if len(dates) == 2:
+        prev = dict(session.execute(
+            select(models.DailyPrice.stock_id, models.DailyPrice.close)
+            .where(models.DailyPrice.date == dates[1], models.DailyPrice.close.is_not(None))
+        ).all())
+        for sid, c in session.execute(
+            select(models.DailyPrice.stock_id, models.DailyPrice.close)
+            .where(models.DailyPrice.date == d0, models.DailyPrice.close.is_not(None))
+        ).all():
+            p = prev.get(sid)
+            if not p:
+                continue
+            if c > p:
+                n_up += 1
+            elif c < p:
+                n_down += 1
+
+    inst_total = session.execute(
+        select(models.InstitutionalMarketTotal.total_net)
+        .order_by(models.InstitutionalMarketTotal.date.desc()).limit(1)
+    ).scalar_one_or_none()
+
+    # 今日通過雙軌篩選的檔數（只給數字，名單在登入牆後）
+    passed = dict(session.execute(
+        select(models.Score.track, func.count()).where(
+            models.Score.date == d0, models.Score.passed.is_(True))
+        .group_by(models.Score.track)
+    ).all())
+    n_wave, n_long = passed.get("wave", 0), passed.get("long", 0)
+
+    sector_rows = session.execute(
+        select(models.Sector.name, models.SectorDaily.strength_score,
+               models.SectorDaily.momentum_5, models.SectorDaily.trend_short,
+               models.SectorDaily.rotation_stage)
+        .join(models.Sector, models.Sector.id == models.SectorDaily.sector_id)
+        .where(models.SectorDaily.date == d0)
+        .order_by(models.SectorDaily.strength_score.desc())
+    ).all()
+    sectors = [{"name": n, "score": sc, "mom": m, "trend": t, "stage": st}
+               for n, sc, m, t, st in sector_rows]
+
+    news = [
+        {"stock_id": sid, "stock_name": sname, "title": title,
+         "category": cat, "is_risk": risk}
+        for sid, sname, title, cat, risk in session.execute(
+            select(models.Event.stock_id, models.Stock.name, models.Event.title,
+                   models.Event.category, models.Event.is_risk)
+            .join(models.Stock, models.Stock.id == models.Event.stock_id, isouter=True)
+            .order_by(models.Event.date.desc(), models.Event.is_risk.desc(),
+                      models.Event.id.desc())
+            .limit(8)
+        ).all()
+    ]
+
+    n_stocks = session.execute(
+        select(func.count()).select_from(models.Stock)).scalar_one()
+
+    return _templates.TemplateResponse(request, "home.html", {
+        "cutoff": d0.isoformat(),
+        "idx_close": idx_close, "idx_chg": idx_chg,
+        "turnover_total": turnover_total,
+        "n_up": n_up, "n_down": n_down, "inst_total": inst_total,
+        "n_passed": n_wave + n_long, "n_wave": n_wave, "n_long": n_long,
+        "sectors": sectors, "news": news, "n_stocks": n_stocks,
+    })

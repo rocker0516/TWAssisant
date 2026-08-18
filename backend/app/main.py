@@ -12,7 +12,7 @@ from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import func, select
@@ -194,12 +194,6 @@ if _SPA_MODE:
         if path == "/app" or path.startswith("/app/"):
             return FileResponse(_INDEX)
         return await call_next(request)
-
-    @app.get("/", include_in_schema=False)
-    def _root_redirect() -> RedirectResponse:
-        """過渡措施：真正的公開首頁做好前，根路徑先導向 App（維持 start.bat
-        開瀏覽器即見工具的既有體驗）。首頁上線時把這個 handler 換成模板。"""
-        return RedirectResponse("/app", status_code=302)
 
     # 打包後的靜態資源（JS/CSS，index.html 以 /assets/* 引用）。
     app.mount("/assets", StaticFiles(directory=_DIST / "assets"), name="assets")
