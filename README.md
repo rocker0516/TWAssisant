@@ -32,6 +32,8 @@
 
 另有 **個股詳情**（K 線 + 技術/基本面/籌碼/支撐壓力/本益比河流/目標價/產業鏈）與 **類股專屬頁**，由上列頁面點入。
 
+**公開頁（免登入、伺服器端渲染）**：`/rankings`（漲跌幅/成交值/法人買超排行）、`/stocks`（全市場個股索引）。命名空間約定：`/api/*` = JSON API（需登入）、`/app/*` = 上表的 SPA、其餘 = 公開頁（`backend/app/web/`）。
+
 右下角常駐 **🤖 浮動 AI 助手**：情境感知（知道你在看哪頁/哪檔）、跨頁不消失、逐字串流、只根據 App 內部已算好的結論回答。
 
 ---
@@ -99,7 +101,7 @@ uvicorn app.main:app --port 8000
 ```bash
 cd frontend
 npm install
-npm run dev          # → http://localhost:5173（請用 localhost，非 127.0.0.1）
+npm run dev          # → http://localhost:5173/app（App 掛在 /app 下；請用 localhost，非 127.0.0.1）
 npm run gen:api      # 後端改欄位後重生 TS 型別
 ```
 dev 模式 Vite 會把 `/api` 代理到後端 `:8000`。
@@ -162,7 +164,7 @@ deploy/launchd/        每日排程
 ## 疑難排解
 
 - **`/recommendations` 空 / 數字怪**：先確認當日 pipeline 有跑成功（設定無誤、`/system/status` 看資料筆數）。
-- **前端連不到後端**：用 `http://localhost:5173`（Vite 綁 IPv6），並確認後端在 `:8000`。
+- **前端連不到後端**：用 `http://localhost:5173/app`（App 掛在 /app 下；Vite 綁 IPv6），並確認後端在 `:8000`。
 - **AI 卡片/助手沒反應**：未設 Claude 金鑰時會略過或提示；設定後重啟後端。
 - **改 `tailwind.config.js` 沒生效**：重啟 `npm run dev`（Tailwind config 有快取）。
 - **新增市場/來源後沒歷史資料**：FetchStep 用全域 max_date 增量，需清行情表重抓一次。

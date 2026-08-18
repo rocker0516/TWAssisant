@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}TWAssistant{% endblock %}</title>
+  <meta name="description" content="{% block description %}台股每日盤後資料：排行、類股、個股。全部取自證交所／櫃買中心官方開放資料。{% endblock %}">
+  <style>
+    :root {
+      --paper: #f5f7f6; --surface: #ffffff; --ink: #1a242b; --ink-2: #5c6b73;
+      --rule: #d9e0e0; --up: #c0392b; --down: #1e7f4f; --accent: #2f6280;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --paper: #121a20; --surface: #1a242c; --ink: #e3eaec; --ink-2: #93a4ac;
+        --rule: #2e3d46; --up: #e07862; --down: #55b184; --accent: #83b7d8;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--paper); color: var(--ink);
+      font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", system-ui, sans-serif;
+      font-size: 16px; line-height: 1.7;
+    }
+    header.site {
+      display: flex; align-items: baseline; gap: 20px; flex-wrap: wrap;
+      max-width: 1080px; margin: 0 auto; padding: 18px 20px 0;
+    }
+    header.site .brand { font-weight: 700; font-size: 18px; color: var(--ink); text-decoration: none; }
+    header.site nav { display: flex; gap: 14px; font-size: 14px; }
+    header.site nav a { color: var(--ink-2); text-decoration: none; }
+    header.site nav a:hover { color: var(--ink); }
+    header.site .login { margin-left: auto; font-size: 14px; }
+    header.site .login a { color: var(--accent); text-decoration: none; }
+    main { max-width: 1080px; margin: 0 auto; padding: 8px 20px 64px; }
+    h1 { font-size: 26px; margin: 18px 0 4px; }
+    h2 { font-size: 18px; margin: 28px 0 8px; }
+    /* 資料截止戳記：全站元件。盤後批次資料，缺這行會被誤讀成即時報價。 */
+    .cutoff {
+      font-size: 13px; color: var(--ink-2); margin: 0 0 6px;
+      font-variant-numeric: tabular-nums;
+    }
+    table { border-collapse: collapse; width: 100%; background: var(--surface); font-size: 14.5px; }
+    th, td { text-align: right; padding: 7px 12px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+    th:first-child, td:first-child, th.l, td.l { text-align: left; }
+    thead th { font-size: 12px; color: var(--ink-2); font-weight: 600; }
+    td { font-variant-numeric: tabular-nums; }
+    .up { color: var(--up); }
+    .down { color: var(--down); }
+    .tbl { overflow-x: auto; border: 1px solid var(--rule); border-radius: 4px; }
+    .boards { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+    footer.site {
+      max-width: 1080px; margin: 0 auto; padding: 20px; border-top: 1px solid var(--rule);
+      font-size: 12.5px; color: var(--ink-2);
+    }
+    a.code { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <header class="site">
+    <a class="brand" href="/">TWAssistant</a>
+    <nav>
+      <a href="/rankings">排行榜</a>
+      <a href="/stocks">個股索引</a>
+    </nav>
+    <span class="login"><a href="/app/login">登入</a></span>
+  </header>
+  <main>
+    <p class="cutoff">資料截止：{{ cutoff }} 收盤 ｜ 每日盤後更新，非即時報價</p>
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="site">
+    資料來源：臺灣證券交易所／櫃買中心公開資料。本站所有內容為歷史資料整理與趨勢判讀，
+    非投資建議；投資決策與風險請自行承擔。
+  </footer>
+</body>
+</html>

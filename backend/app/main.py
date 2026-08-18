@@ -12,7 +12,7 @@ from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import func, select
@@ -33,6 +33,7 @@ from .api.routes_watchlists import router as watchlists_router
 from .config import settings
 from .credentials import set_token
 from .sources import registry
+from .web.routes_public import router as public_router
 from .storage import models
 from .storage.database import init_db, session_scope
 
@@ -64,6 +65,8 @@ app.include_router(settings_router, prefix=_API)
 app.include_router(assistant_router, prefix=_API)
 app.include_router(corners_router, prefix=_API)
 app.include_router(lab_router, prefix=_API)
+# 公開頁：無前綴。命名空間約定見 web/routes_public.py 檔頭。
+app.include_router(public_router)
 
 
 @app.on_event("startup")
@@ -181,28 +184,34 @@ if _SPA_MODE:
 
     @app.middleware("http")
     async def _spa_shell(request: Request, call_next):
-        """瀏覽器導覽 / 重新整理子頁 → 回 SPA 殼，讓前端 router 接手。
+        """/app/* → SPA 殼（前端 router 以 basename="/app" 接手）。
 
-        API 走 /api 真前綴，這裡不再需要剝前綴，也不再需要「避開 client route
-        撞到同名 root API 路由」的閃避——那個衝突已經在命名空間層面消失。
+        只認 /app 前綴，不再認 Accept——公開頁本身就是 GET + text/html，
+        以 Accept 判斷會把公開頁整層蓋掉。其餘路徑放行給 FastAPI 路由
+        （/api、公開頁、/health），沒配到的自然 404。
         """
         path = request.scope["path"]
-        if path.startswith(_API) or path.startswith("/assets/"):
-            return await call_next(request)
-        accept = request.headers.get("accept", "")
-        if request.method == "GET" and "text/html" in accept:
+        if path == "/app" or path.startswith("/app/"):
             return FileResponse(_INDEX)
         return await call_next(request)
+
+    @app.get("/", include_in_schema=False)
+    def _root_redirect() -> RedirectResponse:
+        """過渡措施：真正的公開首頁做好前，根路徑先導向 App（維持 start.bat
+        開瀏覽器即見工具的既有體驗）。首頁上線時把這個 handler 換成模板。"""
+        return RedirectResponse("/app", status_code=302)
 
     # 打包後的靜態資源（JS/CSS，index.html 以 /assets/* 引用）。
     app.mount("/assets", StaticFiles(directory=_DIST / "assets"), name="assets")
 
 
 # --- 登入保護（網站模式）---
-# 註冊在 _spa_shell 之後 → 在洋蔥最外層，看到的是原始路徑（含 /api 前綴）。
-# 放行：登入相關端點、健康檢查、SPA 頁面載入（GET html，前端自己導去 /login）
-# 與靜態資源；其餘（= 所有 API）沒有有效 session 一律 401。
-_AUTH_EXEMPT = {_API + "/auth/login", _API + "/auth/logout", _API + "/auth/me", "/health"}
+# 註冊在 _spa_shell 之後 → 在洋蔥最外層，看到的是原始路徑。
+# 命名空間就是授權邊界：/api/* 需 session（AUTH_EXEMPT 除外）；其餘一律匿名——
+# 那裡只有公開頁（web/routes_public.py，僅全站共用盤後資料）、/app 的 SPA 殼
+# （純靜態、資料仍要打 /api）與 /health。判斷依據只有路徑；Accept 等 header
+# 由客戶端控制，拿它當授權依據曾是實際漏洞（curl -H "Accept: text/html" 繞過）。
+_AUTH_EXEMPT = {_API + "/auth/login", _API + "/auth/logout", _API + "/auth/me"}
 
 
 @app.middleware("http")
@@ -212,15 +221,9 @@ async def _require_login(request: Request, call_next):
     if request.method == "OPTIONS":  # CORS preflight（dev）交給 CORS middleware
         return await call_next(request)
     path = request.scope["path"]
-    is_api = path == _API or path.startswith(_API + "/")
-    if path in _AUTH_EXEMPT or path.startswith("/assets/"):
-        return await call_next(request)
-    # SPA 殼放行：僅限「打包模式 + 非 /api 的 GET 導覽」，讓前端 router 自己導去 /login。
-    # 判斷依據必須是路徑，不能是 Accept —— header 由客戶端控制，拿它當授權依據
-    # 會被 `curl -H "Accept: text/html" /api/...` 整道繞過（曾為實際漏洞）。
-    # dev（無 dist）沒有 SPA 殼可回，故不放行，一律驗 token。
-    accept = request.headers.get("accept", "")
-    if _SPA_MODE and not is_api and request.method == "GET" and "text/html" in accept:
+    if not (path == _API or path.startswith(_API + "/")):
+        return await call_next(request)  # 非 /api = 公開命名空間
+    if path in _AUTH_EXEMPT:
         return await call_next(request)
     if auth.verify_token(request.cookies.get(auth.SESSION_COOKIE)):
         return await call_next(request)
