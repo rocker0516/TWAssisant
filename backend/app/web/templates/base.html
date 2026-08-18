@@ -3,70 +3,114 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}TWAssistant{% endblock %}</title>
+  <title>{% block title %}TWAssistant 台股盤後{% endblock %}</title>
   <meta name="description" content="{% block description %}台股每日盤後資料：排行、類股、個股。全部取自證交所／櫃買中心官方開放資料。{% endblock %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;900&display=swap" rel="stylesheet">
   <style>
+    /* 盤後報告紙感：刻意只有亮色一種主題——報紙就是紙，這是身份不是缺漏。
+       朱砂紅身兼強調色與台股「漲」色（一色兩用，全站只此一個彩色）。 */
     :root {
-      --paper: #f5f7f6; --surface: #ffffff; --ink: #1a242b; --ink-2: #5c6b73;
-      --rule: #d9e0e0; --up: #c0392b; --down: #1e7f4f; --accent: #2f6280;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --paper: #121a20; --surface: #1a242c; --ink: #e3eaec; --ink-2: #93a4ac;
-        --rule: #2e3d46; --up: #e07862; --down: #55b184; --accent: #83b7d8;
-      }
+      --paper:   #F6F2E9;   /* 米紙 */
+      --paper-2: #EFE9DB;   /* 表頭底 */
+      --ink:     #292418;   /* 深褐墨 */
+      --ink-2:   #6D6350;   /* 次要字 */
+      --ink-3:   #988D75;   /* 註記 */
+      --hair:    #CDC5B0;   /* 髮絲線 */
+      --up:      #AE3B24;   /* 朱砂＝漲＝強調 */
+      --down:    #2E6E52;   /* 松綠＝跌 */
+      --serif: "Noto Serif TC", "PMingLiU", "MingLiU", serif;
+      --mono: "Cascadia Mono", ui-monospace, "Consolas", monospace;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0; background: var(--paper); color: var(--ink);
-      font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", system-ui, sans-serif;
-      font-size: 16px; line-height: 1.7;
+      font-family: var(--serif); font-size: 16px; line-height: 1.9;
     }
-    header.site {
-      display: flex; align-items: baseline; gap: 20px; flex-wrap: wrap;
-      max-width: 1080px; margin: 0 auto; padding: 18px 20px 0;
+
+    /* ── 報頭：名稱 + 文武線（粗細雙線，中文印刷的招牌） ── */
+    header.site { max-width: 1020px; margin: 0 auto; padding: 30px 22px 0; }
+    .masthead { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+    .masthead .brand {
+      font-size: 27px; font-weight: 900; letter-spacing: .14em;
+      color: var(--ink); text-decoration: none;
     }
-    header.site .brand { font-weight: 700; font-size: 18px; color: var(--ink); text-decoration: none; }
-    header.site nav { display: flex; gap: 14px; font-size: 14px; }
-    header.site nav a { color: var(--ink-2); text-decoration: none; }
-    header.site nav a:hover { color: var(--ink); }
-    header.site .login { margin-left: auto; font-size: 14px; }
-    header.site .login a { color: var(--accent); text-decoration: none; }
-    main { max-width: 1080px; margin: 0 auto; padding: 8px 20px 64px; }
-    h1 { font-size: 26px; margin: 18px 0 4px; }
-    h2 { font-size: 18px; margin: 28px 0 8px; }
-    /* 資料截止戳記：全站元件。盤後批次資料，缺這行會被誤讀成即時報價。 */
-    .cutoff {
-      font-size: 13px; color: var(--ink-2); margin: 0 0 6px;
-      font-variant-numeric: tabular-nums;
+    .masthead .brand span { color: var(--up); }
+    .masthead nav { display: flex; gap: 18px; font-size: 14.5px; margin-left: 4px; }
+    .masthead nav a { color: var(--ink-2); text-decoration: none; letter-spacing: .06em; }
+    .masthead nav a:hover { color: var(--up); }
+    .masthead .login { margin-left: auto; font-size: 14px; }
+    .masthead .login a {
+      color: var(--up); text-decoration: none; letter-spacing: .12em;
+      border: 1px solid var(--up); padding: 3px 14px;
     }
-    table { border-collapse: collapse; width: 100%; background: var(--surface); font-size: 14.5px; }
-    th, td { text-align: right; padding: 7px 12px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+    .masthead .login a:hover { background: var(--up); color: var(--paper); }
+    .rule-wen-wu {
+      border: 0; height: 7px; margin: 12px 0 0;
+      border-top: 3px solid var(--ink); border-bottom: 1px solid var(--ink);
+    }
+    /* 資料截止：印章式戳記 */
+    .dateline { display: flex; align-items: center; gap: 14px; padding: 10px 0 0; font-size: 13px; color: var(--ink-2); }
+    .stamp {
+      display: inline-block; border: 1.5px solid var(--up); color: var(--up);
+      font-size: 12px; letter-spacing: .18em; padding: 1px 10px;
+      transform: rotate(-1.2deg); font-weight: 600; white-space: nowrap;
+    }
+
+    main { max-width: 1020px; margin: 0 auto; padding: 6px 22px 72px; }
+    h1 { font-size: 30px; font-weight: 900; letter-spacing: .05em; margin: 26px 0 6px; }
+    h2 {
+      font-size: 18px; font-weight: 700; letter-spacing: .08em; margin: 34px 0 10px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    h2::before { content: ""; display: inline-block; width: 14px; height: 14px;
+                 background: var(--up); flex: none; }
+
+    /* ── 表格：只有水平髮絲線，表頭下雙細線 ── */
+    .tbl { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; font-size: 15px; }
+    th, td { text-align: right; padding: 8px 14px; border-bottom: 1px solid var(--hair); white-space: nowrap; }
     th:first-child, td:first-child, th.l, td.l { text-align: left; }
-    thead th { font-size: 12px; color: var(--ink-2); font-weight: 600; }
+    thead th {
+      font-size: 12.5px; color: var(--ink-2); font-weight: 600; letter-spacing: .1em;
+      border-bottom: 3px double var(--ink);
+      background: none;
+    }
+    tbody tr:hover { background: var(--paper-2); }
     td { font-variant-numeric: tabular-nums; }
     .up { color: var(--up); }
     .down { color: var(--down); }
-    .tbl { overflow-x: auto; border: 1px solid var(--rule); border-radius: 4px; }
-    .boards { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+    a.code { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--hair); }
+    a.code:hover { color: var(--up); border-bottom-color: var(--up); }
+    td:first-child, .mono { font-family: var(--mono); font-size: 13.5px; }
+
+    .boards { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px 40px; }
+
     footer.site {
-      max-width: 1080px; margin: 0 auto; padding: 20px; border-top: 1px solid var(--rule);
-      font-size: 12.5px; color: var(--ink-2);
+      max-width: 1020px; margin: 0 auto; padding: 18px 22px 40px;
+      border-top: 3px double var(--ink);
+      font-size: 12.5px; color: var(--ink-3); letter-spacing: .03em;
     }
-    a.code { color: var(--accent); text-decoration: none; }
   </style>
 </head>
 <body>
   <header class="site">
-    <a class="brand" href="/">TWAssistant</a>
-    <nav>
-      <a href="/rankings">排行榜</a>
-      <a href="/stocks">個股索引</a>
-    </nav>
-    <span class="login"><a href="/app/login">登入</a></span>
+    <div class="masthead">
+      <a class="brand" href="/">TWAssistant<span>．</span>台股盤後</a>
+      <nav>
+        <a href="/rankings">排行榜</a>
+        <a href="/stocks">個股索引</a>
+      </nav>
+      <span class="login"><a href="/app/login">登入</a></span>
+    </div>
+    <hr class="rule-wen-wu" />
+    <div class="dateline">
+      <span class="stamp">資料截止 {{ cutoff }} 收盤</span>
+      <span>每日盤後更新．非即時報價</span>
+    </div>
   </header>
   <main>
-    <p class="cutoff">資料截止：{{ cutoff }} 收盤 ｜ 每日盤後更新，非即時報價</p>
     {% block content %}{% endblock %}
   </main>
   <footer class="site">

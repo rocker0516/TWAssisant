@@ -3,7 +3,7 @@
 {% block description %}{{ stock.name }}（{{ stock.id }}）{{ cutoff }} 收盤 {{ "%.2f"|format(quote.close) if quote.close is not none else "—" }}：本益比、殖利率、月營收、季財報、股利政策，取自證交所／櫃買中心官方盤後資料。{% endblock %}
 {% block content %}
 <nav style="font-size: 13px; color: var(--ink-2); margin-top: 12px;">
-  <a href="/stocks" style="color: var(--accent); text-decoration: none;">個股索引</a>
+  <a href="/stocks" style="color: var(--up); text-decoration: none;">個股索引</a>
   ›{{ sector_name or "未分類" }}
 </nav>
 <h1>{{ stock.name }} <span style="color: var(--ink-2); font-weight: 400;">{{ stock.id }}</span></h1>
@@ -123,6 +123,6 @@
 
 <p style="margin-top: 28px; font-size: 14px;">
   完整分析（K 線、技術指標、籌碼、支撐壓力）→
-  <a href="/app/stocks/{{ stock.id }}" style="color: var(--accent);">登入使用 TWAssistant</a>
+  <a href="/app/stocks/{{ stock.id }}" style="color: var(--up);">登入使用 TWAssistant</a>
 </p>
 {% endblock %}
