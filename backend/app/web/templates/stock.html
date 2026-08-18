@@ -3,7 +3,7 @@
 {% block description %}{{ stock.name }}（{{ stock.id }}）{{ cutoff }} 收盤 {{ "%.2f"|format(quote.close) if quote.close is not none else "—" }}：本益比、殖利率、月營收、季財報、股利政策，取自證交所／櫃買中心官方盤後資料。{% endblock %}
 {% block content %}
 <nav style="font-size: 13px; color: var(--ink-2); margin-top: 12px;">
-  <a href="/stocks" style="color: var(--up); text-decoration: none;">個股索引</a>
+  <a href="/stocks" style="color: var(--brand); text-decoration: none;">個股索引</a>
   ›{{ sector_name or "未分類" }}
 </nav>
 <h1>{{ stock.name }} <span style="color: var(--ink-2); font-weight: 400;">{{ stock.id }}</span></h1>
@@ -12,21 +12,20 @@
 </p>
 
 <h2>行情（{{ cutoff }}）</h2>
-<div class="tbl">
-  <table>
-    <thead><tr><th>收盤</th><th>漲跌</th><th>成交量(張)</th><th>成交值(億)</th><th>52週高</th><th>52週低</th></tr></thead>
-    <tbody>
-      <tr>
-        <td>{{ "%.2f"|format(quote.close) if quote.close is not none else "—" }}</td>
-        <td class="{{ 'up' if quote.change_pct and quote.change_pct > 0 else ('down' if quote.change_pct and quote.change_pct < 0 else '') }}">
-          {{ "%+.2f%%"|format(quote.change_pct) if quote.change_pct is not none else "—" }}</td>
-        <td>{{ "{:,}".format((quote.volume // 1000)) if quote.volume else "—" }}</td>
-        <td>{{ "%.2f"|format(quote.turnover / 1e8) if quote.turnover else "—" }}</td>
-        <td>{{ "%.2f"|format(quote.w52_high) if quote.w52_high is not none else "—" }}</td>
-        <td>{{ "%.2f"|format(quote.w52_low) if quote.w52_low is not none else "—" }}</td>
-      </tr>
-    </tbody>
-  </table>
+<div class="stats">
+  <div class="stat"><div class="k">收盤</div>
+    <div class="v">{{ "%.2f"|format(quote.close) if quote.close is not none else "—" }}</div></div>
+  <div class="stat"><div class="k">漲跌</div>
+    <div class="v {{ 'up' if quote.change_pct and quote.change_pct > 0 else ('down' if quote.change_pct and quote.change_pct < 0 else '') }}">
+      {{ "%+.2f%%"|format(quote.change_pct) if quote.change_pct is not none else "—" }}</div></div>
+  <div class="stat"><div class="k">成交量（張）</div>
+    <div class="v">{{ "{:,}".format((quote.volume // 1000)) if quote.volume else "—" }}</div></div>
+  <div class="stat"><div class="k">成交值（億）</div>
+    <div class="v">{{ "%.2f"|format(quote.turnover / 1e8) if quote.turnover else "—" }}</div></div>
+  <div class="stat"><div class="k">52 週高</div>
+    <div class="v">{{ "%.2f"|format(quote.w52_high) if quote.w52_high is not none else "—" }}</div></div>
+  <div class="stat"><div class="k">52 週低</div>
+    <div class="v">{{ "%.2f"|format(quote.w52_low) if quote.w52_low is not none else "—" }}</div></div>
 </div>
 
 {% if valuation %}
@@ -123,6 +122,6 @@
 
 <p style="margin-top: 28px; font-size: 14px;">
   完整分析（K 線、技術指標、籌碼、支撐壓力）→
-  <a href="/app/stocks/{{ stock.id }}" style="color: var(--up);">登入使用 TWAssistant</a>
+  <a href="/app/stocks/{{ stock.id }}" style="color: var(--brand);">登入使用 TWAssistant</a>
 </p>
 {% endblock %}
