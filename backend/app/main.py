@@ -36,6 +36,13 @@ from .sources import registry
 from .storage import models
 from .storage.database import init_db, session_scope
 
+# API 一律掛在真前綴下。曾經的做法是前端打 /api/*、middleware 剝掉前綴再交給
+# 掛在根的路由——於是瀏覽器路徑與 API 路徑共用同一個命名空間：`/holdings`、
+# `/recommendations`、`/sectors` 既是前端 client route 也是後端 API 路由，靠
+# 「GET + Accept: text/html 就回 SPA 殼」硬閃過去。公開頁要進來時這條路走不通，
+# 因為公開頁本身就是「GET + text/html」。改成真前綴後兩者結構上不可能撞。
+_API = "/api"
+
 app = FastAPI(title="TWAssistant", version="0.1.0")
 
 app.add_middleware(
@@ -45,18 +52,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth_router)
-app.include_router(api_router)
-app.include_router(holdings_router)
-app.include_router(sectors_router)
-app.include_router(flow_router)
-app.include_router(overview_router)
-app.include_router(intel_router)
-app.include_router(watchlists_router)
-app.include_router(settings_router)
-app.include_router(assistant_router)
-app.include_router(corners_router)
-app.include_router(lab_router)
+app.include_router(auth_router, prefix=_API)
+app.include_router(api_router, prefix=_API)
+app.include_router(holdings_router, prefix=_API)
+app.include_router(sectors_router, prefix=_API)
+app.include_router(flow_router, prefix=_API)
+app.include_router(overview_router, prefix=_API)
+app.include_router(intel_router, prefix=_API)
+app.include_router(watchlists_router, prefix=_API)
+app.include_router(settings_router, prefix=_API)
+app.include_router(assistant_router, prefix=_API)
+app.include_router(corners_router, prefix=_API)
+app.include_router(lab_router, prefix=_API)
 
 
 @app.on_event("startup")
@@ -77,10 +84,11 @@ def _shutdown() -> None:
 
 @app.get("/health")
 def health() -> dict:
+    """存活探測：刻意留在根路徑，不隨 API 進 /api。"""
     return {"ok": True}
 
 
-@app.get("/system/status")
+@app.get(_API + "/system/status")
 def system_status() -> dict:
     tables = {
         "stocks": models.Stock,
@@ -122,7 +130,7 @@ def system_status() -> dict:
     }
 
 
-@app.get("/sources")
+@app.get(_API + "/sources")
 def sources_health() -> list[dict]:
     return [src.health() for src in registry.all_sources().values()]
 
@@ -132,7 +140,7 @@ class TokenBody(BaseModel):
     save: bool = False  # 測通後是否寫入 Keychain
 
 
-@app.post("/sources/{name}/test")
+@app.post(_API + "/sources/{name}/test")
 def test_source(name: str, body: TokenBody) -> dict:
     """設定頁[測試連線]：可先測再存（測通才存）。"""
     try:
@@ -146,7 +154,7 @@ def test_source(name: str, body: TokenBody) -> dict:
     return result
 
 
-@app.post("/pipeline/run")
+@app.post(_API + "/pipeline/run")
 def trigger_pipeline(background: BackgroundTasks) -> dict:
     """設定頁[立即載入]：背景補齊「所有缺的交易日（含分數）」到最新。
 
@@ -172,20 +180,17 @@ if _SPA_MODE:
     _INDEX = _DIST / "index.html"
 
     @app.middleware("http")
-    async def _spa_and_api(request: Request, call_next):
+    async def _spa_shell(request: Request, call_next):
+        """瀏覽器導覽 / 重新整理子頁 → 回 SPA 殼，讓前端 router 接手。
+
+        API 走 /api 真前綴，這裡不再需要剝前綴，也不再需要「避開 client route
+        撞到同名 root API 路由」的閃避——那個衝突已經在命名空間層面消失。
+        """
         path = request.scope["path"]
-        # 前端一律打 /api/*：剝掉前綴再交給上面已註冊的 API 路由，
-        # 等同 Vite dev proxy 的 rewrite，改在同一行程內做。
-        if path == "/api" or path.startswith("/api/"):
-            stripped = path[4:] or "/"
-            request.scope["path"] = stripped
-            request.scope["raw_path"] = stripped.encode()
+        if path.startswith(_API) or path.startswith("/assets/"):
             return await call_next(request)
-        # 瀏覽器導覽 / 重新整理子頁（GET text/html）一律回 SPA，
-        # 讓前端 router 接手 — 且避開 client route 撞到同名的 root API 路由
-        # （/holdings、/recommendations、/sectors… 後端也有）。
         accept = request.headers.get("accept", "")
-        if request.method == "GET" and "text/html" in accept and not path.startswith("/assets/"):
+        if request.method == "GET" and "text/html" in accept:
             return FileResponse(_INDEX)
         return await call_next(request)
 
@@ -194,10 +199,10 @@ if _SPA_MODE:
 
 
 # --- 登入保護（網站模式）---
-# 註冊在 _spa_and_api 之後 → 在洋蔥最外層，看到的是原始路徑（含 /api 前綴）。
+# 註冊在 _spa_shell 之後 → 在洋蔥最外層，看到的是原始路徑（含 /api 前綴）。
 # 放行：登入相關端點、健康檢查、SPA 頁面載入（GET html，前端自己導去 /login）
 # 與靜態資源；其餘（= 所有 API）沒有有效 session 一律 401。
-_AUTH_EXEMPT = {"/auth/login", "/auth/logout", "/auth/me", "/health"}
+_AUTH_EXEMPT = {_API + "/auth/login", _API + "/auth/logout", _API + "/auth/me", "/health"}
 
 
 @app.middleware("http")
@@ -207,9 +212,8 @@ async def _require_login(request: Request, call_next):
     if request.method == "OPTIONS":  # CORS preflight（dev）交給 CORS middleware
         return await call_next(request)
     path = request.scope["path"]
-    is_api = path == "/api" or path.startswith("/api/")
-    normalized = (path[4:] or "/") if is_api else path
-    if normalized in _AUTH_EXEMPT or path.startswith("/assets/"):
+    is_api = path == _API or path.startswith(_API + "/")
+    if path in _AUTH_EXEMPT or path.startswith("/assets/"):
         return await call_next(request)
     # SPA 殼放行：僅限「打包模式 + 非 /api 的 GET 導覽」，讓前端 router 自己導去 /login。
     # 判斷依據必須是路徑，不能是 Accept —— header 由客戶端控制，拿它當授權依據

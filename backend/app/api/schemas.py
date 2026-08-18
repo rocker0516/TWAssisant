@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import datetime as _dt
 from datetime import date
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -56,7 +57,7 @@ class LongTargetZone(BaseModel):
     保守/樂觀恆為 PE 河流中位帶/上緣帶 × 隱含 EPS（長線硬篩②保證 EPS>0，缺的只會是 PE 史料）。
     """
 
-    basis: str                        # 基準錨來源：analyst=法人目標價 | pe_river=估值推算
+    basis: Literal["analyst", "pe_river"]  # 基準錨來源：法人目標價 / 估值推算
     base: float                       # 基準目標價
     upside_pct: float | None          # 基準相對現價上漲空間 %
     low: float | None                 # 保守：PE 河流中位帶價
@@ -741,10 +742,29 @@ class TransactionDTO(BaseModel):
     note: str | None
 
 
+class EntrySnapshot(BaseModel):
+    """建倉當下 Score 的凍結副本。
+
+    欄位固定，故宣告成模型而非 dict：宣告成 dict 時 openapi 只能吐出
+    `{[key: string]: unknown}`，前端就得自己手寫一份同名型別 & 上來——
+    那份手寫副本沒有任何機制保證它跟後端一致。
+    """
+
+    score_date: date
+    total_score: float | None = None
+    passed_filter: bool | None = None
+    passed_styles: list[str] | None = None
+    reasons: list[str] | None = None
+    buy_low: float | None = None
+    buy_high: float | None = None
+    stop_loss: float | None = None
+    close: float | None = None
+
+
 class ThesisStatus(BaseModel):
     """進場論點追蹤：進場快照 vs 最新評分的對照結論。"""
 
-    status: str  # intact / weakening / broken / unknown
+    status: Literal["intact", "weakening", "broken", "unknown"]
     entry_score: float | None = None
     latest_score: float | None = None
     latest_passed_filter: bool | None = None
@@ -778,7 +798,7 @@ class HoldingItem(BaseModel):
     stop_loss_override: float | None
     trail_trigger_override: float | None
     trail_pullback_override: float | None
-    entry_snapshot: dict | None = None  # 建倉當下 Score 凍結副本
+    entry_snapshot: EntrySnapshot | None = None  # 建倉當下 Score 凍結副本
     thesis: ThesisStatus | None = None  # 論點是否還成立
     note: str | None
     transactions: list[TransactionDTO]

@@ -4,7 +4,7 @@
  */
 
 export interface paths {
-    "/auth/login": {
+    "/api/auth/login": {
         parameters: {
             query?: never;
             header?: never;
@@ -14,14 +14,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Login */
-        post: operations["login_auth_login_post"];
+        post: operations["login_api_auth_login_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/auth/logout": {
+    "/api/auth/logout": {
         parameters: {
             query?: never;
             header?: never;
@@ -31,14 +31,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Logout */
-        post: operations["logout_auth_logout_post"];
+        post: operations["logout_api_auth_logout_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/auth/me": {
+    "/api/auth/me": {
         parameters: {
             query?: never;
             header?: never;
@@ -46,7 +46,7 @@ export interface paths {
             cookie?: never;
         };
         /** Me */
-        get: operations["me_auth_me_get"];
+        get: operations["me_api_auth_me_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -55,7 +55,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/recommendations/tag-stats": {
+    "/api/recommendations/tag-stats": {
         parameters: {
             query?: never;
             header?: never;
@@ -66,7 +66,7 @@ export interface paths {
          * Recommendation Tag Stats
          * @description 標籤組合五年實證命中統計（scripts/build_tag_combo_stats.py 產出，靜態檔）。
          */
-        get: operations["recommendation_tag_stats_recommendations_tag_stats_get"];
+        get: operations["recommendation_tag_stats_api_recommendations_tag_stats_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -75,7 +75,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/recommendations": {
+    "/api/recommendations": {
         parameters: {
             query?: never;
             header?: never;
@@ -88,7 +88,7 @@ export interface paths {
          *     style=explosive：爆發風格＝atr>7%+上揚月線(不看季線乖離)，純門檻篩全回、無前N%概念。
          *     長線軌：沿用門檻切 items / near。
          */
-        get: operations["recommendations_recommendations_get"];
+        get: operations["recommendations_api_recommendations_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -97,7 +97,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/recommendations/lookback": {
+    "/api/recommendations/lookback": {
         parameters: {
             query?: never;
             header?: never;
@@ -111,7 +111,7 @@ export interface paths {
          *     優先用 `date` 直接指定推薦日（月曆點選）；否則以 DailyPrice 交易日曆定位 `days` 個交易日前，
          *     Score 表可能有空隙，退到目標日 ≤ 的最近可用快照。
          */
-        get: operations["recommendations_lookback_recommendations_lookback_get"];
+        get: operations["recommendations_lookback_api_recommendations_lookback_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -120,7 +120,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/recommendations/lookback/calendar": {
+    "/api/recommendations/lookback/calendar": {
         parameters: {
             query?: never;
             header?: never;
@@ -134,7 +134,7 @@ export interface paths {
          *     進場錨＝隔天最高價（實務：盤後看到推薦、隔日追高的最壞情況）；MFE 只看隔天之後的 high。
          *     路徑無關（與 `_lookback_review` 一致）。
          */
-        get: operations["recommendations_lookback_calendar_recommendations_lookback_calendar_get"];
+        get: operations["recommendations_lookback_calendar_api_recommendations_lookback_calendar_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -143,7 +143,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/stocks/search": {
+    "/api/stocks/search": {
         parameters: {
             query?: never;
             header?: never;
@@ -154,7 +154,7 @@ export interface paths {
          * Stock Search
          * @description 股號/股名查詢（給查詢框跳轉用）。代號前綴或名稱包含皆比對，依相關度排序取前 10。
          */
-        get: operations["stock_search_stocks_search_get"];
+        get: operations["stock_search_api_stocks_search_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -163,7 +163,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/poppable-efficacy": {
+    "/api/poppable-efficacy": {
         parameters: {
             query?: never;
             header?: never;
@@ -174,7 +174,7 @@ export interface paths {
          * Poppable Efficacy
          * @description 會噴清單成效回測（波段軌 poppable 風格）。讀快取，重算用 POST /poppable-efficacy/recompute。
          */
-        get: operations["poppable_efficacy_poppable_efficacy_get"];
+        get: operations["poppable_efficacy_api_poppable_efficacy_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -183,7 +183,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/poppable-efficacy/recompute": {
+    "/api/poppable-efficacy/recompute": {
         parameters: {
             query?: never;
             header?: never;
@@ -196,14 +196,14 @@ export interface paths {
          * Poppable Efficacy Recompute
          * @description 背景重跑會噴清單成效回測（~分鐘級）。立即回傳狀態；前端輪詢 status 端點直到 running=False。
          */
-        post: operations["poppable_efficacy_recompute_poppable_efficacy_recompute_post"];
+        post: operations["poppable_efficacy_recompute_api_poppable_efficacy_recompute_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/poppable-efficacy/recompute/status": {
+    "/api/poppable-efficacy/recompute/status": {
         parameters: {
             query?: never;
             header?: never;
@@ -214,7 +214,7 @@ export interface paths {
          * Poppable Efficacy Recompute Status
          * @description 背景重算狀態：{running, started_at, finished_at, error}。
          */
-        get: operations["poppable_efficacy_recompute_status_poppable_efficacy_recompute_status_get"];
+        get: operations["poppable_efficacy_recompute_status_api_poppable_efficacy_recompute_status_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -223,7 +223,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/stocks/{stock_id}": {
+    "/api/stocks/{stock_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -231,7 +231,7 @@ export interface paths {
             cookie?: never;
         };
         /** Stock Detail */
-        get: operations["stock_detail_stocks__stock_id__get"];
+        get: operations["stock_detail_api_stocks__stock_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -240,7 +240,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/stocks/{stock_id}/ohlcv": {
+    "/api/stocks/{stock_id}/ohlcv": {
         parameters: {
             query?: never;
             header?: never;
@@ -248,7 +248,7 @@ export interface paths {
             cookie?: never;
         };
         /** Stock Ohlcv */
-        get: operations["stock_ohlcv_stocks__stock_id__ohlcv_get"];
+        get: operations["stock_ohlcv_api_stocks__stock_id__ohlcv_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -257,7 +257,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/stocks/{stock_id}/recommendation-marks": {
+    "/api/stocks/{stock_id}/recommendation-marks": {
         parameters: {
             query?: never;
             header?: never;
@@ -268,7 +268,7 @@ export interface paths {
          * Stock Recommendation Marks
          * @description K 線推薦標記：波段軌被推薦的段落起始日 + 達標狀態（口徑同回看）。
          */
-        get: operations["stock_recommendation_marks_stocks__stock_id__recommendation_marks_get"];
+        get: operations["stock_recommendation_marks_api_stocks__stock_id__recommendation_marks_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -277,7 +277,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/stocks/{stock_id}/target-price": {
+    "/api/stocks/{stock_id}/target-price": {
         parameters: {
             query?: never;
             header?: never;
@@ -288,7 +288,7 @@ export interface paths {
          * Stock Target Price
          * @description FactSet 共識目標價：最新一筆＋歷次調整，每筆附有效期間內是否達標。
          */
-        get: operations["stock_target_price_stocks__stock_id__target_price_get"];
+        get: operations["stock_target_price_api_stocks__stock_id__target_price_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -297,7 +297,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/stocks/{stock_id}/levels": {
+    "/api/stocks/{stock_id}/levels": {
         parameters: {
             query?: never;
             header?: never;
@@ -308,7 +308,7 @@ export interface paths {
          * Stock Levels
          * @description 客觀支撐/壓力位（均線群+波段前低+量價套牢區，純算不靠 LLM）。
          */
-        get: operations["stock_levels_stocks__stock_id__levels_get"];
+        get: operations["stock_levels_api_stocks__stock_id__levels_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -317,7 +317,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/stocks/{stock_id}/holding-history": {
+    "/api/stocks/{stock_id}/holding-history": {
         parameters: {
             query?: never;
             header?: never;
@@ -328,7 +328,7 @@ export interface paths {
          * Holding History
          * @description 集保大戶/散戶占比週序列（曲線用）。史料不足時背景回補近一年（看哪檔補哪檔）。
          */
-        get: operations["holding_history_stocks__stock_id__holding_history_get"];
+        get: operations["holding_history_api_stocks__stock_id__holding_history_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -337,7 +337,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/stocks/{stock_id}/industry-chain": {
+    "/api/stocks/{stock_id}/industry-chain": {
         parameters: {
             query?: never;
             header?: never;
@@ -348,7 +348,7 @@ export interface paths {
          * Stock Industry Chain
          * @description 個股產業鏈上下游全景：所屬每條鏈的 上游/中游/下游 主節點與所在位置。
          */
-        get: operations["stock_industry_chain_stocks__stock_id__industry_chain_get"];
+        get: operations["stock_industry_chain_api_stocks__stock_id__industry_chain_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -357,7 +357,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/stocks/{stock_id}/dividends": {
+    "/api/stocks/{stock_id}/dividends": {
         parameters: {
             query?: never;
             header?: never;
@@ -368,7 +368,7 @@ export interface paths {
          * Stock Dividends
          * @description 股利政策 + 填息判定。首讀懶抓 FinMind 落庫快取（30 天過期重抓）。
          */
-        get: operations["stock_dividends_stocks__stock_id__dividends_get"];
+        get: operations["stock_dividends_api_stocks__stock_id__dividends_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -377,7 +377,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/stocks/{stock_id}/pe-river": {
+    "/api/stocks/{stock_id}/pe-river": {
         parameters: {
             query?: never;
             header?: never;
@@ -388,7 +388,7 @@ export interface paths {
          * Stock Pe River
          * @description 本益比河流圖：官方每日 PE 反推隱含 EPS，PE 分位數 × EPS = 價格帶。
          */
-        get: operations["stock_pe_river_stocks__stock_id__pe_river_get"];
+        get: operations["stock_pe_river_api_stocks__stock_id__pe_river_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -397,7 +397,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/stocks/{stock_id}/fundamental-history": {
+    "/api/stocks/{stock_id}/pb-river": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stock Pb River
+         * @description 本淨比河流圖：官方每日 PB 反推隱含每股淨值，PB 分位數 × BPS = 價格帶。
+         */
+        get: operations["stock_pb_river_api_stocks__stock_id__pb_river_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/stocks/{stock_id}/tech-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stock Tech Summary
+         * @description 技術指標摘要：KD/MACD/乖離現值 + Beta、52 週位置、年化波動。
+         */
+        get: operations["stock_tech_summary_api_stocks__stock_id__tech_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/stocks/{stock_id}/fundamental-history": {
         parameters: {
             query?: never;
             header?: never;
@@ -408,7 +448,7 @@ export interface paths {
          * Fundamental History
          * @description 基本面歷史（月營收 + 單季財報），升冪，供趨勢圖。
          */
-        get: operations["fundamental_history_stocks__stock_id__fundamental_history_get"];
+        get: operations["fundamental_history_api_stocks__stock_id__fundamental_history_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -417,7 +457,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/stocks/{stock_id}/chip-history": {
+    "/api/stocks/{stock_id}/attention": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stock Attention
+         * @description 注意/處置狀態與近 90 日明細（名單由每日 pipeline AttentionStep 更新）。
+         */
+        get: operations["stock_attention_api_stocks__stock_id__attention_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/stocks/{stock_id}/financial-statements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stock Financial Statements
+         * @description 資產負債表＋現金流量表摘要。首讀懶抓 FinMind 落庫快取（30 天過期重抓）。
+         */
+        get: operations["stock_financial_statements_api_stocks__stock_id__financial_statements_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/stocks/{stock_id}/chip-history": {
         parameters: {
             query?: never;
             header?: never;
@@ -428,7 +508,7 @@ export interface paths {
          * Chip History
          * @description 籌碼每日序列（三大法人買賣超 + 融資融券餘額），供每日買賣量 + 累計曲線。
          */
-        get: operations["chip_history_stocks__stock_id__chip_history_get"];
+        get: operations["chip_history_api_stocks__stock_id__chip_history_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -437,7 +517,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/holdings": {
+    "/api/holdings": {
         parameters: {
             query?: never;
             header?: never;
@@ -445,17 +525,17 @@ export interface paths {
             cookie?: never;
         };
         /** List Holdings */
-        get: operations["list_holdings_holdings_get"];
+        get: operations["list_holdings_api_holdings_get"];
         put?: never;
         /** Create Holding */
-        post: operations["create_holding_holdings_post"];
+        post: operations["create_holding_api_holdings_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/holdings/{holding_id}/transactions": {
+    "/api/holdings/{holding_id}/transactions": {
         parameters: {
             query?: never;
             header?: never;
@@ -465,14 +545,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Add Transaction */
-        post: operations["add_transaction_holdings__holding_id__transactions_post"];
+        post: operations["add_transaction_api_holdings__holding_id__transactions_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/holdings/{holding_id}": {
+    "/api/holdings/{holding_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -483,14 +563,14 @@ export interface paths {
         put?: never;
         post?: never;
         /** Delete Holding */
-        delete: operations["delete_holding_holdings__holding_id__delete"];
+        delete: operations["delete_holding_api_holdings__holding_id__delete"];
         options?: never;
         head?: never;
         /** Patch Holding */
-        patch: operations["patch_holding_holdings__holding_id__patch"];
+        patch: operations["patch_holding_api_holdings__holding_id__patch"];
         trace?: never;
     };
-    "/sectors": {
+    "/api/sectors": {
         parameters: {
             query?: never;
             header?: never;
@@ -498,7 +578,7 @@ export interface paths {
             cookie?: never;
         };
         /** List Sectors */
-        get: operations["list_sectors_sectors_get"];
+        get: operations["list_sectors_api_sectors_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -507,7 +587,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/sectors/{sector_id}": {
+    "/api/sectors/{sector_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -515,7 +595,7 @@ export interface paths {
             cookie?: never;
         };
         /** Sector Detail */
-        get: operations["sector_detail_sectors__sector_id__get"];
+        get: operations["sector_detail_api_sectors__sector_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -524,7 +604,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/flow/market": {
+    "/api/flow/market": {
         parameters: {
             query?: never;
             header?: never;
@@ -532,7 +612,7 @@ export interface paths {
             cookie?: never;
         };
         /** Market Flow */
-        get: operations["market_flow_flow_market_get"];
+        get: operations["market_flow_api_flow_market_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -541,7 +621,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/flow/sectors": {
+    "/api/flow/sectors": {
         parameters: {
             query?: never;
             header?: never;
@@ -549,7 +629,7 @@ export interface paths {
             cookie?: never;
         };
         /** Sector Flow */
-        get: operations["sector_flow_flow_sectors_get"];
+        get: operations["sector_flow_api_flow_sectors_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -558,7 +638,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/flow/rotation": {
+    "/api/flow/rotation": {
         parameters: {
             query?: never;
             header?: never;
@@ -566,7 +646,7 @@ export interface paths {
             cookie?: never;
         };
         /** Sector Rotation */
-        get: operations["sector_rotation_flow_rotation_get"];
+        get: operations["sector_rotation_api_flow_rotation_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -575,7 +655,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/flow/stocks": {
+    "/api/flow/stocks": {
         parameters: {
             query?: never;
             header?: never;
@@ -583,7 +663,7 @@ export interface paths {
             cookie?: never;
         };
         /** Stock Flow */
-        get: operations["stock_flow_flow_stocks_get"];
+        get: operations["stock_flow_api_flow_stocks_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -592,7 +672,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/flow/alerts": {
+    "/api/flow/alerts": {
         parameters: {
             query?: never;
             header?: never;
@@ -603,7 +683,7 @@ export interface paths {
          * Chip Alerts
          * @description 最新交易日籌碼異動：投信首買/連買、借券暴增、大戶連增（規則式）。
          */
-        get: operations["chip_alerts_flow_alerts_get"];
+        get: operations["chip_alerts_api_flow_alerts_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -612,7 +692,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/flow/relation": {
+    "/api/flow/relation": {
         parameters: {
             query?: never;
             header?: never;
@@ -623,7 +703,7 @@ export interface paths {
          * Inst Relation
          * @description 法人累積 → 未來報酬 rank-IC / 勝率（讀快取，無則回空殼，請呼叫 recompute）。
          */
-        get: operations["inst_relation_flow_relation_get"];
+        get: operations["inst_relation_api_flow_relation_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -632,7 +712,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/flow/relation/recompute": {
+    "/api/flow/relation/recompute": {
         parameters: {
             query?: never;
             header?: never;
@@ -645,14 +725,34 @@ export interface paths {
          * Recompute Relation
          * @description 重算法人累積→未來報酬量化關係並快取（較重，數十秒）。
          */
-        post: operations["recompute_relation_flow_relation_recompute_post"];
+        post: operations["recompute_relation_api_flow_relation_recompute_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/overview": {
+    "/api/market/fear-greed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Market Fear Greed
+         * @description 台股恐懼貪婪指數（自算，行程內快取）＋ CNN 官方美股指數（直抓，6h 快取）。
+         */
+        get: operations["market_fear_greed_api_market_fear_greed_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/overview": {
         parameters: {
             query?: never;
             header?: never;
@@ -660,7 +760,7 @@ export interface paths {
             cookie?: never;
         };
         /** Overview */
-        get: operations["overview_overview_get"];
+        get: operations["overview_api_overview_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -669,7 +769,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/intel": {
+    "/api/intel": {
         parameters: {
             query?: never;
             header?: never;
@@ -677,7 +777,7 @@ export interface paths {
             cookie?: never;
         };
         /** Intel */
-        get: operations["intel_intel_get"];
+        get: operations["intel_api_intel_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -686,7 +786,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/watchlists": {
+    "/api/watchlists": {
         parameters: {
             query?: never;
             header?: never;
@@ -694,17 +794,17 @@ export interface paths {
             cookie?: never;
         };
         /** List Watchlists */
-        get: operations["list_watchlists_watchlists_get"];
+        get: operations["list_watchlists_api_watchlists_get"];
         put?: never;
         /** Create Watchlist */
-        post: operations["create_watchlist_watchlists_post"];
+        post: operations["create_watchlist_api_watchlists_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/watchlists/{wl_id}": {
+    "/api/watchlists/{wl_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -715,13 +815,13 @@ export interface paths {
         put?: never;
         post?: never;
         /** Delete Watchlist */
-        delete: operations["delete_watchlist_watchlists__wl_id__delete"];
+        delete: operations["delete_watchlist_api_watchlists__wl_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/watchlists/{wl_id}/items": {
+    "/api/watchlists/{wl_id}/items": {
         parameters: {
             query?: never;
             header?: never;
@@ -731,14 +831,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Add Item */
-        post: operations["add_item_watchlists__wl_id__items_post"];
+        post: operations["add_item_api_watchlists__wl_id__items_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/watchlist-items/{item_id}": {
+    "/api/watchlist-items/{item_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -749,13 +849,13 @@ export interface paths {
         put?: never;
         post?: never;
         /** Delete Item */
-        delete: operations["delete_item_watchlist_items__item_id__delete"];
+        delete: operations["delete_item_api_watchlist_items__item_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/watchlist-items/{item_id}/to-holding": {
+    "/api/watchlist-items/{item_id}/to-holding": {
         parameters: {
             query?: never;
             header?: never;
@@ -765,14 +865,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Item To Holding */
-        post: operations["item_to_holding_watchlist_items__item_id__to_holding_post"];
+        post: operations["item_to_holding_api_watchlist_items__item_id__to_holding_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/settings": {
+    "/api/settings": {
         parameters: {
             query?: never;
             header?: never;
@@ -780,7 +880,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Settings */
-        get: operations["get_settings_settings_get"];
+        get: operations["get_settings_api_settings_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -789,7 +889,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/settings/{key}": {
+    "/api/settings/{key}": {
         parameters: {
             query?: never;
             header?: never;
@@ -798,7 +898,7 @@ export interface paths {
         };
         get?: never;
         /** Update Settings */
-        put: operations["update_settings_settings__key__put"];
+        put: operations["update_settings_api_settings__key__put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -806,7 +906,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/settings/{key}/reset": {
+    "/api/settings/{key}/reset": {
         parameters: {
             query?: never;
             header?: never;
@@ -816,14 +916,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Reset Settings */
-        post: operations["reset_settings_settings__key__reset_post"];
+        post: operations["reset_settings_api_settings__key__reset_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/settings/recompute": {
+    "/api/settings/recompute": {
         parameters: {
             query?: never;
             header?: never;
@@ -833,14 +933,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Recompute */
-        post: operations["recompute_settings_recompute_post"];
+        post: operations["recompute_api_settings_recompute_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/stocks/{stock_id}/health": {
+    "/api/stocks/{stock_id}/health": {
         parameters: {
             query?: never;
             header?: never;
@@ -848,7 +948,7 @@ export interface paths {
             cookie?: never;
         };
         /** Stock Health */
-        get: operations["stock_health_stocks__stock_id__health_get"];
+        get: operations["stock_health_api_stocks__stock_id__health_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -857,7 +957,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/assistant/brief": {
+    "/api/assistant/brief": {
         parameters: {
             query?: never;
             header?: never;
@@ -870,14 +970,14 @@ export interface paths {
          * Assistant Brief
          * @description 進頁今日重點（情境感知）。命中當日該頁快取直接吐、未命中跑 Haiku 串流並回寫快取。
          */
-        post: operations["assistant_brief_assistant_brief_post"];
+        post: operations["assistant_brief_api_assistant_brief_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/assistant/chat": {
+    "/api/assistant/chat": {
         parameters: {
             query?: never;
             header?: never;
@@ -887,14 +987,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Assistant Chat */
-        post: operations["assistant_chat_assistant_chat_post"];
+        post: operations["assistant_chat_api_assistant_chat_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/corners": {
+    "/api/corners": {
         parameters: {
             query?: never;
             header?: never;
@@ -902,7 +1002,7 @@ export interface paths {
             cookie?: never;
         };
         /** Corner Signals */
-        get: operations["corner_signals_corners_get"];
+        get: operations["corner_signals_api_corners_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -911,7 +1011,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/corners/review": {
+    "/api/corners/review": {
         parameters: {
             query?: never;
             header?: never;
@@ -919,7 +1019,143 @@ export interface paths {
             cookie?: never;
         };
         /** Corner Review */
-        get: operations["corner_review_corners_review_get"];
+        get: operations["corner_review_api_corners_review_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/paper/simulate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Paper Simulate
+         * @description 模擬倉：把歷史推薦當訊號重播虛擬交易，得出「如果每天照單操作」的真實績效。
+         *
+         *     規則：訊號日隔一交易日以最高價進場（保守）→ 逐日檢查 觸停損（低點先看，保守）
+         *     → 觸停利 → 逾期收盤出。每筆等權 1 單位；權益曲線＝已實現報酬按出場日累加。
+         */
+        get: operations["paper_simulate_api_paper_simulate_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/recommendations/lookback/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lookback Stats
+         * @description 勝率分組統計：哪類推薦其實準/不準，直接回饋門檻與選股偏好。
+         *
+         *     分組軸：①風格標籤（pop=過硬篩、explosive/strong/story/crash=標籤）②分數帶。
+         *     同一樣本可同時落在多個風格組（標籤可複掛）。
+         */
+        get: operations["lookback_stats_api_recommendations_lookback_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/recommendations/lookback/cooccurrence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lookback Cooccurrence
+         * @description 標籤共存結構：1對1 條件機率矩陣 + 精確組合全枚舉（每組附命中率/MFE/MAE）。
+         */
+        get: operations["lookback_cooccurrence_api_recommendations_lookback_cooccurrence_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/recommendations/lookback/cooccurrence/samples": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cooccurrence Samples
+         * @description 某精確組合的樣本明細（檔×日，新→舊）＋各樣本 10 日窗成效。
+         */
+        get: operations["cooccurrence_samples_api_recommendations_lookback_cooccurrence_samples_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/recommendations/signal-decay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Signal Decay
+         * @description 各訊號逐月 10 日命中率 vs 全市場基率：訊號影響度不是常數，隨市況時變。
+         *
+         *     樣本：forward_labels（mfe10 有值的已定案列）× 當日訊號旗標
+         *     （Score.passed_filter/passed_styles ＋ 注意/處置公告窗）。行程內以最新標籤日快取。
+         */
+        get: operations["signal_decay_api_recommendations_signal_decay_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/recommendations/lookback/sensitivity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lookback Sensitivity
+         * @description 機率門檻掃描 + 機率校準檢查。
+         *
+         *     兩張表刻意並存、回答兩個不同的問題：
+         *       points      「門檻拉到 X 划不划算」——累積門檻的成效與樣本代價（調參用）
+         *       calibration 「機率這個數字本身準不準」——非累積分箱的預測 vs 實現
+         *     累積門檻天生看不出校準（≥40% 那格混了 40% 與 60% 的樣本），故必須分開列。
+         *
+         *     同一份樣本算所有門檻（機率單調遞減篩選），一次回整條曲線。
+         */
+        get: operations["lookback_sensitivity_api_recommendations_lookback_sensitivity_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -935,7 +1171,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Health */
+        /**
+         * Health
+         * @description 存活探測：刻意留在根路徑，不隨 API 進 /api。
+         */
         get: operations["health_health_get"];
         put?: never;
         post?: never;
@@ -945,7 +1184,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/system/status": {
+    "/api/system/status": {
         parameters: {
             query?: never;
             header?: never;
@@ -953,7 +1192,7 @@ export interface paths {
             cookie?: never;
         };
         /** System Status */
-        get: operations["system_status_system_status_get"];
+        get: operations["system_status_api_system_status_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -962,7 +1201,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/sources": {
+    "/api/sources": {
         parameters: {
             query?: never;
             header?: never;
@@ -970,7 +1209,7 @@ export interface paths {
             cookie?: never;
         };
         /** Sources Health */
-        get: operations["sources_health_sources_get"];
+        get: operations["sources_health_api_sources_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -979,7 +1218,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/sources/{name}/test": {
+    "/api/sources/{name}/test": {
         parameters: {
             query?: never;
             header?: never;
@@ -992,14 +1231,14 @@ export interface paths {
          * Test Source
          * @description 設定頁[測試連線]：可先測再存（測通才存）。
          */
-        post: operations["test_source_sources__name__test_post"];
+        post: operations["test_source_api_sources__name__test_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/pipeline/run": {
+    "/api/pipeline/run": {
         parameters: {
             query?: never;
             header?: never;
@@ -1015,7 +1254,7 @@ export interface paths {
          *     立即回 accepted；已在跑則回 already_running。target＝目前理應已完成的最近交易日
          *     （盤前/未到排程時間 → 上一交易日，不抓還沒齊的當天）。
          */
-        post: operations["trigger_pipeline_pipeline_run_post"];
+        post: operations["trigger_pipeline_api_pipeline_run_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1057,6 +1296,46 @@ export interface components {
             /** Signals */
             signals: string[];
         };
+        /** AttentionEntry */
+        AttentionEntry: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Kind */
+            kind: string;
+            /** Times */
+            times?: number | null;
+            /** Begin Date */
+            begin_date?: string | null;
+            /** End Date */
+            end_date?: string | null;
+            /** Reason */
+            reason?: string | null;
+        };
+        /**
+         * AttentionResponse
+         * @description 注意/處置狀態。實證上列入者常伴隨上漲動能（熱錢聚集），前端以動能徽章呈現。
+         */
+        AttentionResponse: {
+            /** Stock Id */
+            stock_id: string;
+            /** Status */
+            status?: string | null;
+            /** Punish End */
+            punish_end?: string | null;
+            /**
+             * Notice Count 30D
+             * @default 0
+             */
+            notice_count_30d: number;
+            /**
+             * Entries
+             * @default []
+             */
+            entries: components["schemas"]["AttentionEntry"][];
+        };
         /** BriefRequest */
         BriefRequest: {
             /**
@@ -1066,6 +1345,32 @@ export interface components {
             context: {
                 [key: string]: unknown;
             };
+        };
+        /**
+         * CalibrationBin
+         * @description 非累積分箱：預測機率 vs 實現碰到率，看查表準不準（累積門檻看不出來）。
+         */
+        CalibrationBin: {
+            /** Lo */
+            lo: number;
+            /** Hi */
+            hi: number;
+            /** N */
+            n: number;
+            /** Days */
+            days: number;
+            /** Pred Avg */
+            pred_avg: number;
+            /** Hit Rate */
+            hit_rate: number | null;
+            /** Hit Rate Lo */
+            hit_rate_lo: number | null;
+            /** Hit Rate Hi */
+            hit_rate_hi: number | null;
+            /** Err Pp */
+            err_pp: number | null;
+            /** Reliable */
+            reliable: boolean;
         };
         /** Candle */
         Candle: {
@@ -1257,6 +1562,41 @@ export interface components {
             insider_pledge_pct?: number | null;
         };
         /**
+         * ComboSample
+         * @description 精確組合的單一樣本（某檔某日）＋10 日窗成效。
+         */
+        ComboSample: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Stock Id */
+            stock_id: string;
+            /** Name */
+            name: string;
+            /** Hit */
+            hit?: boolean | null;
+            /** Ret Pct */
+            ret_pct?: number | null;
+            /** Mfe Pct */
+            mfe_pct?: number | null;
+            /** Mae Pct */
+            mae_pct?: number | null;
+        };
+        /** ComboSamplesResponse */
+        ComboSamplesResponse: {
+            /** Combo */
+            combo: string;
+            /** Since */
+            since?: string | null;
+            /**
+             * Samples
+             * @default []
+             */
+            samples: components["schemas"]["ComboSample"][];
+        };
+        /**
          * CompanyProfileDTO
          * @description 公司基本資料（ETF 無此塊）。
          */
@@ -1278,7 +1618,52 @@ export interface components {
             /** Website */
             website?: string | null;
         };
-        /** CornerOut */
+        /**
+         * CooccurrenceResponse
+         * @description 風格標籤共存結構：1對1 條件機率矩陣 + 精確組合全枚舉（含成效）。
+         *
+         *     matrix[i][j] = P(同時有 tags[j] | 已有 tags[i])，%；對角=100、列樣本<30 為 null。
+         *     combos＝每種實際出現的標籤集合（含單標籤獨佔），n<30 不列。
+         *     樣本＝波段軌每日評分列；注意/處置以徽章同窗判定
+         *     （notice=公告後~5交易日、punish=公告後~10交易日或執行期間）。
+         */
+        CooccurrenceResponse: {
+            /** Since */
+            since?: string | null;
+            /** Today Date */
+            today_date?: string | null;
+            /**
+             * Tags
+             * @default []
+             */
+            tags: string[];
+            /**
+             * Counts
+             * @default {}
+             */
+            counts: {
+                [key: string]: number;
+            };
+            /**
+             * Matrix
+             * @default []
+             */
+            matrix: (number | null)[][];
+            /**
+             * Combos
+             * @default []
+             */
+            combos: components["schemas"]["TagComboStat"][];
+        };
+        /**
+         * CornerOut
+         * @description 一個角落的當日亮燈。
+         *
+         *     origin 區分兩套挖掘紀律：floor=分年地板≥門檻（既有 30 個）；
+         *     stable_edge=挖掘窗與 holdout 的**同日同錨增量皆為正**（試跑中的 2 個）。
+         *     後者刻意不以絕對地板取勝——窮舉 24k 組合證明「兩窗都 ≥70%」是空集合
+         *     （見 scripts/pop_70_mine.py），故改賭超額穩定；edge_* 才是它的主指標。
+         */
         CornerOut: {
             /** Id */
             id: string;
@@ -1288,12 +1673,26 @@ export interface components {
             family: string;
             /** Family Label */
             family_label: string;
+            /** Origin */
+            origin: string;
             /** Floor */
             floor: number;
             /** Per Year */
             per_year: {
                 [key: string]: unknown;
             };
+            /** Edge Mine Pp */
+            edge_mine_pp?: number | null;
+            /** Edge Holdout Pp */
+            edge_holdout_pp?: number | null;
+            /** Oos Edge Pp */
+            oos_edge_pp?: number | null;
+            /** Holdout Hit */
+            holdout_hit?: number | null;
+            /** Holdout N */
+            holdout_n?: number | null;
+            /** Caveat */
+            caveat?: string | null;
             /** Stocks */
             stocks: components["schemas"]["CornerStockOut"][];
         };
@@ -1324,8 +1723,12 @@ export interface components {
             atoms: string[];
             /** Family Label */
             family_label: string;
+            /** Origin */
+            origin: string;
             /** Floor */
             floor: number;
+            /** Benchmark */
+            benchmark: number;
             /** N */
             n: number;
             /** Matured */
@@ -1397,6 +1800,37 @@ export interface components {
             yield_12m?: number | null;
         };
         /**
+         * EntrySnapshot
+         * @description 建倉當下 Score 的凍結副本。
+         *
+         *     欄位固定，故宣告成模型而非 dict：宣告成 dict 時 openapi 只能吐出
+         *     `{[key: string]: unknown}`，前端就得自己手寫一份同名型別 & 上來——
+         *     那份手寫副本沒有任何機制保證它跟後端一致。
+         */
+        EntrySnapshot: {
+            /**
+             * Score Date
+             * Format: date
+             */
+            score_date: string;
+            /** Total Score */
+            total_score?: number | null;
+            /** Passed Filter */
+            passed_filter?: boolean | null;
+            /** Passed Styles */
+            passed_styles?: string[] | null;
+            /** Reasons */
+            reasons?: string[] | null;
+            /** Buy Low */
+            buy_low?: number | null;
+            /** Buy High */
+            buy_high?: number | null;
+            /** Stop Loss */
+            stop_loss?: number | null;
+            /** Close */
+            close?: number | null;
+        };
+        /**
          * EtfInfo
          * @description ETF 身分資料（個股無月營收/本益比時改顯示這塊）。
          */
@@ -1453,6 +1887,105 @@ export interface components {
             source: string | null;
             /** Url */
             url: string | null;
+        };
+        /**
+         * FearGreedComponent
+         * @description 恐懼貪婪指數單一組件：score 0~100（高=貪婪）、value 為原始值。
+         */
+        FearGreedComponent: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Desc */
+            desc?: string | null;
+            /** Score */
+            score: number;
+            /** Value */
+            value?: number | null;
+        };
+        /** FearGreedPoint */
+        FearGreedPoint: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Score */
+            score: number;
+        };
+        /**
+         * FearGreedResponse
+         * @description 台股恐懼貪婪指數（自算組件百分位）＋ CNN 官方美股指數並列。
+         */
+        FearGreedResponse: {
+            /** Date */
+            date?: string | null;
+            /** Score */
+            score?: number | null;
+            /** Label */
+            label?: string | null;
+            /**
+             * Components
+             * @default []
+             */
+            components: components["schemas"]["FearGreedComponent"][];
+            /**
+             * History
+             * @default []
+             */
+            history: components["schemas"]["FearGreedPoint"][];
+            us?: components["schemas"]["UsFearGreed"] | null;
+        };
+        /**
+         * FinStatementQuarter
+         * @description 單季財務報表關鍵科目（金額單位：億元；比率 %；每股淨值 元）。
+         */
+        FinStatementQuarter: {
+            /** Label */
+            label: string;
+            /** Cash */
+            cash?: number | null;
+            /** Current Assets */
+            current_assets?: number | null;
+            /** Total Assets */
+            total_assets?: number | null;
+            /** Current Liab */
+            current_liab?: number | null;
+            /** Total Liab */
+            total_liab?: number | null;
+            /** Equity */
+            equity?: number | null;
+            /** Inventories */
+            inventories?: number | null;
+            /** Receivables */
+            receivables?: number | null;
+            /** Debt Ratio */
+            debt_ratio?: number | null;
+            /** Current Ratio */
+            current_ratio?: number | null;
+            /** Bps */
+            bps?: number | null;
+            /** Op Cf */
+            op_cf?: number | null;
+            /** Inv Cf */
+            inv_cf?: number | null;
+            /** Fin Cf */
+            fin_cf?: number | null;
+            /** Capex */
+            capex?: number | null;
+            /** Fcf */
+            fcf?: number | null;
+        };
+        /**
+         * FinancialStatementsResponse
+         * @description 資產負債表＋現金流量表摘要（FinMind 逐檔懶抓、30 天快取）。新→舊。
+         */
+        FinancialStatementsResponse: {
+            /** Stock Id */
+            stock_id: string;
+            /** Quarters */
+            quarters: components["schemas"]["FinStatementQuarter"][];
         };
         /** FlowStockItem */
         FlowStockItem: {
@@ -1661,6 +2194,8 @@ export interface components {
             trail_trigger_override: number | null;
             /** Trail Pullback Override */
             trail_pullback_override: number | null;
+            entry_snapshot?: components["schemas"]["EntrySnapshot"] | null;
+            thesis?: components["schemas"]["ThesisStatus"] | null;
             /** Note */
             note: string | null;
             /** Transactions */
@@ -1829,6 +2364,54 @@ export interface components {
             password: string;
         };
         /**
+         * LongGraduation
+         * @description 長線軌畢業條件（重新審視訊號，非停損）：達標 / 魚齡老化 / 已暴漲。
+         */
+        LongGraduation: {
+            /**
+             * Hit Target
+             * @default false
+             */
+            hit_target: boolean;
+            /** Streak Months */
+            streak_months?: number | null;
+            /** Mom12 Pct */
+            mom12_pct?: number | null;
+        };
+        /**
+         * LongTargetZone
+         * @description 長線軌目標區間（參考期間 12 個月＝回測視窗）。
+         *
+         *     基準錨優先用法人目標價中位（FactSet），無法人報告退 PE 河流中位帶（估值推算）；
+         *     保守/樂觀恆為 PE 河流中位帶/上緣帶 × 隱含 EPS（長線硬篩②保證 EPS>0，缺的只會是 PE 史料）。
+         */
+        LongTargetZone: {
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "analyst" | "pe_river";
+            /** Base */
+            base: number;
+            /** Upside Pct */
+            upside_pct: number | null;
+            /** Low */
+            low: number | null;
+            /** High */
+            high: number | null;
+            /** Analyst Target */
+            analyst_target?: number | null;
+            /** Analyst Date */
+            analyst_date?: string | null;
+            /** Analyst Count */
+            analyst_count?: number | null;
+            /**
+             * Hit
+             * @default false
+             */
+            hit: boolean;
+        };
+        /**
          * LookbackCalendar
          * @description 回看月曆：每個過去的 Score 日一筆命中率。
          */
@@ -1860,6 +2443,26 @@ export interface components {
             hit_rate: number | null;
         };
         /**
+         * LookbackGroupStat
+         * @description 一個分組（風格標籤 / 分數帶）的歷史績效。
+         */
+        LookbackGroupStat: {
+            /** Key */
+            key: string;
+            /** N */
+            n: number;
+            /** Hit Count */
+            hit_count: number;
+            /** Hit Rate */
+            hit_rate: number | null;
+            /** Avg Return Pct */
+            avg_return_pct: number | null;
+            /** Avg Mfe Pct */
+            avg_mfe_pct: number | null;
+            /** Avg Mae Pct */
+            avg_mae_pct: number | null;
+        };
+        /**
          * LookbackReview
          * @description 回看：那天推薦至今的實際表現。買在當日收盤（與 PoppableEfficacy 同錨點）。
          */
@@ -1888,6 +2491,19 @@ export interface components {
              * @default 0
              */
             days_elapsed: number;
+        };
+        /** LookbackStatsResponse */
+        LookbackStatsResponse: {
+            /** Since */
+            since: string | null;
+            /** Today Date */
+            today_date: string | null;
+            /** Min Age Days */
+            min_age_days: number;
+            /** By Style */
+            by_style: components["schemas"]["LookbackGroupStat"][];
+            /** By Score Bin */
+            by_score_bin: components["schemas"]["LookbackGroupStat"][];
         };
         /**
          * LookbackSummary
@@ -2062,6 +2678,108 @@ export interface components {
             /** Recent Events */
             recent_events: components["schemas"]["EventBrief"][];
         };
+        /** PaperEquityPoint */
+        PaperEquityPoint: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Cum Return Pct */
+            cum_return_pct: number;
+        };
+        /**
+         * PaperPositionDTO
+         * @description 模擬倉單筆部位（確定性重播產物，非落庫資料）。
+         */
+        PaperPositionDTO: {
+            /** Stock Id */
+            stock_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Signal Date
+             * Format: date
+             */
+            signal_date: string;
+            /**
+             * Entry Date
+             * Format: date
+             */
+            entry_date: string;
+            /** Entry Price */
+            entry_price: number;
+            /** Stop Price */
+            stop_price: number;
+            /** Target Price */
+            target_price: number;
+            /** Status */
+            status: string;
+            /** Exit Date */
+            exit_date?: string | null;
+            /** Exit Price */
+            exit_price?: number | null;
+            /** Exit Reason */
+            exit_reason?: string | null;
+            /** Return Pct */
+            return_pct?: number | null;
+            /**
+             * Days Held
+             * @default 0
+             */
+            days_held: number;
+            /** Score */
+            score?: number | null;
+            /** Prob Hit */
+            prob_hit?: number | null;
+        };
+        /** PaperSimResponse */
+        PaperSimResponse: {
+            /** Since */
+            since: string | null;
+            /** Today Date */
+            today_date: string | null;
+            /** Style */
+            style: string;
+            /** Prob Min */
+            prob_min: number;
+            /** Top N */
+            top_n: number;
+            /** Hold Days */
+            hold_days: number;
+            /** Stop Pct */
+            stop_pct: number;
+            /** Target Pct */
+            target_pct: number;
+            stats: components["schemas"]["PaperSimStats"];
+            /** Equity */
+            equity: components["schemas"]["PaperEquityPoint"][];
+            /** Positions */
+            positions: components["schemas"]["PaperPositionDTO"][];
+        };
+        /** PaperSimStats */
+        PaperSimStats: {
+            /** Trades */
+            trades: number;
+            /** Closed */
+            closed: number;
+            /** Open */
+            open: number;
+            /** Wins */
+            wins: number;
+            /** Win Rate */
+            win_rate: number | null;
+            /** Avg Return Pct */
+            avg_return_pct: number | null;
+            /** Total Return Pct */
+            total_return_pct: number | null;
+            /** Open Unrealized Pct */
+            open_unrealized_pct: number | null;
+            /** Avg Days Held */
+            avg_days_held: number | null;
+            /** Max Drawdown Pct */
+            max_drawdown_pct: number | null;
+        };
         /** PeRiverPoint */
         PeRiverPoint: {
             /**
@@ -2191,6 +2909,19 @@ export interface components {
             prob_cond?: string | null;
             /** Prob Mae */
             prob_mae?: number | null;
+            /** Vol Ratio */
+            vol_ratio?: number | null;
+            /** Attention */
+            attention?: string | null;
+            /**
+             * Attention Tags
+             * @default []
+             */
+            attention_tags: string[];
+            /** Ml Consensus */
+            ml_consensus?: boolean | null;
+            target_zone?: components["schemas"]["LongTargetZone"] | null;
+            graduation?: components["schemas"]["LongGraduation"] | null;
         };
         /** RecommendationList */
         RecommendationList: {
@@ -2363,6 +3094,18 @@ export interface components {
              * @default []
              */
             tags: string[];
+            /** Mom5 Pct */
+            mom5_pct?: number | null;
+            /** Mom20 Pct */
+            mom20_pct?: number | null;
+            /** Above Ma20 */
+            above_ma20?: boolean | null;
+            /** Inst Net5 */
+            inst_net5?: number | null;
+            /** Inst Net20 */
+            inst_net20?: number | null;
+            /** Rev Yoy */
+            rev_yoy?: number | null;
         };
         /** SectorDetail */
         SectorDetail: {
@@ -2371,6 +3114,10 @@ export interface components {
             constituents: components["schemas"]["SectorConstituent"][];
             /** Interpretation */
             interpretation?: string | null;
+            /** Market Mom5 */
+            market_mom5?: number | null;
+            /** Market Mom20 */
+            market_mom20?: number | null;
         };
         /** SectorFlowItem */
         SectorFlowItem: {
@@ -2430,6 +3177,8 @@ export interface components {
             above_ma20: number | null;
             /** Constituents */
             constituents: number | null;
+            /** Turnover Chg5 */
+            turnover_chg5?: number | null;
         };
         /** SectorList */
         SectorList: {
@@ -2473,6 +3222,113 @@ export interface components {
             date: string | null;
             /** Sectors */
             sectors: components["schemas"]["SectorRotationItem"][];
+        };
+        /**
+         * SensitivityPoint
+         * @description 累積門檻（prob ≥ X）的成效。
+         *
+         *     days 才是有效樣本數：同一天的個股命中高度相關，n=22 若只落在 2 天，統計上就是
+         *     2 個觀測。故 reliable 以 days 為主判準，前端據此把不可信的列灰化。
+         */
+        SensitivityPoint: {
+            /** Prob Min */
+            prob_min: number;
+            /** N */
+            n: number;
+            /** Days */
+            days: number;
+            /** Day Cover */
+            day_cover: number | null;
+            /** Avg Daily N */
+            avg_daily_n: number | null;
+            /** Hit Count */
+            hit_count: number;
+            /** Hit Rate */
+            hit_rate: number | null;
+            /** Hit Rate Lo */
+            hit_rate_lo: number | null;
+            /** Hit Rate Hi */
+            hit_rate_hi: number | null;
+            /** Day Hit Rate */
+            day_hit_rate: number | null;
+            /** Lift */
+            lift: number | null;
+            /** Avg Return Pct */
+            avg_return_pct: number | null;
+            /** Avg Return Open Pct */
+            avg_return_open_pct: number | null;
+            /** Avg Mfe Pct */
+            avg_mfe_pct: number | null;
+            /** Avg Mae Pct */
+            avg_mae_pct: number | null;
+            /** Reliable */
+            reliable: boolean;
+        };
+        /** SensitivityResponse */
+        SensitivityResponse: {
+            /** Since */
+            since: string | null;
+            /** Today Date */
+            today_date: string | null;
+            /** Min Age Days */
+            min_age_days: number;
+            /** Entry Days */
+            entry_days: number;
+            /** Base Hit Rate */
+            base_hit_rate: number | null;
+            /** Points */
+            points: components["schemas"]["SensitivityPoint"][];
+            /** Calibration */
+            calibration: components["schemas"]["CalibrationBin"][];
+            /** Note */
+            note: string;
+        };
+        /** SignalDecayPoint */
+        SignalDecayPoint: {
+            /** Ym */
+            ym: string;
+            /** N */
+            n: number;
+            /** Hit */
+            hit?: number | null;
+            /** Lift */
+            lift?: number | null;
+        };
+        /**
+         * SignalDecayResponse
+         * @description 訊號時變效力：各訊號逐月 10 日命中率與相對基率 lift（影響度隨時間變化）。
+         */
+        SignalDecayResponse: {
+            /** Today Date */
+            today_date?: string | null;
+            /**
+             * Base
+             * @default []
+             */
+            base: components["schemas"]["SignalDecayPoint"][];
+            /**
+             * Signals
+             * @default []
+             */
+            signals: components["schemas"]["SignalDecaySeries"][];
+        };
+        /** SignalDecaySeries */
+        SignalDecaySeries: {
+            /** Key */
+            key: string;
+            /**
+             * Points
+             * @default []
+             */
+            points: components["schemas"]["SignalDecayPoint"][];
+            /** Hit All */
+            hit_all?: number | null;
+            /** Lift All */
+            lift_all?: number | null;
+            /** Hit Recent */
+            hit_recent?: number | null;
+            /** Lift Recent */
+            lift_recent?: number | null;
         };
         /** StockDetail */
         StockDetail: {
@@ -2534,6 +3390,26 @@ export interface components {
             is_etf: boolean;
         };
         /**
+         * TagComboStat
+         * @description 一種「精確標籤組合」的出現與成效統計（组合鍵如 explosive+notice）。
+         */
+        TagComboStat: {
+            /** Key */
+            key: string;
+            /** N */
+            n: number;
+            /** Share Pct */
+            share_pct: number;
+            /** Hit Rate */
+            hit_rate?: number | null;
+            /** Avg Ret Pct */
+            avg_ret_pct?: number | null;
+            /** Avg Mfe Pct */
+            avg_mfe_pct?: number | null;
+            /** Avg Mae Pct */
+            avg_mae_pct?: number | null;
+        };
+        /**
          * TargetPriceEntry
          * @description 一筆 FactSet 共識目標價（含達標實況）。
          */
@@ -2587,6 +3463,42 @@ export interface components {
              */
             history: components["schemas"]["TargetPriceEntry"][];
         };
+        /**
+         * TechSummaryResponse
+         * @description 技術指標摘要：現值 KD/MACD/乖離 + Beta/52週位置/波動（皆由既有日線與指標計算）。
+         */
+        TechSummaryResponse: {
+            /** Stock Id */
+            stock_id: string;
+            /** Date */
+            date?: string | null;
+            /** Kd K */
+            kd_k?: number | null;
+            /** Kd D */
+            kd_d?: number | null;
+            /** Macd */
+            macd?: number | null;
+            /** Macd Signal */
+            macd_signal?: number | null;
+            /** Macd Hist */
+            macd_hist?: number | null;
+            /** Bias 20 */
+            bias_20?: number | null;
+            /** Bias 60 */
+            bias_60?: number | null;
+            /** Beta */
+            beta?: number | null;
+            /** High 52W */
+            high_52w?: number | null;
+            /** Low 52W */
+            low_52w?: number | null;
+            /** Dist High Pct */
+            dist_high_pct?: number | null;
+            /** Dist Low Pct */
+            dist_low_pct?: number | null;
+            /** Volatility Pct */
+            volatility_pct?: number | null;
+        };
         /** ThemeDigest */
         ThemeDigest: {
             /** Sector Id */
@@ -2599,6 +3511,28 @@ export interface components {
             event_count: number;
             /** Risk Count */
             risk_count: number;
+        };
+        /**
+         * ThesisStatus
+         * @description 進場論點追蹤：進場快照 vs 最新評分的對照結論。
+         */
+        ThesisStatus: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "intact" | "weakening" | "broken" | "unknown";
+            /** Entry Score */
+            entry_score?: number | null;
+            /** Latest Score */
+            latest_score?: number | null;
+            /** Latest Passed Filter */
+            latest_passed_filter?: boolean | null;
+            /**
+             * Messages
+             * @default []
+             */
+            messages: string[];
         };
         /** ToHolding */
         ToHolding: {
@@ -2665,6 +3599,31 @@ export interface components {
             tax: number | null;
             /** Note */
             note: string | null;
+        };
+        /**
+         * UsFearGreed
+         * @description CNN 官方 Fear & Greed（美股）。直抓 CNN dataviz API。
+         */
+        UsFearGreed: {
+            /** Score */
+            score: number;
+            /** Rating */
+            rating: string;
+            /** Label */
+            label: string;
+            /** Prev Close */
+            prev_close?: number | null;
+            /** Prev Week */
+            prev_week?: number | null;
+            /** Prev Month */
+            prev_month?: number | null;
+            /** Prev Year */
+            prev_year?: number | null;
+            /**
+             * History
+             * @default []
+             */
+            history: components["schemas"]["FearGreedPoint"][];
         };
         /** ValidationError */
         ValidationError: {
@@ -2753,7 +3712,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    login_auth_login_post: {
+    login_api_auth_login_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2786,7 +3745,7 @@ export interface operations {
             };
         };
     };
-    logout_auth_logout_post: {
+    logout_api_auth_logout_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2806,7 +3765,7 @@ export interface operations {
             };
         };
     };
-    me_auth_me_get: {
+    me_api_auth_me_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2828,7 +3787,7 @@ export interface operations {
             };
         };
     };
-    recommendation_tag_stats_recommendations_tag_stats_get: {
+    recommendation_tag_stats_api_recommendations_tag_stats_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2850,7 +3809,7 @@ export interface operations {
             };
         };
     };
-    recommendations_recommendations_get: {
+    recommendations_api_recommendations_get: {
         parameters: {
             query?: {
                 track?: string;
@@ -2883,7 +3842,7 @@ export interface operations {
             };
         };
     };
-    recommendations_lookback_recommendations_lookback_get: {
+    recommendations_lookback_api_recommendations_lookback_get: {
         parameters: {
             query?: {
                 /** @description 直接指定推薦日；不傳=用 days 算 */
@@ -2923,7 +3882,7 @@ export interface operations {
             };
         };
     };
-    recommendations_lookback_calendar_recommendations_lookback_calendar_get: {
+    recommendations_lookback_calendar_api_recommendations_lookback_calendar_get: {
         parameters: {
             query?: {
                 /** @description 起始日；不傳=全部歷史 */
@@ -2961,7 +3920,7 @@ export interface operations {
             };
         };
     };
-    stock_search_stocks_search_get: {
+    stock_search_api_stocks_search_get: {
         parameters: {
             query: {
                 /** @description 股號或股名關鍵字 */
@@ -2993,7 +3952,7 @@ export interface operations {
             };
         };
     };
-    poppable_efficacy_poppable_efficacy_get: {
+    poppable_efficacy_api_poppable_efficacy_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3015,7 +3974,7 @@ export interface operations {
             };
         };
     };
-    poppable_efficacy_recompute_poppable_efficacy_recompute_post: {
+    poppable_efficacy_recompute_api_poppable_efficacy_recompute_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -3037,7 +3996,7 @@ export interface operations {
             };
         };
     };
-    poppable_efficacy_recompute_status_poppable_efficacy_recompute_status_get: {
+    poppable_efficacy_recompute_status_api_poppable_efficacy_recompute_status_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3059,7 +4018,7 @@ export interface operations {
             };
         };
     };
-    stock_detail_stocks__stock_id__get: {
+    stock_detail_api_stocks__stock_id__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3090,7 +4049,7 @@ export interface operations {
             };
         };
     };
-    stock_ohlcv_stocks__stock_id__ohlcv_get: {
+    stock_ohlcv_api_stocks__stock_id__ohlcv_get: {
         parameters: {
             query?: {
                 days?: number;
@@ -3123,7 +4082,7 @@ export interface operations {
             };
         };
     };
-    stock_recommendation_marks_stocks__stock_id__recommendation_marks_get: {
+    stock_recommendation_marks_api_stocks__stock_id__recommendation_marks_get: {
         parameters: {
             query?: {
                 days?: number;
@@ -3156,7 +4115,7 @@ export interface operations {
             };
         };
     };
-    stock_target_price_stocks__stock_id__target_price_get: {
+    stock_target_price_api_stocks__stock_id__target_price_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3187,7 +4146,7 @@ export interface operations {
             };
         };
     };
-    stock_levels_stocks__stock_id__levels_get: {
+    stock_levels_api_stocks__stock_id__levels_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3218,7 +4177,7 @@ export interface operations {
             };
         };
     };
-    holding_history_stocks__stock_id__holding_history_get: {
+    holding_history_api_stocks__stock_id__holding_history_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3249,7 +4208,7 @@ export interface operations {
             };
         };
     };
-    stock_industry_chain_stocks__stock_id__industry_chain_get: {
+    stock_industry_chain_api_stocks__stock_id__industry_chain_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3280,7 +4239,7 @@ export interface operations {
             };
         };
     };
-    stock_dividends_stocks__stock_id__dividends_get: {
+    stock_dividends_api_stocks__stock_id__dividends_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3311,7 +4270,7 @@ export interface operations {
             };
         };
     };
-    stock_pe_river_stocks__stock_id__pe_river_get: {
+    stock_pe_river_api_stocks__stock_id__pe_river_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3342,7 +4301,69 @@ export interface operations {
             };
         };
     };
-    fundamental_history_stocks__stock_id__fundamental_history_get: {
+    stock_pb_river_api_stocks__stock_id__pb_river_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stock_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PeRiverResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stock_tech_summary_api_stocks__stock_id__tech_summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stock_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TechSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fundamental_history_api_stocks__stock_id__fundamental_history_get: {
         parameters: {
             query?: {
                 months?: number;
@@ -3376,7 +4397,71 @@ export interface operations {
             };
         };
     };
-    chip_history_stocks__stock_id__chip_history_get: {
+    stock_attention_api_stocks__stock_id__attention_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stock_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttentionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stock_financial_statements_api_stocks__stock_id__financial_statements_get: {
+        parameters: {
+            query?: {
+                quarters?: number;
+            };
+            header?: never;
+            path: {
+                stock_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FinancialStatementsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    chip_history_api_stocks__stock_id__chip_history_get: {
         parameters: {
             query?: {
                 days?: number;
@@ -3409,7 +4494,7 @@ export interface operations {
             };
         };
     };
-    list_holdings_holdings_get: {
+    list_holdings_api_holdings_get: {
         parameters: {
             query?: {
                 status?: string;
@@ -3440,7 +4525,7 @@ export interface operations {
             };
         };
     };
-    create_holding_holdings_post: {
+    create_holding_api_holdings_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -3473,7 +4558,7 @@ export interface operations {
             };
         };
     };
-    add_transaction_holdings__holding_id__transactions_post: {
+    add_transaction_api_holdings__holding_id__transactions_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -3508,7 +4593,7 @@ export interface operations {
             };
         };
     };
-    delete_holding_holdings__holding_id__delete: {
+    delete_holding_api_holdings__holding_id__delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -3541,7 +4626,7 @@ export interface operations {
             };
         };
     };
-    patch_holding_holdings__holding_id__patch: {
+    patch_holding_api_holdings__holding_id__patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -3576,7 +4661,7 @@ export interface operations {
             };
         };
     };
-    list_sectors_sectors_get: {
+    list_sectors_api_sectors_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3596,7 +4681,7 @@ export interface operations {
             };
         };
     };
-    sector_detail_sectors__sector_id__get: {
+    sector_detail_api_sectors__sector_id__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3627,7 +4712,7 @@ export interface operations {
             };
         };
     };
-    market_flow_flow_market_get: {
+    market_flow_api_flow_market_get: {
         parameters: {
             query?: {
                 days?: number;
@@ -3658,7 +4743,7 @@ export interface operations {
             };
         };
     };
-    sector_flow_flow_sectors_get: {
+    sector_flow_api_flow_sectors_get: {
         parameters: {
             query?: {
                 lookback?: number;
@@ -3689,7 +4774,7 @@ export interface operations {
             };
         };
     };
-    sector_rotation_flow_rotation_get: {
+    sector_rotation_api_flow_rotation_get: {
         parameters: {
             query?: {
                 actor?: string;
@@ -3721,7 +4806,7 @@ export interface operations {
             };
         };
     };
-    stock_flow_flow_stocks_get: {
+    stock_flow_api_flow_stocks_get: {
         parameters: {
             query?: {
                 sort?: string;
@@ -3753,7 +4838,7 @@ export interface operations {
             };
         };
     };
-    chip_alerts_flow_alerts_get: {
+    chip_alerts_api_flow_alerts_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3773,7 +4858,7 @@ export interface operations {
             };
         };
     };
-    inst_relation_flow_relation_get: {
+    inst_relation_api_flow_relation_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3793,7 +4878,7 @@ export interface operations {
             };
         };
     };
-    recompute_relation_flow_relation_recompute_post: {
+    recompute_relation_api_flow_relation_recompute_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -3813,7 +4898,27 @@ export interface operations {
             };
         };
     };
-    overview_overview_get: {
+    market_fear_greed_api_market_fear_greed_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FearGreedResponse"];
+                };
+            };
+        };
+    };
+    overview_api_overview_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3833,7 +4938,7 @@ export interface operations {
             };
         };
     };
-    intel_intel_get: {
+    intel_api_intel_get: {
         parameters: {
             query?: {
                 days?: number;
@@ -3866,7 +4971,7 @@ export interface operations {
             };
         };
     };
-    list_watchlists_watchlists_get: {
+    list_watchlists_api_watchlists_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3886,7 +4991,7 @@ export interface operations {
             };
         };
     };
-    create_watchlist_watchlists_post: {
+    create_watchlist_api_watchlists_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -3919,7 +5024,7 @@ export interface operations {
             };
         };
     };
-    delete_watchlist_watchlists__wl_id__delete: {
+    delete_watchlist_api_watchlists__wl_id__delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -3952,7 +5057,7 @@ export interface operations {
             };
         };
     };
-    add_item_watchlists__wl_id__items_post: {
+    add_item_api_watchlists__wl_id__items_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -3987,7 +5092,7 @@ export interface operations {
             };
         };
     };
-    delete_item_watchlist_items__item_id__delete: {
+    delete_item_api_watchlist_items__item_id__delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -4020,7 +5125,7 @@ export interface operations {
             };
         };
     };
-    item_to_holding_watchlist_items__item_id__to_holding_post: {
+    item_to_holding_api_watchlist_items__item_id__to_holding_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -4057,7 +5162,7 @@ export interface operations {
             };
         };
     };
-    get_settings_settings_get: {
+    get_settings_api_settings_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -4079,7 +5184,7 @@ export interface operations {
             };
         };
     };
-    update_settings_settings__key__put: {
+    update_settings_api_settings__key__put: {
         parameters: {
             query?: never;
             header?: never;
@@ -4118,7 +5223,7 @@ export interface operations {
             };
         };
     };
-    reset_settings_settings__key__reset_post: {
+    reset_settings_api_settings__key__reset_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -4151,7 +5256,7 @@ export interface operations {
             };
         };
     };
-    recompute_settings_recompute_post: {
+    recompute_api_settings_recompute_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -4173,7 +5278,7 @@ export interface operations {
             };
         };
     };
-    stock_health_stocks__stock_id__health_get: {
+    stock_health_api_stocks__stock_id__health_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -4204,7 +5309,7 @@ export interface operations {
             };
         };
     };
-    assistant_brief_assistant_brief_post: {
+    assistant_brief_api_assistant_brief_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -4237,7 +5342,7 @@ export interface operations {
             };
         };
     };
-    assistant_chat_assistant_chat_post: {
+    assistant_chat_api_assistant_chat_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -4270,7 +5375,7 @@ export interface operations {
             };
         };
     };
-    corner_signals_corners_get: {
+    corner_signals_api_corners_get: {
         parameters: {
             query?: {
                 date?: string | null;
@@ -4301,7 +5406,7 @@ export interface operations {
             };
         };
     };
-    corner_review_corners_review_get: {
+    corner_review_api_corners_review_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -4317,6 +5422,204 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CornerReviewResponse"];
+                };
+            };
+        };
+    };
+    paper_simulate_api_paper_simulate_get: {
+        parameters: {
+            query?: {
+                /** @description 模擬起始日；不傳=全部 Score 歷史 */
+                since?: string | null;
+                style?: string;
+                /** @description PIT 達標機率門檻%（pop 風格） */
+                prob_min?: number;
+                /** @description 每日最多開倉檔數（依分數取前 N） */
+                top_n?: number;
+                /** @description 最長持有交易日數，逾期收盤出場 */
+                hold_days?: number;
+                /** @description 停損%（Score 無停損價時用） */
+                stop_pct?: number;
+                /** @description 停利%；預設=會噴目標 +10% */
+                target_pct?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaperSimResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lookback_stats_api_recommendations_lookback_stats_get: {
+        parameters: {
+            query?: {
+                /** @description 統計起始日；不傳=全部歷史 */
+                since?: string | null;
+                /** @description 樣本至少距今 N 個交易日 */
+                min_age_days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LookbackStatsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lookback_cooccurrence_api_recommendations_lookback_cooccurrence_get: {
+        parameters: {
+            query?: {
+                /** @description 統計起始日；不傳=全部歷史 */
+                since?: string | null;
+                /** @description 成效樣本至少距今 N 個交易日 */
+                min_age_days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CooccurrenceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cooccurrence_samples_api_recommendations_lookback_cooccurrence_samples_get: {
+        parameters: {
+            query: {
+                /** @description 精確組合鍵，如 punish+notice */
+                combo: string;
+                since?: string | null;
+                min_age_days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComboSamplesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    signal_decay_api_recommendations_signal_decay_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignalDecayResponse"];
+                };
+            };
+        };
+    };
+    lookback_sensitivity_api_recommendations_lookback_sensitivity_get: {
+        parameters: {
+            query?: {
+                /** @description 統計起始日；不傳=全部歷史 */
+                since?: string | null;
+                min_age_days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SensitivityResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -4343,7 +5646,7 @@ export interface operations {
             };
         };
     };
-    system_status_system_status_get: {
+    system_status_api_system_status_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -4365,7 +5668,7 @@ export interface operations {
             };
         };
     };
-    sources_health_sources_get: {
+    sources_health_api_sources_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -4387,7 +5690,7 @@ export interface operations {
             };
         };
     };
-    test_source_sources__name__test_post: {
+    test_source_api_sources__name__test_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -4424,7 +5727,7 @@ export interface operations {
             };
         };
     };
-    trigger_pipeline_pipeline_run_post: {
+    trigger_pipeline_api_pipeline_run_post: {
         parameters: {
             query?: never;
             header?: never;
