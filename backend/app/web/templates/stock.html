@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}{{ stock.name }}（{{ stock.id }}）股價與基本資料｜TWAssistant{% endblock %}
+{% block description %}{{ stock.name }}（{{ stock.id }}）{{ cutoff }} 收盤 {{ "%.2f"|format(quote.close) if quote.close is not none else "—" }}：本益比、殖利率、月營收、季財報、股利政策，取自證交所／櫃買中心官方盤後資料。{% endblock %}
+{% block content %}
+<nav style="font-size: 13px; color: var(--ink-2); margin-top: 12px;">
+  <a href="/stocks" style="color: var(--accent); text-decoration: none;">個股索引</a>
+  ›{{ sector_name or "未分類" }}
+</nav>
+<h1>{{ stock.name }} <span style="color: var(--ink-2); font-weight: 400;">{{ stock.id }}</span></h1>
+<p style="color: var(--ink-2); font-size: 14px; margin: 0 0 16px;">
+  {{ stock.market or "" }}{% if sector_name %} ｜ {{ sector_name }}{% endif %}
+</p>
+
+<h2>行情（{{ cutoff }}）</h2>
+<div class="tbl">
+  <table>
+    <thead><tr><th>收盤</th><th>漲跌</th><th>成交量(張)</th><th>成交值(億)</th><th>52週高</th><th>52週低</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>{{ "%.2f"|format(quote.close) if quote.close is not none else "—" }}</td>
+        <td class="{{ 'up' if quote.change_pct and quote.change_pct > 0 else ('down' if quote.change_pct and quote.change_pct < 0 else '') }}">
+          {{ "%+.2f%%"|format(quote.change_pct) if quote.change_pct is not none else "—" }}</td>
+        <td>{{ "{:,}".format((quote.volume // 1000)) if quote.volume else "—" }}</td>
+        <td>{{ "%.2f"|format(quote.turnover / 1e8) if quote.turnover else "—" }}</td>
+        <td>{{ "%.2f"|format(quote.w52_high) if quote.w52_high is not none else "—" }}</td>
+        <td>{{ "%.2f"|format(quote.w52_low) if quote.w52_low is not none else "—" }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+{% if valuation %}
+<h2>估值</h2>
+<div class="tbl">
+  <table>
+    <thead><tr><th>本益比</th><th>股價淨值比</th><th>殖利率</th>{% if market_cap %}<th>市值(億)</th>{% endif %}</tr></thead>
+    <tbody>
+      <tr>
+        <td>{{ "%.2f"|format(valuation.pe) if valuation.pe is not none else "—" }}</td>
+        <td>{{ "%.2f"|format(valuation.pb) if valuation.pb is not none else "—" }}</td>
+        <td>{{ "%.2f%%"|format(valuation.dividend_yield) if valuation.dividend_yield is not none else "—" }}</td>
+        {% if market_cap %}<td>{{ "{:,.0f}".format(market_cap / 1e8) }}</td>{% endif %}
+      </tr>
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if revenues %}
+<h2>月營收（近 12 個月）</h2>
+<div class="tbl">
+  <table>
+    <thead><tr><th class="l">年月</th><th>營收(億)</th><th>年增</th><th>月增</th></tr></thead>
+    <tbody>
+      {% for r in revenues %}
+      <tr>
+        <td class="l">{{ r.year }}/{{ "%02d"|format(r.month) }}</td>
+        <td>{{ "%.2f"|format(r.revenue / 1e5) if r.revenue is not none else "—" }}</td>
+        <td class="{{ 'up' if r.yoy and r.yoy > 0 else ('down' if r.yoy and r.yoy < 0 else '') }}">{{ "%+.1f%%"|format(r.yoy) if r.yoy is not none else "—" }}</td>
+        <td>{{ "%+.1f%%"|format(r.mom) if r.mom is not none else "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if quarters %}
+<h2>季財報（近 8 季）</h2>
+<div class="tbl">
+  <table>
+    <thead><tr><th class="l">季度</th><th>EPS</th><th>毛利率</th><th>營益率</th><th>淨利率</th><th>ROE</th></tr></thead>
+    <tbody>
+      {% for q in quarters %}
+      <tr>
+        <td class="l">{{ q.year }}Q{{ q.quarter }}</td>
+        <td>{{ "%.2f"|format(q.eps) if q.eps is not none else "—" }}</td>
+        <td>{{ "%.1f%%"|format(q.gross_margin) if q.gross_margin is not none else "—" }}</td>
+        <td>{{ "%.1f%%"|format(q.op_margin) if q.op_margin is not none else "—" }}</td>
+        <td>{{ "%.1f%%"|format(q.net_margin) if q.net_margin is not none else "—" }}</td>
+        <td>{{ "%.1f%%"|format(q.roe) if q.roe is not none else "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if dividends %}
+<h2>股利政策</h2>
+<div class="tbl">
+  <table>
+    <thead><tr><th class="l">期間</th><th>現金股利</th><th>股票股利</th><th class="l">除息日</th><th class="l">發放日</th></tr></thead>
+    <tbody>
+      {% for d in dividends %}
+      <tr>
+        <td class="l">{{ d.period }}</td>
+        <td>{{ "%.2f"|format(d.cash) if d.cash is not none else "—" }}</td>
+        <td>{{ "%.2f"|format(d.stock) if d.stock is not none else "—" }}</td>
+        <td class="l">{{ d.cash_ex_date or "—" }}</td>
+        <td class="l">{{ d.pay_date or "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if profile %}
+<h2>公司基本資料</h2>
+<div class="tbl">
+  <table>
+    <tbody>
+      {% if profile.chairman %}<tr><td class="l" style="color: var(--ink-2);">董事長</td><td class="l">{{ profile.chairman }}</td></tr>{% endif %}
+      {% if profile.president %}<tr><td class="l" style="color: var(--ink-2);">總經理</td><td class="l">{{ profile.president }}</td></tr>{% endif %}
+      {% if profile.capital %}<tr><td class="l" style="color: var(--ink-2);">實收資本額</td><td class="l">{{ "{:,.0f}".format(profile.capital / 1e8) }} 億元</td></tr>{% endif %}
+      {% if profile.listed_date %}<tr><td class="l" style="color: var(--ink-2);">上市/上櫃日</td><td class="l">{{ profile.listed_date }}</td></tr>{% endif %}
+      {% if profile.website %}<tr><td class="l" style="color: var(--ink-2);">公司網站</td><td class="l">{{ profile.website }}</td></tr>{% endif %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<p style="margin-top: 28px; font-size: 14px;">
+  完整分析（K 線、技術指標、籌碼、支撐壓力）→
+  <a href="/app/stocks/{{ stock.id }}" style="color: var(--accent);">登入使用 TWAssistant</a>
+</p>
+{% endblock %}

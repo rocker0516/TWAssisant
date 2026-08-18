@@ -14,12 +14,10 @@
         <tr><th class="l">代號</th><th class="l">名稱</th><th>收盤</th></tr>
       </thead>
       <tbody>
-        {# 個股頁尚未上線，先不放連結——死連結比沒有連結更糟。公開個股頁 /stock/{id}
-           上線時，這裡改成 <a class="code" href="/stock/{{ s.stock_id }}">。 #}
         {% for s in g.stocks %}
         <tr>
-          <td>{{ s.stock_id }}</td>
-          <td class="l">{{ s.name }}</td>
+          <td><a class="code" href="/stock/{{ s.stock_id }}">{{ s.stock_id }}</a></td>
+          <td class="l"><a class="code" href="/stock/{{ s.stock_id }}">{{ s.name }}</a></td>
           <td>{{ "%.2f"|format(s.close) if s.close is not none else "—" }}</td>
         </tr>
         {% endfor %}

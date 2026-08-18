@@ -17,10 +17,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
@@ -122,11 +122,7 @@ def rankings(request: Request, session: Session = Depends(get_session)) -> HTMLR
 
 @router.get("/stocks", response_class=HTMLResponse)
 def stocks_index(request: Request, session: Session = Depends(get_session)) -> HTMLResponse:
-    """全站個股索引。存在的理由是內鏈：沒有這頁，個股頁對爬蟲是孤兒。
-
-    個股頁上線前先以純文字列出（模板內註記了改連結的位置）——本頁自己也是
-    可索引的內容（產業×收盤快照）。
-    """
+    """全站個股索引。存在的理由是內鏈：沒有這頁，個股頁對爬蟲是孤兒。"""
     dates = _latest_dates(session, 1)
     d0 = dates[0] if dates else None
 
@@ -152,3 +148,83 @@ def stocks_index(request: Request, session: Session = Depends(get_session)) -> H
         request, "stocks_index.html",
         {"cutoff": d0.isoformat() if d0 else "尚無資料",
          "total": len(rows), "groups": groups})
+
+
+@router.get("/stock/{stock_id}", response_class=HTMLResponse)
+def stock_page(stock_id: str, request: Request,
+               session: Session = Depends(get_session)) -> HTMLResponse:
+    """公開個股頁。內容邊界（分層設計待決事項的落地）：只放客觀資料——
+    行情/估值/月營收/季財報/股利/公司資料。買進區間、停損、評分、目標價、
+    支撐壓力一律不出現在匿名層；那些已進入「建議」的範疇，留在登入牆後。
+    """
+    stock = session.get(models.Stock, stock_id)
+    if stock is None:
+        raise HTTPException(404, "查無此股票")
+    sector = session.get(models.Sector, stock.sector_id) if stock.sector_id else None
+
+    # 行情：該股自己的最近兩個交易日（停牌股的最新價可能早於全市場最新日）
+    prices = session.execute(
+        select(models.DailyPrice).where(models.DailyPrice.stock_id == stock_id)
+        .order_by(models.DailyPrice.date.desc()).limit(2)
+    ).scalars().all()
+    p0 = prices[0] if prices else None
+    chg = None
+    if len(prices) == 2 and p0.close and prices[1].close:
+        chg = (p0.close / prices[1].close - 1) * 100
+
+    w52_high = w52_low = None
+    if p0 is not None:
+        w52_high, w52_low = session.execute(
+            select(func.max(models.DailyPrice.high), func.min(models.DailyPrice.low))
+            .where(models.DailyPrice.stock_id == stock_id,
+                   models.DailyPrice.date > p0.date - timedelta(days=365))
+        ).one()
+
+    quote = {
+        "close": p0.close if p0 else None,
+        "change_pct": chg,
+        "volume": p0.volume if p0 else None,
+        "turnover": p0.turnover if p0 else None,
+        "w52_high": w52_high,
+        "w52_low": w52_low,
+    }
+
+    valuation = session.execute(
+        select(models.Valuation).where(models.Valuation.stock_id == stock_id)
+        .order_by(models.Valuation.date.desc()).limit(1)
+    ).scalars().first()
+
+    profile = session.get(models.CompanyProfile, stock_id)
+    market_cap = None
+    if profile and profile.issued_shares and p0 and p0.close:
+        market_cap = profile.issued_shares * p0.close
+
+    revenues = session.execute(
+        select(models.RevenueMonthly).where(models.RevenueMonthly.stock_id == stock_id)
+        .order_by(models.RevenueMonthly.year.desc(), models.RevenueMonthly.month.desc())
+        .limit(12)
+    ).scalars().all()
+
+    quarters = session.execute(
+        select(models.FinancialQuarter).where(models.FinancialQuarter.stock_id == stock_id)
+        .order_by(models.FinancialQuarter.year.desc(), models.FinancialQuarter.quarter.desc())
+        .limit(8)
+    ).scalars().all()
+
+    dividends = session.execute(
+        select(models.Dividend).where(models.Dividend.stock_id == stock_id)
+        .order_by(models.Dividend.period.desc()).limit(6)
+    ).scalars().all()
+
+    return _templates.TemplateResponse(request, "stock.html", {
+        "cutoff": p0.date.isoformat() if p0 else "尚無資料",
+        "stock": stock,
+        "sector_name": sector.name if sector else None,
+        "quote": type("Q", (), quote)(),
+        "valuation": valuation,
+        "market_cap": market_cap,
+        "profile": profile,
+        "revenues": revenues,
+        "quarters": quarters,
+        "dividends": dividends,
+    })
