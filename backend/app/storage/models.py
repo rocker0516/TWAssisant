@@ -578,6 +578,31 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class UserStrategy(Base):
+    """回測實驗室的使用者自訂策略（spec 2026-08-20-backtest-lab）。
+
+    conditions＝AND 條件清單 JSON；is_active＝掛成進場推薦第三軌
+    （同一 user 至多一個 true，由 UserData.set_active_strategy 保證，
+    不靠 DB 約束——SQLite partial unique index 對既有庫遷移不友善）。
+    """
+    __tablename__ = "user_strategies"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(30), default="我的策略")
+    conditions: Mapped[list] = mapped_column(JSON, default=list)
+    sort_field: Mapped[str] = mapped_column(String(30), default="turnover")
+    sort_desc: Mapped[bool] = mapped_column(Boolean, default=True)
+    top_n: Mapped[int] = mapped_column(Integer, default=30)
+    target_pct: Mapped[float] = mapped_column(Float, default=10.0)
+    horizon_days: Mapped[int] = mapped_column(Integer, default=10)
+    stop_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(),
+                                                 onupdate=func.now())
+
+
 class EmailVerification(Base):
     """Email 驗證 token（一次性、有時效）。驗證成功即刪列。"""
 

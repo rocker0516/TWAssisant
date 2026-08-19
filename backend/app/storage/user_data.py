@@ -63,3 +63,48 @@ class UserData:
                 models.WatchlistItem.id == item_id,
                 models.WatchlistItem.user_id == self.user_id)
         ).scalars().first()
+
+    # ── strategies（回測實驗室）─────────────────────────
+
+    def strategies(self) -> list[models.UserStrategy]:
+        return list(self.session.execute(
+            select(models.UserStrategy)
+            .where(models.UserStrategy.user_id == self.user_id)
+            .order_by(models.UserStrategy.id)
+        ).scalars().all())
+
+    def strategy(self, sid: int) -> models.UserStrategy | None:
+        return self.session.execute(
+            select(models.UserStrategy).where(
+                models.UserStrategy.id == sid,
+                models.UserStrategy.user_id == self.user_id)
+        ).scalars().first()
+
+    def active_strategy(self) -> models.UserStrategy | None:
+        return self.session.execute(
+            select(models.UserStrategy).where(
+                models.UserStrategy.user_id == self.user_id,
+                models.UserStrategy.is_active == True)  # noqa: E712
+        ).scalars().first()
+
+    def create_strategy(self, **fields) -> models.UserStrategy:
+        st = models.UserStrategy(user_id=self.user_id, **fields)
+        self.session.add(st)
+        self.session.flush()  # 讓呼叫端立刻拿到 id
+        return st
+
+    def set_active_strategy(self, sid: int) -> models.UserStrategy | None:
+        """啟用 sid、同 user 其他全關。回 None＝非本人策略。"""
+        target = self.strategy(sid)
+        if target is None:
+            return None
+        for st in self.strategies():
+            st.is_active = st.id == sid
+        return target
+
+    def delete_strategy(self, sid: int) -> bool:
+        st = self.strategy(sid)
+        if st is None:
+            return False
+        self.session.delete(st)
+        return True
