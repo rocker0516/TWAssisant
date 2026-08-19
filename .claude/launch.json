@@ -2,35 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "backend",
-      "runtimeExecutable": "backend/.venv/Scripts/uvicorn.exe",
-      "runtimeArgs": ["app.main:app", "--app-dir", "backend", "--port", "8000"],
-      "port": 8000
-    },
-    {
-      "name": "backend-verify",
-      "runtimeExecutable": "powershell",
-      "runtimeArgs": [
-        "-NoProfile", "-Command",
-        "$env:TWA_AUTH_PASSWORD=''; & backend/.venv/Scripts/uvicorn.exe app.main:app --app-dir backend --port 8001"
-      ],
-      "port": 8001
-    },
-    {
-      "name": "backend-noauth-8000",
-      "runtimeExecutable": "powershell",
-      "runtimeArgs": [
-        "-NoProfile", "-Command",
-        "$env:TWA_AUTH_PASSWORD=''; & backend/.venv/Scripts/uvicorn.exe app.main:app --app-dir backend --port 8000"
-      ],
-      "port": 8000
-    },
-    {
-      "name": "frontend",
+      "name": "web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
-      "port": 5173,
-      "autoPort": true
+      "runtimeArgs": ["run", "dev", "--prefix", "frontend"],
+      "port": 5173
     }
   ]
 }

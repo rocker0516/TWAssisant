@@ -244,7 +244,7 @@ export default function RecommendationsPage() {
 
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-6">
+    <div className="w-full px-6 py-6">
       <div className="mb-4 flex items-end justify-between">
         <div>
           <h1 className="text-xl font-bold">進場推薦</h1>

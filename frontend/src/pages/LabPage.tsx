@@ -45,7 +45,7 @@ export default function LabPage() {
   const since = useMemo(() => sinceOf(range), [range]);
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-6">
+    <div className="w-full px-6 py-6">
       <div className="mb-1 flex items-center justify-between">
         <h1 className="text-xl font-bold">策略室</h1>
         <div className="flex gap-1">

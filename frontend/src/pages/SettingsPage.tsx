@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  useMe,
   usePoppableEfficacy,
   useRecompute,
   useRecomputePoppableEfficacy,
@@ -16,6 +17,7 @@ import { CATEGORY_LABELS, changeColor } from "../lib/format";
 import { applyTheme, getStoredTheme, type Theme } from "../lib/theme";
 
 const SECTIONS = [
+  { key: "account", label: "帳號" },
   { key: "data", label: "資料更新" },
   { key: "scoring", label: "評分與推薦" },
   { key: "sector", label: "類股方向" },
@@ -50,7 +52,8 @@ export default function SettingsPage() {
   const update = useUpdateSettings();
   const reset = useResetSettings();
   const recompute = useRecompute();
-  const [section, setSection] = useState<string>("scoring");
+  // 預設落在「帳號」——側欄底部帳號卡是本頁的主要入口。
+  const [section, setSection] = useState<string>("account");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [draft, setDraft] = useState<any>(null);
   const [draftFor, setDraftFor] = useState<string | null>(null);
@@ -80,7 +83,7 @@ export default function SettingsPage() {
     return <div className="p-6 text-muted">載入中…</div>;
 
   return (
-    <div className="mx-auto flex max-w-6xl gap-6 px-6 py-6">
+    <div className="flex w-full gap-6 px-6 py-6">
       <aside className="w-40 shrink-0">
         <h1 className="mb-3 text-xl font-bold">設定</h1>
         <nav className="flex flex-col gap-0.5">
@@ -171,7 +174,10 @@ export default function SettingsPage() {
         {/* 一般（主題）*/}
         {section === "general" && <GeneralPanel />}
 
-        {section !== "data" && section !== "sources" && section !== "general" && section !== "poppable_efficacy" && (
+        {/* 帳號 */}
+        {section === "account" && <AccountPanel />}
+
+        {section !== "data" && section !== "sources" && section !== "general" && section !== "poppable_efficacy" && section !== "account" && (
           <div className="mt-5 flex items-center gap-3">
             <button onClick={save} disabled={update.isPending || recompute.isPending}
               className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium disabled:opacity-50">
@@ -505,6 +511,87 @@ function PoppableEfficacyPanel() {
       )}
 
       {has && eff!.note && <p className="text-xs leading-relaxed text-muted">{eff!.note}</p>}
+    </div>
+  );
+}
+
+function AccountPanel() {
+  const { data: me, isLoading } = useMe();
+  const [pending, setPending] = useState<"logout" | "logout-all" | null>(null);
+
+  const doLogout = async (all: boolean) => {
+    setPending(all ? "logout-all" : "logout");
+    await fetch(`/api/auth/${all ? "logout-all" : "logout"}`, { method: "POST" }).catch(() => {});
+    window.location.href = "/login";
+  };
+
+  if (isLoading) return <div className="text-muted">載入中…</div>;
+
+  // 本機無登入牆模式：沒有帳號可顯示。
+  if (!me?.auth_enabled) {
+    return (
+      <div className="rounded-xl border border-edge bg-panel p-4 text-sm text-muted">
+        目前為本機模式（未啟用登入），沒有帳號資訊。
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-xl border border-edge bg-panel p-4">
+        <div className="mb-3 font-semibold">帳號資訊</div>
+        <div className="flex flex-col gap-2 text-sm">
+          <div className="flex items-center gap-3">
+            <span className="w-16 text-muted">Email</span>
+            <span>{me.email}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="w-16 text-muted">方案</span>
+            <span
+              className={`rounded px-1.5 py-0.5 text-xs font-medium ${
+                me.tier === "pro" ? "bg-amber-900/60 text-amber-300" : "bg-panel2 text-gray-300"
+              }`}
+            >
+              {me.tier === "pro" ? "Pro" : "Free"}
+            </span>
+          </div>
+          {me.role === "admin" && (
+            <div className="flex items-center gap-3">
+              <span className="w-16 text-muted">權限</span>
+              <span className="rounded bg-sky-900/50 px-1.5 py-0.5 text-xs text-sky-300">管理員</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-edge bg-panel p-4">
+        <div className="mb-1 font-semibold">密碼</div>
+        <p className="mb-3 text-sm text-muted">透過 Email 重設連結更改密碼（重設後所有裝置需重新登入）。</p>
+        <a href="/forgot" className="rounded-md bg-panel2 px-3 py-1.5 text-sm hover:bg-edge">
+          寄送重設密碼信
+        </a>
+      </div>
+
+      <div className="rounded-xl border border-edge bg-panel p-4">
+        <div className="mb-3 font-semibold">登出</div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => doLogout(false)}
+            disabled={pending !== null}
+            className="rounded-md bg-panel2 px-4 py-2 text-sm hover:bg-edge disabled:opacity-50"
+          >
+            {pending === "logout" ? "登出中…" : "登出"}
+          </button>
+          <button
+            onClick={() => doLogout(true)}
+            disabled={pending !== null}
+            className="rounded-md px-4 py-2 text-sm text-down hover:bg-panel2 disabled:opacity-50"
+          >
+            {pending === "logout-all" ? "登出中…" : "登出所有裝置"}
+          </button>
+          <span className="text-xs text-muted">登出所有裝置＝所有已登入的瀏覽器立即失效。</span>
+        </div>
+      </div>
     </div>
   );
 }

@@ -60,7 +60,7 @@ export default function HoldingsPage() {
   const del = useDeleteHolding();
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-6">
+    <div className="w-full px-6 py-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-bold">我的持股</h1>
         <button onClick={() => setModal({ kind: "new" })} className="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium">

@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { useMe } from "../api/client";
 import { FloatingAssistant } from "./FloatingAssistant";
 import { StockSearch } from "./StockSearch";
 
@@ -14,13 +15,53 @@ const NAV: NavItem[] = [
   { to: "/holdings", label: "我的持股", icon: "💼", enabled: true },
   { to: "/watchlists", label: "觀察清單", icon: "⭐", enabled: true },
   { to: "/lab", label: "策略室", icon: "🧪", enabled: true },
-  { to: "/settings", label: "設定", icon: "⚙️", enabled: true },
 ];
+
+// 側欄底部帳號卡＝設定入口（帳號與偏好同在設定頁）。
+// 無登入牆的本機模式沒有 user，退化成單純「設定」入口。
+function AccountCard() {
+  const { data: me } = useMe();
+  const authed = me?.auth_enabled && me?.authenticated;
+  return (
+    <NavLink
+      to="/settings"
+      title="帳號與設定"
+      className={({ isActive }) =>
+        `flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition ${
+          isActive
+            ? "border-sky-800 bg-sky-900/50 text-sky-200"
+            : "border-edge bg-panel2/50 text-gray-300 hover:border-sky-800/60 hover:bg-panel2"
+        }`
+      }
+    >
+      <span>{authed ? "👤" : "⚙️"}</span>
+      {authed ? (
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate leading-tight" title={me!.email ?? undefined}>{me!.email}</span>
+          <span className="flex items-center gap-1.5 text-[10px] leading-tight text-muted">
+            <span
+              className={`rounded px-1 font-medium ${
+                me!.tier === "pro" ? "bg-amber-900/60 text-amber-300" : "bg-edge/60 text-gray-400"
+              }`}
+            >
+              {me!.tier === "pro" ? "Pro" : "Free"}
+            </span>
+            帳號與設定
+          </span>
+        </span>
+      ) : (
+        <span className="flex-1">設定</span>
+      )}
+      {authed && <span aria-hidden className="shrink-0 text-muted">⚙️</span>}
+    </NavLink>
+  );
+}
 
 export default function Layout() {
   return (
     <div className="flex min-h-screen">
-      <aside className="flex w-52 shrink-0 flex-col border-r border-edge bg-panel">
+      {/* sticky＋h-screen：內容頁再長，側欄都只占一屏、帳號卡固定在視窗左下。 */}
+      <aside className="sticky top-0 flex h-screen w-52 shrink-0 flex-col overflow-y-auto border-r border-edge bg-panel">
         <div className="px-4 py-5">
           <div className="text-lg font-bold">TWAssistant</div>
           <div className="text-xs text-muted">台股操作助手</div>
@@ -57,16 +98,7 @@ export default function Layout() {
           )}
         </nav>
         <div className="mt-auto px-2 pb-4">
-          <button
-            onClick={async () => {
-              await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
-              window.location.href = "/login";
-            }}
-            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-400 transition hover:bg-panel2 hover:text-gray-200"
-          >
-            <span>🚪</span>
-            登出
-          </button>
+          <AccountCard />
         </div>
       </aside>
       <main className="flex-1 overflow-x-hidden">

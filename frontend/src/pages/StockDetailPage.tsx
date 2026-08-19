@@ -1211,7 +1211,7 @@ export default function StockDetailPage() {
   const sideMods = visibleIn("side");
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-6">
+    <div className="w-full px-6 py-6">
       <Link to="/recommendations" className="text-sm text-sky-400 hover:underline">
         ← 進場推薦
       </Link>

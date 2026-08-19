@@ -680,6 +680,26 @@ export function useIntel(filter: IntelFilter = {}) {
   });
 }
 
+// ── 帳號 ──
+
+// /auth/me 回傳三態：無登入牆（auth_enabled=false）／未登入／已登入。
+// 不在 openapi schema（後端回 dict），手寫小型別。
+export type Me = {
+  authenticated: boolean;
+  auth_enabled: boolean;
+  email?: string | null;
+  tier?: string | null;   // free / pro
+  role?: string | null;   // user / admin
+};
+
+export function useMe() {
+  return useQuery({
+    queryKey: ["me"],
+    queryFn: () => getJson<Me>("/auth/me"),
+    staleTime: 5 * 60 * 1000, // 身分很少變，登入/登出都會整頁導向
+  });
+}
+
 // ── 設定 ──
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
