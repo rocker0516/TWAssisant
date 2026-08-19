@@ -3,7 +3,7 @@
 {% block description %}{{ day.isoformat() }} 台股盤後：加權指數、成交額、漲跌家數、三大法人、類股強弱與重要消息。{% endblock %}
 {% block content %}
 
-<div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-top: 34px;">
+<div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-top: 8px;">
   <h1 style="margin: 0;">{{ day.isoformat() }} 盤後報告</h1>
   <span style="display: flex; gap: 6px; font-size: 13px;">
     {% if prev_day %}<a class="code" href="/daily/{{ prev_day.isoformat() }}"
