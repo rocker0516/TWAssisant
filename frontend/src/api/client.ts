@@ -680,6 +680,72 @@ export function useIntel(filter: IntelFilter = {}) {
   });
 }
 
+// ── 回測實驗室 ──
+
+export type Condition = { field: string; op: string; value: number | { n: number; threshold: number } };
+export type Strategy = {
+  id: number; name: string; conditions: Condition[];
+  sort_field: string; sort_desc: boolean; top_n: number;
+  target_pct: number; horizon_days: number; stop_pct: number | null; is_active: boolean;
+};
+export type FieldMeta = { key: string; label: string; group: string; unit: string };
+export type BacktestResult = {
+  samples: number; hits: number; hit_rate: number | null; base_rate: number | null;
+  lift: number | null; avg_max_drawdown: number | null;
+  monthly: { month: string; samples: number; hits: number }[];
+  recent: { date: string; stock_id: string; name: string; entry: number; hit: boolean;
+            stopped: boolean; max_gain_pct: number; max_dd_pct: number }[];
+  warn_loose: boolean; signal_days: number;
+};
+export type StrategyDaily = {
+  strategy: Strategy | null; date: string | null;
+  items: { stock_id: string; name: string; close: number | null; sort_value: number | null }[];
+};
+
+export function useStrategyFields() {
+  return useQuery({ queryKey: ["strategy-fields"], staleTime: Infinity,
+    queryFn: () => getJson<FieldMeta[]>("/lab/strategies/fields") });
+}
+export function useStrategies() {
+  return useQuery({ queryKey: ["strategies"],
+    queryFn: () => getJson<Strategy[]>("/lab/strategies/") });
+}
+function useStrategyMutation<T, A>(fn: (a: A) => Promise<T>) {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: fn, onSuccess: () => {
+    qc.invalidateQueries({ queryKey: ["strategies"] });
+    qc.invalidateQueries({ queryKey: ["strategy-daily"] });
+  }});
+}
+export function useCreateStrategy() {
+  return useStrategyMutation((body: Partial<Strategy>) =>
+    sendJson<Strategy>("POST", "/lab/strategies/", body));
+}
+export function usePatchStrategy() {
+  return useStrategyMutation(({ id, ...body }: Partial<Strategy> & { id: number; clear_stop?: boolean }) =>
+    sendJson<Strategy>("PATCH", `/lab/strategies/${id}`, body));
+}
+export function useDeleteStrategy() {
+  return useStrategyMutation((id: number) =>
+    sendJson<{ ok: boolean }>("DELETE", `/lab/strategies/${id}`));
+}
+export function useActivateStrategy() {
+  return useStrategyMutation((id: number) =>
+    sendJson<Strategy>("POST", `/lab/strategies/${id}/activate`));
+}
+export function useDeactivateStrategy() {
+  return useStrategyMutation(() =>
+    sendJson<{ ok: boolean }>("POST", "/lab/strategies/deactivate"));
+}
+export function useBacktest() {
+  return useMutation({ mutationFn: ({ id, start, end }: { id: number; start: string; end: string }) =>
+    sendJson<BacktestResult>("POST", `/lab/strategies/${id}/backtest`, { start, end }) });
+}
+export function useActiveStrategyDaily() {
+  return useQuery({ queryKey: ["strategy-daily"],
+    queryFn: () => getJson<StrategyDaily>("/lab/strategies/active/daily") });
+}
+
 // ── 帳號 ──
 
 // /auth/me 回傳三態：無登入牆（auth_enabled=false）／未登入／已登入。
