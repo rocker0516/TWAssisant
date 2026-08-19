@@ -14,7 +14,7 @@ import {
   type Strategy,
 } from "../api/client";
 import { inputCls } from "../components/Modal";
-import { changeColor, fmtPct } from "../lib/format";
+import { fmtPct } from "../lib/format";
 
 // 簡單模式模板：編譯成 conditions，套用後仍可在條件列微調（模板只是起步值，不鎖死）。
 const TEMPLATES: { name: string; desc: string; conditions: Condition[] }[] = [
@@ -506,8 +506,8 @@ function ResultPanel({ result: r }: { result: BacktestResult }) {
         {cell("命中率", r.hit_rate != null ? fmtPct(r.hit_rate * 100) : "—",
           r.hit_rate != null && r.base_rate != null && r.hit_rate >= r.base_rate ? "text-up" : undefined)}
         {cell("基率", r.base_rate != null ? fmtPct(r.base_rate * 100) : "—")}
-        {cell("lift", r.lift != null ? `${r.lift > 0 ? "+" : ""}${r.lift.toFixed(1)}pp` : "—",
-          r.lift != null ? changeColor(r.lift) : undefined)}
+        {cell("lift · vs 全市場基率", r.lift != null ? `×${r.lift.toFixed(2)}` : "—",
+          r.lift != null ? (r.lift >= 1 ? "text-up" : "text-down") : undefined)}
         {cell("樣本數", `${r.hits}/${r.samples}`)}
       </div>
 

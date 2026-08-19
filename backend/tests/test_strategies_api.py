@@ -200,3 +200,91 @@ def test_patch_with_invalid_sort_field_is_400(client, two_users):
         "sort_field": "does_not_exist",
     })
     assert r.status_code == 400
+
+
+# ── F2 審查回歸：條件 value 型別不合法（dict 塞進 gt、壞 streak）→ 400 ──
+
+
+def test_create_with_dict_value_on_comparison_op_is_400(client, two_users):
+    client.cookies.set(auth.SESSION_COOKIE, two_users["a"][1])
+    r = client.post(_BASE + "/", json={
+        "name": "壞型別條件",
+        "conditions": [{"field": "close", "op": "gt", "value": {}}],
+        "sort_field": "turnover", "sort_desc": True, "top_n": 30,
+        "target_pct": 10.0, "horizon_days": 10, "stop_pct": None,
+    })
+    assert r.status_code == 400
+    listed = client.get(_BASE + "/").json()
+    assert not any(s["name"] == "壞型別條件" for s in listed)
+
+
+def test_create_with_streak_n_zero_is_400(client, two_users):
+    client.cookies.set(auth.SESSION_COOKIE, two_users["a"][1])
+    r = client.post(_BASE + "/", json={
+        "name": "壞streak",
+        "conditions": [{"field": "close", "op": "streak_gt",
+                        "value": {"n": 0, "threshold": 1}}],
+        "sort_field": "turnover", "sort_desc": True, "top_n": 30,
+        "target_pct": 10.0, "horizon_days": 10, "stop_pct": None,
+    })
+    assert r.status_code == 400
+
+
+def test_create_with_streak_n_non_int_is_400(client, two_users):
+    client.cookies.set(auth.SESSION_COOKIE, two_users["a"][1])
+    r = client.post(_BASE + "/", json={
+        "name": "壞streak2",
+        "conditions": [{"field": "close", "op": "streak_gt",
+                        "value": {"n": "abc", "threshold": 1}}],
+        "sort_field": "turnover", "sort_desc": True, "top_n": 30,
+        "target_pct": 10.0, "horizon_days": 10, "stop_pct": None,
+    })
+    assert r.status_code == 400
+
+
+def test_patch_with_dict_value_on_comparison_op_is_400(client, two_users):
+    client.cookies.set(auth.SESSION_COOKIE, two_users["a"][1])
+    created = _create_strategy(client, "待改壞型別")
+    r = client.patch(f"{_BASE}/{created['id']}", json={
+        "conditions": [{"field": "close", "op": "gt", "value": {"n": 1}}],
+    })
+    assert r.status_code == 400
+    r2 = client.get(_BASE + "/")
+    st = next(s for s in r2.json() if s["id"] == created["id"])
+    assert st["conditions"] == created["conditions"]
+
+
+# ── F3 審查回歸：數值欄位無邊界 → 打爆後端；改為 422 ──────────
+
+
+def test_create_with_huge_horizon_days_is_422(client, two_users):
+    client.cookies.set(auth.SESSION_COOKIE, two_users["a"][1])
+    r = client.post(_BASE + "/", json={
+        "name": "巨大horizon",
+        "conditions": [{"field": "close", "op": "gt", "value": 0}],
+        "sort_field": "turnover", "sort_desc": True, "top_n": 30,
+        "target_pct": 10.0, "horizon_days": 1000000, "stop_pct": None,
+    })
+    assert r.status_code == 422
+    listed = client.get(_BASE + "/").json()
+    assert not any(s["name"] == "巨大horizon" for s in listed)
+
+
+def test_create_with_huge_top_n_is_422(client, two_users):
+    client.cookies.set(auth.SESSION_COOKIE, two_users["a"][1])
+    r = client.post(_BASE + "/", json={
+        "name": "巨大topn",
+        "conditions": [{"field": "close", "op": "gt", "value": 0}],
+        "sort_field": "turnover", "sort_desc": True, "top_n": 999999,
+        "target_pct": 10.0, "horizon_days": 10, "stop_pct": None,
+    })
+    assert r.status_code == 422
+
+
+def test_patch_with_huge_horizon_days_is_422(client, two_users):
+    client.cookies.set(auth.SESSION_COOKIE, two_users["a"][1])
+    created = _create_strategy(client, "待改horizon")
+    r = client.patch(f"{_BASE}/{created['id']}", json={
+        "horizon_days": 1000000,
+    })
+    assert r.status_code == 422

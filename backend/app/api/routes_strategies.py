@@ -128,9 +128,9 @@ def backtest(sid: int, body: schemas.BacktestRequest,
         r = se.run_backtest(
             session, st.conditions, st.sort_field, st.sort_desc, st.top_n,
             st.target_pct, st.horizon_days, st.stop_pct, body.start, body.end)
-    except (ValueError, KeyError) as exc:
-        # 舊資料（建立當下未擋、或欄位表後續調整）可能帶未知欄位/排序鍵——
-        # 一律轉 400，不讓引擎內部的 KeyError/ValueError 漏成 500。
+    except (ValueError, KeyError, TypeError) as exc:
+        # 舊資料（建立當下未擋、或欄位表後續調整；或條件 value 型別不合法）可能
+        # 帶未知欄位/排序鍵/壞型別——一律轉 400，不讓引擎內部的例外漏成 500。
         raise HTTPException(400, f"策略設定無效：{exc}") from exc
     return schemas.BacktestResponse(**r.__dict__)
 
@@ -153,8 +153,8 @@ def active_daily(ud: UserData = Depends(get_user_data),
     try:
         cands = se.evaluate(session, st.conditions, [latest]).get(latest, [])
         sort_s = se.FIELD_REGISTRY[st.sort_field].loader(session, [latest])
-    except (ValueError, KeyError) as exc:
-        # 同 backtest：舊資料可能帶未知欄位/排序鍵，轉 400 不讓 500 漏出。
+    except (ValueError, KeyError, TypeError) as exc:
+        # 同 backtest：舊資料可能帶未知欄位/排序鍵/壞型別，轉 400 不讓 500 漏出。
         raise HTTPException(400, f"策略設定無效：{exc}") from exc
     cands = sorted(cands, key=lambda s: sort_s.get((s, latest), float("-inf")),
                    reverse=st.sort_desc)[: st.top_n]

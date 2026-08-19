@@ -9,7 +9,7 @@ import datetime as _dt
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class RecommendationDetail(BaseModel):
@@ -1333,10 +1333,10 @@ class StrategyCreate(BaseModel):
     conditions: list[ConditionDTO] = []
     sort_field: str = "turnover"
     sort_desc: bool = True
-    top_n: int = 30
-    target_pct: float = 10.0
-    horizon_days: int = 10
-    stop_pct: float | None = None
+    top_n: int = Field(30, ge=1, le=200)
+    target_pct: float = Field(10.0, ge=0.1, le=100)
+    horizon_days: int = Field(10, ge=1, le=60)
+    stop_pct: float | None = Field(None, ge=0.1, le=100)
 
 
 class StrategyPatch(BaseModel):
@@ -1344,10 +1344,10 @@ class StrategyPatch(BaseModel):
     conditions: list[ConditionDTO] | None = None
     sort_field: str | None = None
     sort_desc: bool | None = None
-    top_n: int | None = None
-    target_pct: float | None = None
-    horizon_days: int | None = None
-    stop_pct: float | None = None
+    top_n: int | None = Field(None, ge=1, le=200)
+    target_pct: float | None = Field(None, ge=0.1, le=100)
+    horizon_days: int | None = Field(None, ge=1, le=60)
+    stop_pct: float | None = Field(None, ge=0.1, le=100)
     clear_stop: bool = False  # PATCH 語意下 null 無法表達「清掉停損」，用旗標；
     # 與顯式 stop_pct 同時提交時 clear_stop 優先（見 routes_strategies.patch_strategy）
 

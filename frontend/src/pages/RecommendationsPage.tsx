@@ -104,7 +104,10 @@ export default function RecommendationsPage() {
   // 風格改標籤制（2026-07-28）：不再分頁切換，清單=會噴候選∪風格股，
   // 每檔卡片顯示標籤（會噴/爆發/強勢延伸/故事股/深跌反攻），標籤越多排越前。
   // 回看只支援波段軌；切到長線軌時自動回到今天；displayTrack 已處理 custom fallback
-  const effTrack: Track = selectedLookbackDate ? "wave" : (displayTrack as Track);
+  // custom 頁籤本身不打 /recommendations（清單另外用 useActiveStrategyDaily），
+  // 但 useRecommendations 仍需要合法 track，固定回 wave 避免 422（後端 track pattern ^(wave|long)$）
+  const effTrack: Track =
+    selectedLookbackDate || displayTrack === "custom" ? "wave" : (displayTrack as Track);
   const effStyle: WaveStyle = "pop";
   const { data, isLoading, isError, error } = useRecommendations(effTrack, effStyle);
   const { data: tagStats } = useTagComboStats();
@@ -535,7 +538,7 @@ export default function RecommendationsPage() {
       {(isLookback ? lookback.isLoading : isLoading) && <p className="text-muted">載入中…</p>}
       {isLookback
         ? lookback.isError && <p className="text-down">載入失敗：{(lookback.error as Error)?.message}</p>
-        : isError && <p className="text-down">載入失敗：{(error as Error).message}</p>}
+        : displayTrack !== "custom" && isError && <p className="text-down">載入失敗：{(error as Error).message}</p>}
 
       {isLookback && lookback.data && lookback.data.lookback_date == null && (
         <div className="rounded-xl border border-dashed border-edge py-16 text-center text-sm leading-relaxed text-muted">

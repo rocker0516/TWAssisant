@@ -214,6 +214,11 @@ def trading_dates(session: Session, start: date, end: date) -> list[date]:
     return list(rows)
 
 
+def _is_number(x) -> bool:
+    # bool 是 int 的子類別，排除掉避免 True/False 被當成 1/0 混進數值條件
+    return isinstance(x, (int, float)) and not isinstance(x, bool)
+
+
 def _validate(conditions: list[dict]) -> None:
     for c in conditions:
         if c.get("field") not in FIELD_REGISTRY:
@@ -224,6 +229,14 @@ def _validate(conditions: list[dict]) -> None:
             v = c.get("value")
             if not isinstance(v, dict) or "n" not in v or "threshold" not in v:
                 raise ValueError("streak op 的 value 需為 {n, threshold}")
+            n = v["n"]
+            if not isinstance(n, int) or isinstance(n, bool) or n < 1:
+                raise ValueError("streak op 的 n 需為 ≥1 的整數")
+            if not _is_number(v["threshold"]):
+                raise ValueError("streak op 的 threshold 需為數值")
+        else:
+            if not _is_number(c.get("value")):
+                raise ValueError(f"{c['op']} 的 value 需為數值")
 
 
 def validate_strategy(conditions: list[dict], sort_field: str) -> None:
