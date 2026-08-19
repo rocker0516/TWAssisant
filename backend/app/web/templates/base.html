@@ -10,80 +10,74 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
   <style>
-    /* 夜航儀表：近黑底＋電光青品牌色，紅綠只留給漲跌（品牌與語意分離）。
-       一切內容都是卡片：hover 浮起、進頁逐張淡入。單一主題（深色）。 */
+    /* 與登入後 SPA 同一套視覺 token（frontend/src/index.css＋tailwind.config）：
+       panel 色系、sky 藍 accent、紅漲綠跌、rounded-xl 卡片、無光暈。
+       結構仍是 top-nav（內容頁的正確形狀），但看起來要像同一個產品。 */
     :root {
-      --bg:      #0A0E14;
-      --card:    #10161F;
-      --card-2:  #151D28;   /* hover/表頭 */
-      --ink:     #E9EEF3;
-      --ink-2:   #93A3B1;
-      --ink-3:   #5B6B79;
-      --line:    #1D2835;   /* 卡框/髮絲線 */
-      --line-2:  #2C3E52;   /* hover 卡框 */
-      --brand:   #3ECBFF;   /* 電光青＝品牌 */
-      --up:      #FF5D5D;   /* 漲 */
-      --down:    #35D6A0;   /* 跌 */
+      --bg:      #0F1115;   /* = SPA --c-bg */
+      --card:    #181B22;   /* = --c-panel */
+      --card-2:  #1F232C;   /* = --c-panel2（hover/表頭） */
+      --ink:     #E6E8EE;   /* = --c-text */
+      --ink-2:   #8B93A7;   /* = --c-muted */
+      --ink-3:   #646E7D;
+      --line:    #2A2F3A;   /* = --c-edge */
+      --line-2:  #3B4250;   /* hover 卡框 */
+      --brand:   #38BDF8;   /* sky-400＝SPA accent */
+      --brand-2: #7DD3FC;   /* sky-300＝連結/文字 accent */
+      --up:      #F87171;   /* red-400（台股紅漲） */
+      --down:    #34D399;   /* emerald-400（綠跌） */
       --sans: "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", system-ui, sans-serif;
       --mono: "Cascadia Mono", ui-monospace, "Consolas", monospace;
     }
     * { box-sizing: border-box; }
     body {
-      margin: 0; color: var(--ink);
-      background: var(--bg);
-      background-image: radial-gradient(60% 42% at 50% -12%, rgba(62, 203, 255, .075), transparent 70%);
-      background-repeat: no-repeat;
+      margin: 0; color: var(--ink); background: var(--bg);
       font-family: var(--sans); font-size: 15px; line-height: 1.75;
     }
 
-    header.site { max-width: 1060px; margin: 0 auto; padding: 22px 22px 0; }
-    .masthead { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+    /* 頂欄：同 SPA sidebar 的 panel 材質（panel 底＋edge 邊線） */
+    header.site { background: var(--card); border-bottom: 1px solid var(--line); }
+    .shell { max-width: 1060px; margin: 0 auto; padding: 0 22px; }
+    .masthead { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; padding: 13px 0; }
     .masthead .brand {
-      font-size: 19px; font-weight: 900; letter-spacing: .02em;
-      color: var(--ink); text-decoration: none; display: flex; align-items: center; gap: 9px;
+      color: var(--ink); text-decoration: none; line-height: 1.25;
     }
-    .masthead .brand::before {
-      content: ""; width: 9px; height: 9px; border-radius: 3px;
-      background: var(--brand); box-shadow: 0 0 12px rgba(62, 203, 255, .8);
-    }
-    .masthead nav { display: flex; gap: 4px; font-size: 13.5px; }
+    .masthead .brand .t { font-size: 17px; font-weight: 700; display: block; }
+    .masthead .brand .s { font-size: 11px; color: var(--ink-2); display: block; }
+    .masthead nav { display: flex; gap: 2px; font-size: 13.5px; flex-wrap: wrap; }
     .masthead nav a {
-      color: var(--ink-2); text-decoration: none; padding: 5px 12px; border-radius: 7px;
+      color: var(--ink-2); text-decoration: none; padding: 6px 12px; border-radius: 8px;
       transition: color .15s, background .15s;
     }
     .masthead nav a:hover { color: var(--ink); background: var(--card-2); }
+    .masthead nav a.active { color: var(--brand-2); background: rgba(12, 74, 110, .5); } /* = SPA bg-sky-900/50 text-sky-200 */
     .masthead .login { margin-left: auto; }
     .masthead .login a {
-      color: var(--bg); background: var(--brand); text-decoration: none; font-size: 13px;
-      font-weight: 700; padding: 6px 18px; border-radius: 8px;
-      transition: transform .15s, box-shadow .15s;
+      color: #fff; background: #0284C7; text-decoration: none; font-size: 13px;
+      font-weight: 700; padding: 7px 18px; border-radius: 8px; transition: background .15s;
     }
-    .masthead .login a:hover { transform: translateY(-1px); box-shadow: 0 4px 18px rgba(62, 203, 255, .35); }
-    .dateline { display: flex; align-items: center; gap: 12px; padding: 14px 0 0; font-size: 12.5px; color: var(--ink-3); }
+    .masthead .login a:hover { background: #0EA5E9; }
+    .dateline { display: flex; align-items: center; gap: 12px; padding: 8px 0 10px; font-size: 12.5px; color: var(--ink-3); }
     .stamp {
       display: inline-flex; align-items: center; gap: 7px;
-      color: var(--ink-2); border: 1px solid var(--line); background: var(--card);
+      color: var(--ink-2); border: 1px solid var(--line); background: var(--card-2);
       border-radius: 999px; font-size: 12px; letter-spacing: .05em; padding: 2px 13px;
       font-variant-numeric: tabular-nums; white-space: nowrap;
     }
     .stamp::before {
-      content: ""; width: 6px; height: 6px; border-radius: 50%;
-      background: var(--brand); box-shadow: 0 0 8px rgba(62, 203, 255, .9);
+      content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--brand);
     }
 
-    main { max-width: 1060px; margin: 0 auto; padding: 4px 22px 72px; }
+    main { max-width: 1060px; margin: 0 auto; padding: 12px 22px 72px; }
     h1 { font-size: 27px; font-weight: 900; letter-spacing: .01em; margin: 28px 0 6px; }
     h2 { font-size: 15px; font-weight: 700; letter-spacing: .05em; margin: 30px 0 10px; color: var(--ink-2); }
 
-    /* ── 卡片 ── */
+    /* ── 卡片：同 SPA 的 rounded-xl＋edge 邊框，hover 只變邊色（不浮起） ── */
     .tbl, .boards > section, .stats {
-      background: var(--card); border: 1px solid var(--line); border-radius: 13px;
-      transition: border-color .18s, transform .18s, box-shadow .18s;
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+      transition: border-color .15s;
     }
-    .tbl:hover, .boards > section:hover {
-      border-color: var(--line-2); transform: translateY(-2px);
-      box-shadow: 0 8px 30px rgba(0, 0, 0, .35);
-    }
+    .tbl:hover, .boards > section:hover { border-color: var(--line-2); }
     .tbl { overflow-x: auto; }
     .boards { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
     .boards > section { padding: 16px 6px 6px; }
@@ -97,10 +91,10 @@
       padding: 4px; gap: 4px; background: none; border: 0;
     }
     .stat {
-      background: var(--card); border: 1px solid var(--line); border-radius: 11px;
-      padding: 12px 16px 10px; transition: border-color .18s, transform .18s;
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+      padding: 12px 16px 10px; transition: border-color .15s;
     }
-    .stat:hover { border-color: var(--line-2); transform: translateY(-2px); }
+    .stat:hover { border-color: var(--line-2); }
     .stat .k { font-size: 11.5px; color: var(--ink-3); letter-spacing: .1em; }
     .stat .v { font-size: 21px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.35; }
 
@@ -115,10 +109,10 @@
     .up { color: var(--up); }
     .down { color: var(--down); }
     a.code { color: var(--ink); text-decoration: none; }
-    a.code:hover { color: var(--brand); }
+    a.code:hover { color: var(--brand-2); }
     td:first-child, .mono { font-family: var(--mono); font-size: 12.5px; color: var(--ink-3); }
     td:first-child a.code { color: var(--ink-3); }
-    td:first-child a.code:hover { color: var(--brand); }
+    td:first-child a.code:hover { color: var(--brand-2); }
 
     /* 進頁動效：主欄直屬子元素逐個淡入上浮 */
     @media (prefers-reduced-motion: no-preference) {
@@ -143,26 +137,29 @@
   </style>
 </head>
 <body>
+  {% set path = request.url.path %}
   <header class="site">
-    <div class="masthead">
-      <a class="brand" href="/">TWAssistant</a>
-      <nav>
-        <a href="/daily">每日盤後</a>
-        <a href="/rankings">排行榜</a>
-        <a href="/sectors">類股</a>
-        <a href="/revenue">月營收</a>
-        <a href="/dividends">除權息</a>
-        <a href="/track-record">戰績</a>
-        <a href="/stocks">個股索引</a>
-      </nav>
-      <span class="login"><a href="/login">登入</a></span>
+    <div class="shell">
+      <div class="masthead">
+        <a class="brand" href="/"><span class="t">TWAssistant</span><span class="s">台股操作助手</span></a>
+        <nav>
+          <a href="/daily" class="{{ 'active' if path.startswith('/daily') }}">每日盤後</a>
+          <a href="/rankings" class="{{ 'active' if path.startswith('/rankings') }}">排行榜</a>
+          <a href="/sectors" class="{{ 'active' if path.startswith('/sectors') }}">類股</a>
+          <a href="/revenue" class="{{ 'active' if path.startswith('/revenue') }}">月營收</a>
+          <a href="/dividends" class="{{ 'active' if path.startswith('/dividends') }}">除權息</a>
+          <a href="/track-record" class="{{ 'active' if path.startswith('/track-record') }}">戰績</a>
+          <a href="/stocks" class="{{ 'active' if path.startswith('/stock') }}">個股索引</a>
+        </nav>
+        <span class="login"><a href="/login">登入</a></span>
+      </div>
+      {% if cutoff %}
+      <div class="dateline">
+        <span class="stamp">{{ cutoff }} 收盤資料</span>
+        <span>每日盤後更新．非即時報價</span>
+      </div>
+      {% endif %}
     </div>
-    {% if cutoff %}
-    <div class="dateline">
-      <span class="stamp">{{ cutoff }} 收盤資料</span>
-      <span>每日盤後更新．非即時報價</span>
-    </div>
-    {% endif %}
   </header>
   <main>
     {% block content %}{% endblock %}
