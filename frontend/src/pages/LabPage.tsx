@@ -14,6 +14,7 @@ import {
   type PaperSimResponse,
   type LabStyle,
 } from "../api/client";
+import { BacktestLabSection } from "../components/BacktestLab";
 import { CornerLabSection } from "../components/CornerSignalsPanel";
 import { Modal } from "../components/Modal";
 import { changeColor, fmtNum, fmtPct } from "../lib/format";
@@ -62,6 +63,7 @@ export default function LabPage() {
         進場錨＝推薦隔日最高價（追高最壞情境，偏保守）。
       </p>
 
+      <BacktestLabSection />
       <PaperSection since={since} />
       <StatsSection since={since} />
       <CooccurrenceSection since={since} />
