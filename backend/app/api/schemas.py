@@ -1348,7 +1348,8 @@ class StrategyPatch(BaseModel):
     target_pct: float | None = None
     horizon_days: int | None = None
     stop_pct: float | None = None
-    clear_stop: bool = False  # PATCH 語意下 null 無法表達「清掉停損」，用旗標
+    clear_stop: bool = False  # PATCH 語意下 null 無法表達「清掉停損」，用旗標；
+    # 與顯式 stop_pct 同時提交時 clear_stop 優先（見 routes_strategies.patch_strategy）
 
 
 class BacktestRequest(BaseModel):

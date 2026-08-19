@@ -53,23 +53,34 @@ def create_strategy(body: schemas.StrategyCreate,
                     ud: UserData = Depends(get_user_data_write)):
     if len(ud.strategies()) >= 20:
         raise HTTPException(400, "策略數量已達上限（20）")
-    st = ud.create_strategy(**body.model_dump())
+    data = body.model_dump()
+    try:
+        se.validate_strategy(data["conditions"], data["sort_field"])
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    st = ud.create_strategy(**data)
     return _dto(st)
 
 
 @router.patch("/{sid}", response_model=schemas.StrategyDTO)
 def patch_strategy(sid: int, body: schemas.StrategyPatch,
                    ud: UserData = Depends(get_user_data_write)):
+    """clear_stop 優先於顯式 stop_pct——兩者同時提交時最終以 clear_stop 為準
+    （先套用 stop_pct，clear_stop 是最後一步的覆蓋，而非兩者互斥的錯誤）。
+    """
     st = ud.strategy(sid)
     if st is None:
         raise HTTPException(404, "not found")
     data = body.model_dump(exclude_unset=True, exclude={"clear_stop"})
     if "conditions" in data:
         data["conditions"] = [dict(c) for c in data["conditions"]]
-        try:
-            se._validate(data["conditions"])  # 寫入前擋掉未知欄位/op
-        except ValueError as exc:
-            raise HTTPException(400, str(exc)) from exc
+    # 寫入前統一驗證：conditions 用送進來的，sort_field 沒改就沿用現值。
+    try:
+        se.validate_strategy(
+            data.get("conditions", st.conditions),
+            data.get("sort_field", st.sort_field))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     for k, v in data.items():
         setattr(st, k, v)
     if body.clear_stop:
@@ -113,9 +124,14 @@ def backtest(sid: int, body: schemas.BacktestRequest,
         raise HTTPException(400, "結束日需晚於起始日")
     if (body.end - body.start).days > 366:
         raise HTTPException(400, "回測範圍上限 12 個月")
-    r = se.run_backtest(
-        session, st.conditions, st.sort_field, st.sort_desc, st.top_n,
-        st.target_pct, st.horizon_days, st.stop_pct, body.start, body.end)
+    try:
+        r = se.run_backtest(
+            session, st.conditions, st.sort_field, st.sort_desc, st.top_n,
+            st.target_pct, st.horizon_days, st.stop_pct, body.start, body.end)
+    except (ValueError, KeyError) as exc:
+        # 舊資料（建立當下未擋、或欄位表後續調整）可能帶未知欄位/排序鍵——
+        # 一律轉 400，不讓引擎內部的 KeyError/ValueError 漏成 500。
+        raise HTTPException(400, f"策略設定無效：{exc}") from exc
     return schemas.BacktestResponse(**r.__dict__)
 
 
@@ -134,8 +150,12 @@ def active_daily(ud: UserData = Depends(get_user_data),
     if key in _daily_cache:
         return _daily_cache[key]
 
-    cands = se.evaluate(session, st.conditions, [latest]).get(latest, [])
-    sort_s = se.FIELD_REGISTRY[st.sort_field].loader(session, [latest])
+    try:
+        cands = se.evaluate(session, st.conditions, [latest]).get(latest, [])
+        sort_s = se.FIELD_REGISTRY[st.sort_field].loader(session, [latest])
+    except (ValueError, KeyError) as exc:
+        # 同 backtest：舊資料可能帶未知欄位/排序鍵，轉 400 不讓 500 漏出。
+        raise HTTPException(400, f"策略設定無效：{exc}") from exc
     cands = sorted(cands, key=lambda s: sort_s.get((s, latest), float("-inf")),
                    reverse=st.sort_desc)[: st.top_n]
     rows = dict(session.execute(

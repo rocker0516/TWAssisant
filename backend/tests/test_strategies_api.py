@@ -150,3 +150,53 @@ def test_fields_contains_expected_keys(client, two_users):
     assert r.status_code == 200
     keys = {f["key"] for f in r.json()}
     assert {"close", "turnover", "rev_yoy"} <= keys
+
+
+# ── 審查回歸：未知欄位/排序鍵不得寫入 DB，寫入前一律 400 ────────
+
+
+def test_create_with_unknown_field_is_400(client, two_users):
+    client.cookies.set(auth.SESSION_COOKIE, two_users["a"][1])
+    r = client.post(_BASE + "/", json={
+        "name": "壞條件",
+        "conditions": [{"field": "nope", "op": "gt", "value": 0}],
+        "sort_field": "turnover", "sort_desc": True, "top_n": 30,
+        "target_pct": 10.0, "horizon_days": 10, "stop_pct": None,
+    })
+    assert r.status_code == 400
+    # 沒有殘留：GET / 看不到任何名叫「壞條件」的策略
+    listed = client.get(_BASE + "/").json()
+    assert not any(s["name"] == "壞條件" for s in listed)
+
+
+def test_create_with_invalid_sort_field_is_400(client, two_users):
+    client.cookies.set(auth.SESSION_COOKIE, two_users["a"][1])
+    r = client.post(_BASE + "/", json={
+        "name": "壞排序",
+        "conditions": [{"field": "close", "op": "gt", "value": 0}],
+        "sort_field": "does_not_exist", "sort_desc": True, "top_n": 30,
+        "target_pct": 10.0, "horizon_days": 10, "stop_pct": None,
+    })
+    assert r.status_code == 400
+
+
+def test_patch_with_unknown_field_is_400(client, two_users):
+    client.cookies.set(auth.SESSION_COOKIE, two_users["a"][1])
+    created = _create_strategy(client, "待改策略")
+    r = client.patch(f"{_BASE}/{created['id']}", json={
+        "conditions": [{"field": "nope", "op": "gt", "value": 0}],
+    })
+    assert r.status_code == 400
+    # 沒有被壞資料污染：原條件維持不變
+    r2 = client.get(_BASE + "/")
+    st = next(s for s in r2.json() if s["id"] == created["id"])
+    assert st["conditions"] == created["conditions"]
+
+
+def test_patch_with_invalid_sort_field_is_400(client, two_users):
+    client.cookies.set(auth.SESSION_COOKIE, two_users["a"][1])
+    created = _create_strategy(client, "待改排序")
+    r = client.patch(f"{_BASE}/{created['id']}", json={
+        "sort_field": "does_not_exist",
+    })
+    assert r.status_code == 400

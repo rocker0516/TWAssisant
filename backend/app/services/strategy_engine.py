@@ -226,6 +226,17 @@ def _validate(conditions: list[dict]) -> None:
                 raise ValueError("streak op 的 value 需為 {n, threshold}")
 
 
+def validate_strategy(conditions: list[dict], sort_field: str) -> None:
+    """建立/修改策略前的單一驗證入口——條件欄位/運算子＋排序欄位皆需存在於
+    FIELD_REGISTRY，否則之後 evaluate/run_backtest/FIELD_REGISTRY[...] 下標
+    會晚在 backtest 或 active/daily 才炸（ValueError/KeyError），不如寫入前
+    就擋掉。呼叫端把 ValueError 轉 400。
+    """
+    _validate(conditions)
+    if sort_field not in FIELD_REGISTRY:
+        raise ValueError(f"未知排序欄位：{sort_field}")
+
+
 def evaluate(session: Session, conditions: list[dict],
              dates: list[date]) -> dict[date, list[str]]:
     """AND 求值。streak op 自動往前擴載 n-1 個資料日（以 DailyPrice 日曆近似）。
