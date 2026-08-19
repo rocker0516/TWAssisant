@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   useActivateStrategy,
   useBacktest,
@@ -41,6 +41,31 @@ const OP_LABELS: Record<string, string> = {
 };
 const OPS = Object.keys(OP_LABELS);
 const isStreakOp = (op: string) => op === "streak_gt" || op === "streak_lt";
+
+// 數字輸入：用字串暫存顯示值，允許 ""/"-" 等中間態不被 Number() 轉成 NaN 沖掉
+// （type="number" 一旦 value 被設成 "NaN"，瀏覽器會直接清空欄位；受控用原始字串迴避這個問題）。
+// 只在能解析出合法數字時才回呼 onChange；中間態不送出、也不會把 draft 值歸零。
+function NumInput({ value, onChange, className, min }: {
+  value: number; onChange: (n: number) => void; className?: string; min?: number;
+}) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => { setText(String(value)); }, [value]);
+  return (
+    <input
+      type="number"
+      min={min}
+      className={className}
+      value={text}
+      onChange={(e) => {
+        const v = e.target.value;
+        setText(v);
+        if (v === "" || v === "-") return;
+        const n = Number(v);
+        if (!Number.isNaN(n)) onChange(n);
+      }}
+    />
+  );
+}
 
 type DraftStrategy = Omit<Strategy, "id" | "is_active"> & { id: number };
 
@@ -122,6 +147,8 @@ function StrategyList({ list, selectedId, onSelect, onCreate, creating }: {
   const activate = useActivateStrategy();
   const deactivate = useDeactivateStrategy();
   const del = useDeleteStrategy();
+  // 三個操作互斥於同一列（啟用/停用/刪除都會整批 invalidate strategies），連點防重打。
+  const busy = activate.isPending || deactivate.isPending || del.isPending;
 
   return (
     <div className="w-56 shrink-0">
@@ -143,15 +170,17 @@ function StrategyList({ list, selectedId, onSelect, onCreate, creating }: {
             </button>
             <button
               onClick={() => (s.is_active ? deactivate.mutate(undefined) : activate.mutate(s.id))}
+              disabled={busy}
               title={s.is_active ? "停用" : "設為啟用"}
-              className="shrink-0 rounded px-1 text-xs text-muted hover:text-gray-200"
+              className="shrink-0 rounded px-1 text-xs text-muted hover:text-gray-200 disabled:opacity-40"
             >
               {s.is_active ? "⏸" : "▶"}
             </button>
             <button
               onClick={() => { if (confirm(`刪除「${s.name}」？`)) { del.mutate(s.id); if (s.id === selectedId) onSelect(-1); } }}
+              disabled={busy}
               title="刪除"
-              className="shrink-0 rounded px-1 text-xs text-muted hover:text-down"
+              className="shrink-0 rounded px-1 text-xs text-muted hover:text-down disabled:opacity-40"
             >
               ✕
             </button>
@@ -200,21 +229,21 @@ function ConditionRow({ cond, fields, onChange, onDelete }: {
         <>
           <label className="flex items-center gap-1 text-xs text-muted">
             連
-            <input type="number" className={`${inputCls} w-16`}
+            <NumInput className={`${inputCls} w-16`}
               value={(cond.value as { n: number }).n}
-              onChange={(e) => onChange({ ...cond, value: { ...(cond.value as { n: number; threshold: number }), n: Number(e.target.value) } })} />
+              onChange={(n) => onChange({ ...cond, value: { ...(cond.value as { n: number; threshold: number }), n } })} />
             日
           </label>
           <label className="flex items-center gap-1 text-xs text-muted">
             門檻
-            <input type="number" className={`${inputCls} w-20`}
+            <NumInput className={`${inputCls} w-20`}
               value={(cond.value as { threshold: number }).threshold}
-              onChange={(e) => onChange({ ...cond, value: { ...(cond.value as { n: number; threshold: number }), threshold: Number(e.target.value) } })} />
+              onChange={(threshold) => onChange({ ...cond, value: { ...(cond.value as { n: number; threshold: number }), threshold } })} />
           </label>
         </>
       ) : (
-        <input type="number" className={`${inputCls} w-24`} value={cond.value as number}
-          onChange={(e) => onChange({ ...cond, value: Number(e.target.value) })} />
+        <NumInput className={`${inputCls} w-24`} value={cond.value as number}
+          onChange={(n) => onChange({ ...cond, value: n })} />
       )}
       <button onClick={onDelete} className="text-xs text-muted hover:text-down">✕</button>
     </div>
@@ -224,17 +253,38 @@ function ConditionRow({ cond, fields, onChange, onDelete }: {
 function ConditionsEditor({ conditions, fields, onChange }: {
   conditions: Condition[]; fields: FieldMeta[]; onChange: (c: Condition[]) => void;
 }) {
+  // 條件列的 React key：Condition 本身沒有穩定 id，用本地遞增計數器配一份、只存在本元件裡，
+  // 不進資料模型也不送後端。刪除任一列時同步從 ids 移除同索引，讓其餘列的 key 不因陣列位移而
+  // 錯位（否則刪中間那條，後面列會被誤判成「同一個元件、內容變了」導致輸入焦點跳掉）。
+  const counterRef = useRef(0);
+  const [ids, setIds] = useState<number[]>(() => conditions.map(() => counterRef.current++));
+  useEffect(() => {
+    setIds((prev) => {
+      if (prev.length === conditions.length) return prev;
+      if (prev.length < conditions.length) {
+        const add = Array.from({ length: conditions.length - prev.length }, () => counterRef.current++);
+        return [...prev, ...add];
+      }
+      return prev.slice(0, conditions.length);
+    });
+  }, [conditions.length]);
+
   const addCondition = () => {
     const first = fields[0];
     onChange([...conditions, { field: first?.key ?? "", op: "gt", value: 0 }]);
+    setIds((prev) => [...prev, counterRef.current++]);
+  };
+  const removeAt = (i: number) => {
+    onChange(conditions.filter((_, j) => j !== i));
+    setIds((prev) => prev.filter((_, j) => j !== i));
   };
   return (
     <div className="flex flex-col gap-2">
       {conditions.length === 0 && <p className="text-xs text-muted">尚無條件（無條件＝全市場皆入選，僅靠排序取前 N 檔）</p>}
       {conditions.map((c, i) => (
-        <ConditionRow key={i} cond={c} fields={fields}
+        <ConditionRow key={ids[i] ?? i} cond={c} fields={fields}
           onChange={(nc) => onChange(conditions.map((x, j) => (j === i ? nc : x)))}
-          onDelete={() => onChange(conditions.filter((_, j) => j !== i))} />
+          onDelete={() => removeAt(i)} />
       ))}
       <button onClick={addCondition} className="w-fit rounded-md bg-panel2 px-3 py-1.5 text-xs hover:bg-edge">
         ＋ 加條件
@@ -332,13 +382,13 @@ function StrategyEditor({ strategy }: { strategy: Strategy }) {
         <div className="flex flex-wrap items-end gap-4">
           <label className="block">
             <span className="mb-1 block text-xs text-muted">N 日內</span>
-            <input type="number" className={`${inputCls} w-24`} value={draft.horizon_days}
-              onChange={(e) => setDraft({ ...draft, horizon_days: Number(e.target.value) })} />
+            <NumInput className={`${inputCls} w-24`} value={draft.horizon_days}
+              onChange={(n) => setDraft({ ...draft, horizon_days: n })} />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs text-muted">碰到 +X%</span>
-            <input type="number" className={`${inputCls} w-24`} value={draft.target_pct}
-              onChange={(e) => setDraft({ ...draft, target_pct: Number(e.target.value) })} />
+            <NumInput className={`${inputCls} w-24`} value={draft.target_pct}
+              onChange={(n) => setDraft({ ...draft, target_pct: n })} />
           </label>
           <label className="flex items-center gap-2 pb-2 text-sm">
             <input type="checkbox" checked={draft.stop_pct !== null}
@@ -348,8 +398,8 @@ function StrategyEditor({ strategy }: { strategy: Strategy }) {
           {draft.stop_pct !== null && (
             <label className="block">
               <span className="mb-1 block text-xs text-muted">−Y%</span>
-              <input type="number" className={`${inputCls} w-24`} value={draft.stop_pct}
-                onChange={(e) => setDraft({ ...draft, stop_pct: Number(e.target.value) })} />
+              <NumInput className={`${inputCls} w-24`} value={draft.stop_pct}
+                onChange={(n) => setDraft({ ...draft, stop_pct: n })} />
             </label>
           )}
         </div>
@@ -380,8 +430,8 @@ function StrategyEditor({ strategy }: { strategy: Strategy }) {
           </div>
           <label className="block">
             <span className="mb-1 block text-xs text-muted">top N</span>
-            <input type="number" min={1} className={`${inputCls} w-20`} value={draft.top_n}
-              onChange={(e) => setDraft({ ...draft, top_n: Number(e.target.value) })} />
+            <NumInput min={1} className={`${inputCls} w-20`} value={draft.top_n}
+              onChange={(n) => setDraft({ ...draft, top_n: n })} />
           </label>
         </div>
       </div>
