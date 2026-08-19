@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}TWAssistant 台股盤後{% endblock %}</title>
   <meta name="description" content="{% block description %}台股每日盤後資料：排行、類股、個股。全部取自證交所／櫃買中心官方開放資料。{% endblock %}">
+  {% if noindex %}<meta name="robots" content="noindex">{% endif %}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -154,12 +155,14 @@
         <a href="/track-record">戰績</a>
         <a href="/stocks">個股索引</a>
       </nav>
-      <span class="login"><a href="/app/login">登入</a></span>
+      <span class="login"><a href="/login">登入</a></span>
     </div>
+    {% if cutoff %}
     <div class="dateline">
       <span class="stamp">{{ cutoff }} 收盤資料</span>
       <span>每日盤後更新．非即時報價</span>
     </div>
+    {% endif %}
   </header>
   <main>
     {% block content %}{% endblock %}

@@ -550,12 +550,63 @@ class Event(Base):
 # ─────────────────────────── F 使用者 ───────────────────────────
 
 
+class User(Base):
+    """帳號（分層設計第 6 節）。tier＝付費層級（free/pro），role＝權限（user/admin）。
+
+    tier 與 role 分開存的理由：Admin 也可能想看 Free 視角除錯；付費狀態與
+    管理權限是兩個正交的事實，混成一欄日後必然要拆。
+
+    session_version：可撤銷 session 的機制（設計 7.2-2）。token 內嵌簽發當下的
+    版本號，改密碼／登出全部裝置時 +1，舊 token 立即全部失效——不需要 server
+    端存 token 名單。
+
+    failed_logins / locked_until：per-account 鎖定落 DB（設計 7.2-3）。
+    in-memory per-IP 鎖擋不住分散 IP、重啟即清空，只能當第一道。
+    """
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(200))
+    tier: Mapped[str] = mapped_column(String(10), default="free")   # free / pro
+    role: Mapped[str] = mapped_column(String(10), default="user")   # user / admin
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime)
+    session_version: Mapped[int] = mapped_column(Integer, default=1)
+    failed_logins: Mapped[int] = mapped_column(Integer, default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class EmailVerification(Base):
+    """Email 驗證 token（一次性、有時效）。驗證成功即刪列。"""
+
+    __tablename__ = "email_verifications"
+
+    token: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+class PasswordReset(Base):
+    """密碼重設 token。used_at 留痕而非刪列——重設是安全敏感事件，要能回查。"""
+
+    __tablename__ = "password_resets"
+
+    token: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
 class Holding(Base):
     """持股。成本不存欄位，由 transactions 重算均價。"""
 
     __tablename__ = "holdings"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # nullable：舊資料在遷移補值前短暫為 NULL；所有查詢一律經 UserData（強制 user_id）
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
     stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), index=True)
     track: Mapped[str] = mapped_column(String(10))  # wave / long
     status: Mapped[str] = mapped_column(String(10), default="open")  # open / closed
@@ -587,6 +638,7 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
     holding_id: Mapped[int] = mapped_column(ForeignKey("holdings.id"), index=True)
     type: Mapped[str] = mapped_column(String(10))  # buy / add / sell
     date: Mapped[date_] = mapped_column(Date)
@@ -605,6 +657,7 @@ class Watchlist(Base):
     __tablename__ = "watchlists"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
     name: Mapped[str] = mapped_column(String(50))
     created_date: Mapped[date_ | None] = mapped_column(Date, server_default=func.current_date())
 
@@ -617,6 +670,7 @@ class WatchlistItem(Base):
     __tablename__ = "watchlist_items"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
     watchlist_id: Mapped[int] = mapped_column(ForeignKey("watchlists.id"), index=True)
     stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"))
     added_price: Mapped[float | None] = mapped_column(Float)

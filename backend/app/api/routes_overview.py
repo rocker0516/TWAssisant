@@ -12,7 +12,8 @@ from ..engines.exit_engine import ExitEngine
 from ..llm.lazy import market_note
 from ..services.holding_service import HoldingService
 from ..storage import models
-from .deps import get_session
+from ..storage.user_data import UserData
+from .deps import get_session, get_user_data
 from .schemas import (
     AlertBrief,
     EventBrief,
@@ -86,7 +87,8 @@ def market_fear_greed(session: Session = Depends(get_session)) -> FearGreedRespo
 
 
 @router.get("/overview", response_model=OverviewResponse)
-def overview(session: Session = Depends(get_session)) -> OverviewResponse:
+def overview(ud: UserData = Depends(get_user_data)) -> OverviewResponse:
+    session = ud.session
     td = session.execute(select(func.max(models.DailyPrice.date))).scalar()
     if td is None:
         return OverviewResponse(
@@ -98,7 +100,7 @@ def overview(session: Session = Depends(get_session)) -> OverviewResponse:
 
     # 持股提醒（🔴🟠 優先）
     alerts: list[AlertBrief] = []
-    for h in session.execute(select(models.Holding).where(models.Holding.status == "open")).scalars().all():
+    for h in ud.holdings("open"):
         pos = _holding.position(session, h)
         if pos.shares <= 0 or pos.avg_cost is None:
             continue

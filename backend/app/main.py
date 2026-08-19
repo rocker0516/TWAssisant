@@ -33,6 +33,7 @@ from .api.routes_watchlists import router as watchlists_router
 from .config import settings
 from .credentials import set_token
 from .sources import registry
+from .web.routes_account import router as account_router
 from .web.routes_public import router as public_router
 from .storage import models
 from .storage.database import init_db, session_scope
@@ -67,6 +68,7 @@ app.include_router(corners_router, prefix=_API)
 app.include_router(lab_router, prefix=_API)
 # 公開頁：無前綴。命名空間約定見 web/routes_public.py 檔頭。
 app.include_router(public_router)
+app.include_router(account_router)  # 機能畫面（帳號流程），同屬公開命名空間
 
 
 @app.on_event("startup")
@@ -205,7 +207,11 @@ if _SPA_MODE:
 # 那裡只有公開頁（web/routes_public.py，僅全站共用盤後資料）、/app 的 SPA 殼
 # （純靜態、資料仍要打 /api）與 /health。判斷依據只有路徑；Accept 等 header
 # 由客戶端控制，拿它當授權依據曾是實際漏洞（curl -H "Accept: text/html" 繞過）。
-_AUTH_EXEMPT = {_API + "/auth/login", _API + "/auth/logout", _API + "/auth/me"}
+_AUTH_EXEMPT = {
+    _API + "/auth/login", _API + "/auth/logout", _API + "/auth/me",
+    # 身分自助流程：本質上就是給未登入者用的
+    _API + "/auth/signup", _API + "/auth/forgot", _API + "/auth/reset",
+}
 
 
 @app.middleware("http")
@@ -219,7 +225,10 @@ async def _require_login(request: Request, call_next):
         return await call_next(request)  # 非 /api = 公開命名空間
     if path in _AUTH_EXEMPT:
         return await call_next(request)
-    if auth.verify_token(request.cookies.get(auth.SESSION_COOKIE)):
+    # 驗簽之外還要對 DB 比 session_version——撤銷（改密碼/登出全部）才真的生效
+    with session_scope() as s:
+        user = auth.resolve_user(s, request.cookies.get(auth.SESSION_COOKIE))
+    if user is not None:
         return await call_next(request)
     from fastapi.responses import JSONResponse
 

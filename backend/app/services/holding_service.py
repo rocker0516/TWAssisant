@@ -84,6 +84,7 @@ class HoldingService:
         self,
         session: Session,
         *,
+        user_id: int,
         stock_id: str,
         track: str,
         date_: date,
@@ -96,6 +97,7 @@ class HoldingService:
         note: str | None = None,
     ) -> models.Holding:
         holding = models.Holding(
+            user_id=user_id,
             stock_id=stock_id,
             track=track,
             status="open",
@@ -110,7 +112,8 @@ class HoldingService:
         session.flush()
         session.add(
             models.Transaction(
-                holding_id=holding.id, type="buy", date=date_, price=price, shares=shares, fee=fee
+                user_id=user_id, holding_id=holding.id,
+                type="buy", date=date_, price=price, shares=shares, fee=fee,
             )
         )
         session.flush()
@@ -119,7 +122,7 @@ class HoldingService:
     def add_transaction(
         self,
         session: Session,
-        holding_id: int,
+        holding: models.Holding,
         *,
         type_: str,
         date_: date,
@@ -129,12 +132,12 @@ class HoldingService:
         tax: float | None = None,
         note: str | None = None,
     ) -> models.Holding:
-        holding = session.get(models.Holding, holding_id)
-        if holding is None:
-            raise ValueError(f"持股 {holding_id} 不存在")
+        """收 Holding 物件而非 id：ownership 檢查在取得物件那一步（UserData）
+        就完成了——這裡再收 id 重查，等於留一條繞過 scope 的路。"""
         session.add(
             models.Transaction(
-                holding_id=holding_id, type=type_, date=date_, price=price,
+                user_id=holding.user_id, holding_id=holding.id,
+                type=type_, date=date_, price=price,
                 shares=shares, fee=fee, tax=tax, note=note,
             )
         )

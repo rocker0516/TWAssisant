@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% set noindex = true %}
+{% block title %}Email 驗證｜TWAssistant{% endblock %}
+{% block description %}TWAssistant Email 驗證。{% endblock %}
+{% block content %}
+
+<div style="max-width: 440px; margin: 56px auto 0;">
+  <div class="tbl" style="padding: 34px 36px; text-align: center;">
+    {% if ok %}
+    <div style="font-size: 40px;">✓</div>
+    <h1 style="margin: 8px 0 6px; font-size: 22px;">驗證完成</h1>
+    <p style="color: var(--ink-2); font-size: 14px; margin: 0 0 20px;">
+      {{ email }} 已完成驗證，現在可以登入了。
+    </p>
+    <a href="/login" style="display: inline-block; color: var(--bg); background: var(--brand);
+       text-decoration: none; font-weight: 700; font-size: 14px; padding: 10px 34px; border-radius: 9px;">
+      前往登入</a>
+    {% else %}
+    <div style="font-size: 40px; color: var(--up);">✕</div>
+    <h1 style="margin: 8px 0 6px; font-size: 22px;">連結無效或已過期</h1>
+    <p style="color: var(--ink-2); font-size: 14px; margin: 0 0 20px;">
+      驗證連結已使用過或超過 24 小時。請重新註冊，或直接嘗試登入。
+    </p>
+    <a href="/signup" style="display: inline-block; color: var(--bg); background: var(--brand);
+       text-decoration: none; font-weight: 700; font-size: 14px; padding: 10px 34px; border-radius: 9px;">
+      重新註冊</a>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}
