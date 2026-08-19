@@ -82,12 +82,8 @@ function sortItems(items: RecommendationItem[], key: SortKey): RecommendationIte
 export default function RecommendationsPage() {
   const [track, setTrack] = useState<Track | "custom">("wave");
   const { data: custom } = useActiveStrategyDaily();
-  // custom 頁籤無啟用策略時 fallback 回 wave
-  useEffect(() => {
-    if (track === "custom" && !custom?.strategy) {
-      setTrack("wave");
-    }
-  }, [track, custom?.strategy]);
+  // custom 頁籤無啟用策略時 fallback 渲染 wave
+  const displayTrack = track === "custom" && !custom?.strategy ? "wave" : track;
   const [sort, setSort] = useState<SortKey>("prob"); // 波段預設按達標機率
   const [showExtra, setShowExtra] = useState(false);
   const [posFilter, setPosFilter] = useState<PosFilter>("all");
@@ -107,8 +103,8 @@ export default function RecommendationsPage() {
   const [selectedLookbackDate, setSelectedLookbackDate] = useState<string | null>(null); // null=今天；否則=月曆點選的推薦日
   // 風格改標籤制（2026-07-28）：不再分頁切換，清單=會噴候選∪風格股，
   // 每檔卡片顯示標籤（會噴/爆發/強勢延伸/故事股/深跌反攻），標籤越多排越前。
-  // 回看只支援波段軌；切到長線軌時自動回到今天；custom 軌不進推薦邏輯，固定用 wave 以利快取
-  const effTrack: Track = selectedLookbackDate ? "wave" : track === "custom" ? "wave" : track;
+  // 回看只支援波段軌；切到長線軌時自動回到今天；displayTrack 已處理 custom fallback
+  const effTrack: Track = selectedLookbackDate ? "wave" : (displayTrack as Track);
   const effStyle: WaveStyle = "pop";
   const { data, isLoading, isError, error } = useRecommendations(effTrack, effStyle);
   const { data: tagStats } = useTagComboStats();
@@ -120,7 +116,7 @@ export default function RecommendationsPage() {
   // 大盤 regime 閘門（僅波段軌）：防禦期(收盤跌破季線逾2%未站回)清單命中率實證較低
   // (39.5% vs 47.4%，walk-forward 三段皆成立)，預設收起清單、可手動展開。
   const regime = data?.regime ?? null;
-  const inDefense = track === "wave" && selectedLookbackDate == null && regime?.state === "defense";
+  const inDefense = displayTrack === "wave" && selectedLookbackDate == null && regime?.state === "defense";
   const gateClosed = inDefense && !showDefenseList;
 
   // 月曆摘要（命中率）：機率口徑（成員=標籤制∩當日PIT機率≥門檻），隨機率門檻/風格切換
@@ -138,13 +134,13 @@ export default function RecommendationsPage() {
   // 「低位盤整」＝低檔盤整打底（盤整分≥50，低位已內建在分數裡；此為後端短線打底訊號，不隨走勢視窗變）。
   const matchPos = useMemo(
     () =>
-      track !== "wave" || posFilter === "all"
+      displayTrack !== "wave" || posFilter === "all"
         ? () => true
         : posFilter === "低位盤整"
         ? (it: RecommendationItem) => consolidationMeta(it.sub_scores?.consolidation) !== null
         : (it: RecommendationItem) =>
             (rangePositionMeta(it.spark, sparkDays) ?? positionMeta(it.sub_scores?.position))?.label === posFilter,
-    [track, posFilter, sparkDays],
+    [displayTrack, posFilter, sparkDays],
   );
 
   // 股價上下限（個人偏好，與會噴分數無關）：缺現價的標的在有設限時濾掉。
@@ -227,25 +223,25 @@ export default function RecommendationsPage() {
   const main = useMemo(() => {
     const base = isLookback
       ? [...sorted].sort(mainCompare)
-      : track === "wave"
+      : displayTrack === "wave"
       ? sorted.filter((it) => tagCountOf(it) > 0).sort(mainCompare)
       : sorted;
     // 組合篩選只作用於波段當日主清單（回看/長線不套，避免誤解歷史口徑）
-    if (!isLookback && track === "wave" && comboFilters.length > 0) {
+    if (!isLookback && displayTrack === "wave" && comboFilters.length > 0) {
       return base.filter((it) => comboFilters.includes(comboOf(it)));
     }
     return base;
-  }, [isLookback, track, sorted, tagCountOf, mainCompare, comboFilters, comboOf]);
+  }, [isLookback, displayTrack, sorted, tagCountOf, mainCompare, comboFilters, comboOf]);
   const extra = useMemo(
     () =>
       isLookback
         ? []
-        : track === "wave"
+        : displayTrack === "wave"
         ? sorted.filter((it) => tagCountOf(it) === 0)
         : sortItems(data?.near ?? [], sort).filter(matchPrice),
-    [isLookback, track, sorted, tagCountOf, data, sort, matchPrice],
+    [isLookback, displayTrack, sorted, tagCountOf, data, sort, matchPrice],
   );
-  const extraLabel = track === "wave" ? `未達前 ${topPct}% 觀察區` : "接近門檻觀察區";
+  const extraLabel = displayTrack === "wave" ? `未達前 ${topPct}% 觀察區` : "接近門檻觀察區";
 
   // 回看摘要
   const lbSummary = lookback.data?.summary;
@@ -265,8 +261,10 @@ export default function RecommendationsPage() {
             ) : (
               <>
                 盤後資料：{data?.date ?? "—"}
-                {track === "wave"
+                {displayTrack === "wave"
                   ? `　會噴前 ${topPct}%＋風格標籤（依所選排序，同序看標籤數）`
+                  : displayTrack === "custom"
+                  ? `　自訂策略清單`
                   : `　門檻 ≥ ${data?.threshold ?? 70} 分`}
               </>
             )}
@@ -319,21 +317,21 @@ export default function RecommendationsPage() {
               key={t}
               onClick={() => { setTrack(t); setSort(t === "wave" ? "prob" : "score"); }}
               className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition ${
-                track === t ? "border-sky-500 text-sky-300" : "border-transparent text-muted hover:text-gray-300"
+                displayTrack === t ? "border-sky-500 text-sky-300" : "border-transparent text-muted hover:text-gray-300"
               }`}
             >
               {TRACK_LABELS[t]}軌
-              {data && track === t ? <span className="ml-1.5 text-xs">({main.length})</span> : null}
+              {data && displayTrack === t ? <span className="ml-1.5 text-xs">({main.length})</span> : null}
             </button>
           ))}
           {custom?.strategy && (
             <button key="custom"
               onClick={() => setTrack("custom")}
               className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition ${
-                track === "custom" ? "border-amber-500 text-amber-300"
-                                   : "border-transparent text-muted hover:text-gray-300"}`}>
+                displayTrack === "custom" ? "border-amber-500 text-amber-300"
+                                          : "border-transparent text-muted hover:text-gray-300"}`}>
               🧪 {custom.strategy.name}
-              {track === "custom" && <span className="ml-1.5 text-xs">({custom.items.length})</span>}
+              {displayTrack === "custom" && <span className="ml-1.5 text-xs">({custom.items.length})</span>}
             </button>
           )}
         </div>
@@ -627,7 +625,7 @@ export default function RecommendationsPage() {
       {track === "wave" && !isLookback && <CornerSignalsStrip />}
 
       {/* 觀察區折疊 */}
-      {extra.length > 0 && !gateClosed && (
+      {extra.length > 0 && !gateClosed && track !== "custom" && (
         <div className="mt-6">
           <button
             onClick={() => setShowExtra((s) => !s)}
