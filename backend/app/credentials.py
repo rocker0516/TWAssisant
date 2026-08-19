@@ -14,10 +14,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
-try:
-    import tomllib
-except ModuleNotFoundError:
-    import tomli as tomllib  # type: ignore
+import tomllib
 from functools import lru_cache
 
 from .config import BACKEND_DIR
