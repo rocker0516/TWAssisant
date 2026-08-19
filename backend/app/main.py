@@ -29,6 +29,7 @@ from .api.routes_lab import router as lab_router
 from .api.routes_overview import router as overview_router
 from .api.routes_sectors import router as sectors_router
 from .api.routes_settings import router as settings_router
+from .api.routes_strategies import router as strategies_router
 from .api.routes_watchlists import router as watchlists_router
 from .config import settings
 from .credentials import set_token
@@ -63,6 +64,7 @@ app.include_router(overview_router, prefix=_API)
 app.include_router(intel_router, prefix=_API)
 app.include_router(watchlists_router, prefix=_API)
 app.include_router(settings_router, prefix=_API)
+app.include_router(strategies_router, prefix=_API)
 app.include_router(assistant_router, prefix=_API)
 app.include_router(corners_router, prefix=_API)
 app.include_router(lab_router, prefix=_API)

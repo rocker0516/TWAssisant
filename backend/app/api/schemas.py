@@ -1297,3 +1297,103 @@ class SensitivityResponse(BaseModel):
     points: list[SensitivityPoint]
     calibration: list[CalibrationBin]
     note: str
+
+
+# ── 回測實驗室（spec 2026-08-20-backtest-lab）──
+
+
+class FieldInfo(BaseModel):
+    key: str
+    label: str
+    group: str
+    unit: str
+
+
+class ConditionDTO(BaseModel):
+    field: str
+    op: Literal["gt", "lt", "gte", "lte", "streak_gt", "streak_lt"]
+    value: float | dict  # streak op 用 {n, threshold}
+
+
+class StrategyDTO(BaseModel):
+    id: int
+    name: str
+    conditions: list[ConditionDTO]
+    sort_field: str
+    sort_desc: bool
+    top_n: int
+    target_pct: float
+    horizon_days: int
+    stop_pct: float | None
+    is_active: bool
+
+
+class StrategyCreate(BaseModel):
+    name: str = "我的策略"
+    conditions: list[ConditionDTO] = []
+    sort_field: str = "turnover"
+    sort_desc: bool = True
+    top_n: int = 30
+    target_pct: float = 10.0
+    horizon_days: int = 10
+    stop_pct: float | None = None
+
+
+class StrategyPatch(BaseModel):
+    name: str | None = None
+    conditions: list[ConditionDTO] | None = None
+    sort_field: str | None = None
+    sort_desc: bool | None = None
+    top_n: int | None = None
+    target_pct: float | None = None
+    horizon_days: int | None = None
+    stop_pct: float | None = None
+    clear_stop: bool = False  # PATCH 語意下 null 無法表達「清掉停損」，用旗標
+
+
+class BacktestRequest(BaseModel):
+    start: date
+    end: date
+
+
+class BacktestMonthly(BaseModel):
+    month: str
+    samples: int
+    hits: int
+
+
+class BacktestDetail(BaseModel):
+    date: str
+    stock_id: str
+    name: str
+    entry: float
+    hit: bool
+    stopped: bool
+    max_gain_pct: float
+    max_dd_pct: float
+
+
+class BacktestResponse(BaseModel):
+    samples: int
+    hits: int
+    hit_rate: float | None
+    base_rate: float | None
+    lift: float | None
+    avg_max_drawdown: float | None
+    monthly: list[BacktestMonthly]
+    recent: list[BacktestDetail]
+    warn_loose: bool
+    signal_days: int
+
+
+class StrategyDailyItem(BaseModel):
+    stock_id: str
+    name: str
+    close: float | None
+    sort_value: float | None
+
+
+class StrategyDailyResponse(BaseModel):
+    strategy: StrategyDTO | None
+    date: str | None
+    items: list[StrategyDailyItem]
