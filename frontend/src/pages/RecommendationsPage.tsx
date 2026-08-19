@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   bestTagLift,
   comboKeyOf,
   COMBO_FILTER_KEY,
   readComboFilters,
+  useActiveStrategyDaily,
   useRecommendations,
   useRecommendationsLookback,
   useRecommendationsLookbackCalendar,
@@ -78,7 +80,14 @@ function sortItems(items: RecommendationItem[], key: SortKey): RecommendationIte
 }
 
 export default function RecommendationsPage() {
-  const [track, setTrack] = useState<Track>("wave");
+  const [track, setTrack] = useState<Track | "custom">("wave");
+  const { data: custom } = useActiveStrategyDaily();
+  // custom 頁籤無啟用策略時 fallback 回 wave
+  useEffect(() => {
+    if (track === "custom" && !custom?.strategy) {
+      setTrack("wave");
+    }
+  }, [track, custom?.strategy]);
   const [sort, setSort] = useState<SortKey>("prob"); // 波段預設按達標機率
   const [showExtra, setShowExtra] = useState(false);
   const [posFilter, setPosFilter] = useState<PosFilter>("all");
@@ -98,8 +107,8 @@ export default function RecommendationsPage() {
   const [selectedLookbackDate, setSelectedLookbackDate] = useState<string | null>(null); // null=今天；否則=月曆點選的推薦日
   // 風格改標籤制（2026-07-28）：不再分頁切換，清單=會噴候選∪風格股，
   // 每檔卡片顯示標籤（會噴/爆發/強勢延伸/故事股/深跌反攻），標籤越多排越前。
-  // 回看只支援波段軌；切到長線軌時自動回到今天
-  const effTrack: Track = selectedLookbackDate ? "wave" : track;
+  // 回看只支援波段軌；切到長線軌時自動回到今天；custom 軌不進推薦邏輯，固定用 wave 以利快取
+  const effTrack: Track = selectedLookbackDate ? "wave" : track === "custom" ? "wave" : track;
   const effStyle: WaveStyle = "pop";
   const { data, isLoading, isError, error } = useRecommendations(effTrack, effStyle);
   const { data: tagStats } = useTagComboStats();
@@ -265,7 +274,8 @@ export default function RecommendationsPage() {
         </div>
       </div>
 
-      {/* 回看月曆：波段軌專屬。切到回看時長線軌會自動切回波段 */}
+      {/* 回看月曆：波段軌專屬。切到回看時長線軌會自動切回波段；custom 軌不支援回看 */}
+      {track !== "custom" && (
       <div className="mb-3">
         <button
           onClick={() => setShowCalendar((s) => !s)}
@@ -299,6 +309,7 @@ export default function RecommendationsPage() {
           </>
         )}
       </div>
+      )}
 
       {/* 雙軌分頁（回看模式不可切，固定波段） */}
       {!isLookback && (
@@ -315,6 +326,16 @@ export default function RecommendationsPage() {
               {data && track === t ? <span className="ml-1.5 text-xs">({main.length})</span> : null}
             </button>
           ))}
+          {custom?.strategy && (
+            <button key="custom"
+              onClick={() => setTrack("custom")}
+              className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition ${
+                track === "custom" ? "border-amber-500 text-amber-300"
+                                   : "border-transparent text-muted hover:text-gray-300"}`}>
+              🧪 {custom.strategy.name}
+              {track === "custom" && <span className="ml-1.5 text-xs">({custom.items.length})</span>}
+            </button>
+          )}
         </div>
       )}
 
@@ -435,8 +456,8 @@ export default function RecommendationsPage() {
         </div>
       )}
 
-      {/* 工具列（防禦期收起清單時一併隱藏） */}
-      {!gateClosed && (
+      {/* 工具列（防禦期收起清單時一併隱藏；custom 軌不適用） */}
+      {!gateClosed && track !== "custom" && (
       <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
         <div className="flex items-center gap-2">
           <span className="text-muted">排序</span>
@@ -550,7 +571,44 @@ export default function RecommendationsPage() {
         </div>
       )}
 
-      {!gateClosed && (
+      {track === "custom" && custom?.strategy && (
+        <div className="rounded-xl border border-edge bg-panel p-4">
+          <p className="mb-3 text-xs text-muted">
+            自訂策略「{custom.strategy.name}」· {custom.date} 收盤符合條件前 {custom.strategy.top_n} 檔
+            · 目標 {custom.strategy.horizon_days} 日 +{custom.strategy.target_pct}%
+            {custom.strategy.stop_pct != null && ` · 停損 -${custom.strategy.stop_pct}%`}
+            　<Link to="/lab" className="text-sky-400 hover:underline">→ 回實驗室調整</Link>
+          </p>
+          {custom.items.length === 0 ? (
+            <p className="text-sm text-muted">今日無符合條件的股票</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead><tr className="text-xs text-muted">
+                <th className="py-1 text-left font-normal">股票</th>
+                <th className="py-1 text-right font-normal">收盤</th>
+                <th className="py-1 text-right font-normal">排序值</th>
+              </tr></thead>
+              <tbody>
+                {custom.items.map((it) => (
+                  <tr key={it.stock_id} className="border-t border-edge/60">
+                    <td className="py-1.5">
+                      <Link to={`/stocks/${it.stock_id}`} className="hover:underline">
+                        <span className="tabular-nums text-muted">{it.stock_id}</span> {it.name}
+                      </Link>
+                    </td>
+                    <td className="py-1.5 text-right tabular-nums">{it.close ?? "—"}</td>
+                    <td className="py-1.5 text-right tabular-nums text-muted">
+                      {it.sort_value == null ? "—" : Math.round(it.sort_value).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {!gateClosed && track !== "custom" && (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {main.map((it) => (
           <RecommendationCard
