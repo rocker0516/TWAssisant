@@ -228,7 +228,9 @@ def _validate(conditions: list[dict]) -> None:
 
 def evaluate(session: Session, conditions: list[dict],
              dates: list[date]) -> dict[date, list[str]]:
-    """AND 求值。streak op 自動往前擴載 n-1 個資料日（以 DailyPrice 日曆近似）。"""
+    """AND 求值。streak op 自動往前擴載 n-1 個資料日（以 DailyPrice 日曆近似）。
+
+    前提：dates 必須是連續交易日清單；有洞會使 streak 誤判相鄰日距。"""
     _validate(conditions)
     if not conditions or not dates:
         return {d: [] for d in dates}
@@ -279,3 +281,149 @@ def evaluate(session: Session, conditions: list[dict],
                 hit.append(sid)
         out[d] = sorted(hit)
     return out
+
+
+# ─────────────────────────── 回測引擎 ───────────────────────────
+
+
+@dataclass
+class BacktestResult:
+    samples: int
+    hits: int
+    hit_rate: float | None
+    base_rate: float | None
+    lift: float | None
+    avg_max_drawdown: float | None
+    monthly: list[dict]
+    recent: list[dict]
+    warn_loose: bool
+    signal_days: int
+
+
+def _load_bars(session: Session, sids: set[str], start: date, end: date):
+    """{sid: (dates升冪, [(high, low)])}。end 之後多抓 horizon 由呼叫端控制。"""
+    rows = session.execute(
+        select(models.DailyPrice.stock_id, models.DailyPrice.date,
+               models.DailyPrice.high, models.DailyPrice.low)
+        .where(models.DailyPrice.stock_id.in_(sids),
+               models.DailyPrice.date >= start, models.DailyPrice.date <= end)
+        .order_by(models.DailyPrice.date)
+    ).all()
+    px: dict[str, tuple[list[date], list[tuple]]] = {}
+    for sid, d, hi, lo in rows:
+        dates, bars = px.setdefault(sid, ([], []))
+        dates.append(d)
+        bars.append((hi, lo))
+    return px
+
+
+def _judge(dates: list[date], bars: list[tuple], signal: date,
+           target_pct: float, horizon: int, stop_pct: float | None):
+    """單一樣本：回 (entry, hit, stopped, max_gain, max_dd) 或 None（無隔日資料）。
+
+    進場錨＝訊號隔一交易日的 high；停損先碰記失敗、同日皆碰保守記失敗。
+    """
+    try:
+        i0 = dates.index(signal)
+    except ValueError:
+        return None
+    if i0 + 1 >= len(dates) or bars[i0 + 1][0] is None:
+        return None
+    entry = bars[i0 + 1][0]
+    tgt = entry * (1 + target_pct / 100)
+    stp = entry * (1 - stop_pct / 100) if stop_pct is not None else None
+    hit = stopped = False
+    max_gain = max_dd = 0.0
+    for j in range(i0 + 1, min(i0 + 1 + horizon, len(dates))):
+        hi, lo = bars[j]
+        if hi is None or lo is None:
+            continue
+        max_gain = max(max_gain, (hi / entry - 1) * 100)
+        max_dd = min(max_dd, (lo / entry - 1) * 100)
+        if stp is not None and lo <= stp:
+            stopped = True   # 同日 hi 也達標時保守記失敗 → 先判停損
+            break
+        if hi >= tgt:
+            hit = True
+            break
+    return entry, hit, stopped, round(max_gain, 2), round(max_dd, 2)
+
+
+def run_backtest(session: Session, conditions: list[dict], sort_field: str,
+                 sort_desc: bool, top_n: int, target_pct: float,
+                 horizon_days: int, stop_pct: float | None,
+                 start: date, end: date) -> BacktestResult:
+    sig_dates = trading_dates(session, start, end)
+    per_day = evaluate(session, conditions, sig_dates)
+
+    # 排序值：沿用註冊表 loader（排序欄不一定在條件裡）
+    sort_series = FIELD_REGISTRY[sort_field].loader(session, sig_dates)
+    picks: list[tuple[date, str]] = []
+    warn_loose = False
+    for d in sig_dates:
+        cands = per_day.get(d, [])
+        if len(cands) > 200:
+            warn_loose = True
+        cands = sorted(cands, key=lambda sid: sort_series.get((sid, d), float("-inf")),
+                       reverse=sort_desc)[:top_n]
+        picks.extend((d, sid) for sid in cands)
+
+    sids = {sid for _, sid in picks}
+    horizon_pad = timedelta(days=horizon_days * 2 + 14)
+    px = _load_bars(session, sids, start, end + horizon_pad)
+
+    names = dict(session.execute(
+        select(models.Stock.id, models.Stock.name).where(models.Stock.id.in_(sids))
+    ).all()) if sids else {}
+
+    hits = 0
+    dds: list[float] = []
+    monthly: dict[str, list[int]] = {}
+    details: list[dict] = []
+    for d, sid in picks:
+        if sid not in px:
+            continue
+        judged = _judge(*px[sid], d, target_pct, horizon_days, stop_pct)
+        if judged is None:
+            continue
+        entry, hit, stopped, mg, mdd = judged
+        hits += int(hit)
+        dds.append(mdd)
+        m = d.strftime("%Y-%m")
+        monthly.setdefault(m, [0, 0])
+        monthly[m][0] += 1
+        monthly[m][1] += int(hit)
+        details.append({"date": d.isoformat(), "stock_id": sid,
+                        "name": names.get(sid, sid), "entry": entry, "hit": hit,
+                        "stopped": stopped, "max_gain_pct": mg, "max_dd_pct": mdd})
+    samples = len(dds)
+
+    # 基率對照：每 5 個訊號日抽 1 日、全市場同口徑（控制同步延遲）
+    base_rate = None
+    base_days = sig_dates[::5]
+    if base_days:
+        all_sids = set(session.execute(
+            select(models.DailyPrice.stock_id).distinct()
+            .where(models.DailyPrice.date.in_(base_days))
+        ).scalars().all())
+        bpx = _load_bars(session, all_sids, start, end + horizon_pad)
+        bn = bh = 0
+        for d in base_days:
+            for sid, (dts, bars) in bpx.items():
+                j = _judge(dts, bars, d, target_pct, horizon_days, stop_pct)
+                if j is not None:
+                    bn += 1
+                    bh += int(j[1])
+        base_rate = round(bh / bn, 3) if bn else None
+
+    hit_rate = round(hits / samples, 3) if samples else None
+    return BacktestResult(
+        samples=samples, hits=hits, hit_rate=hit_rate, base_rate=base_rate,
+        lift=(round(hit_rate / base_rate, 2)
+              if hit_rate is not None and base_rate else None),
+        avg_max_drawdown=round(sum(dds) / len(dds), 2) if dds else None,
+        monthly=[{"month": m, "samples": v[0], "hits": v[1]}
+                 for m, v in sorted(monthly.items())],
+        recent=details[-60:],
+        warn_loose=warn_loose, signal_days=len(sig_dates),
+    )
