@@ -12,16 +12,20 @@ from __future__ import annotations
 
 import secrets
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app import auth, main
+from app.api import routes_ctx
 from app.storage import models
 from app.storage.database import init_db, session_scope
 
 _SUFFIX = secrets.token_hex(4)
 EMAIL = f"ctx-api-{_SUFFIX}@test.local"
+
+_MATRIX_PATH = Path(__file__).resolve().parents[1] / "data" / "ctx_matrix.json"
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -52,22 +56,34 @@ def _mk_user(email: str) -> tuple[int, str]:
     return uid, auth.issue_token(uid, sv)
 
 
+@pytest.mark.skipif(not _MATRIX_PATH.exists(), reason="ctx_matrix.json artifact 不存在")
 def test_ctx_matrix_endpoint(client):
     _, tok = _mk_user(EMAIL)
     client.cookies.set(auth.SESSION_COOKIE, tok)
 
     r = client.get("/api/ctx-matrix")
-    assert r.status_code in (200, 404)  # artifact 存在時 200；缺檔時明確 404
-    if r.status_code == 200:
-        body = r.json()
-        assert "cells" in body and "kpi" in body
-        assert "x" in body["kpi"]
+    assert r.status_code == 200
+    body = r.json()
+    assert "cells" in body and "kpi" in body
+    assert "x" in body["kpi"]
 
-        counts = body["counts"]
-        assert set(counts.keys()) == {"pass", "watch", "insufficient", "fail"}
+    counts = body["counts"]
+    assert set(counts.keys()) == {"pass", "watch", "insufficient", "fail"}
 
-        assert all(c["tier"] != "fail" for c in body["cells"])
+    assert all(c["tier"] != "fail" for c in body["cells"])
 
-        assert "groups" in body and "signals" in body
-        assert isinstance(body["groups"], list) and isinstance(body["signals"], list)
-        assert "chain_audit" in body and "generated_at" in body
+    assert "groups" in body and "signals" in body
+    assert isinstance(body["groups"], list) and isinstance(body["signals"], list)
+    assert "chain_audit" in body and "generated_at" in body
+
+
+def test_ctx_matrix_endpoint_404_when_artifact_missing(client, monkeypatch):
+    """load_matrix() 回 None（檔缺）時，端點須明確回 404 —— 不能被恆存在的本機
+    artifact 蓋過去而永遠沒被驗證到。"""
+    monkeypatch.setattr(routes_ctx, "load_matrix", lambda: None)
+
+    _, tok = _mk_user(EMAIL)
+    client.cookies.set(auth.SESSION_COOKIE, tok)
+
+    r = client.get("/api/ctx-matrix")
+    assert r.status_code == 404
