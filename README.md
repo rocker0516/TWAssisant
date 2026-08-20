@@ -16,16 +16,23 @@
 
 ---
 
-## 它能做什麼（六頁）
+## 它能做什麼（九頁，側欄順序）
 
 | 頁面 | 功能 |
 |---|---|
 | 🏠 **今日總覽** | 大盤狀態列（成交額/漲跌家數/三大法人）+ 可拖拉自訂 widget（持股提醒/推薦/類股/消息）+ AI 盤勢總結 |
+| 📰 **情報** | AI 全市場消息重點 + 我的關注焦點（持股/觀察清單相關）+ 依題材分群 + 近期事件（利空/展望/題材/內部人轉讓/中性 可篩） |
 | 🎯 **進場推薦** | 波段軌 + 長線軌雙軌選股（硬篩→評分→門檻），卡片含買進區間/參考停損/理由；接近門檻折疊區 |
 | 📊 **類股行情** | ECharts 熱力圖（顏色=方向、面積=成交佔比）+ 強弱排行；點入類股專屬頁（方向判讀 + AI 解讀 + 成分股）|
+| 💰 **籌碼動向** | 類股資金輪動（可切法人別）、資金流入/流出榜、今日籌碼異動、個股籌碼榜 |
 | 💼 **我的持股** | 加碼/分批賣（均價重算）、出場狀態燈 🔴🟠🟡🟢、可展開看停損/移動停利/交易明細 |
 | ⭐ **觀察清單** | 多組命名清單、進場狀態燈、到價/達門檻/消息提醒、一鍵轉持股 |
+| 🧪 **策略室** | 研究用：訊號時變效力、標籤共存機率、模擬倉（每天照單操作）、勝率分析、參數敏感度 |
 | ⚙️ **設定** | 評分配分（即時生效重算）、出場參數、資料來源 token 測試、深/淺主題 |
+
+另有 **個股詳情**（K 線 + 技術/基本面/籌碼/支撐壓力/本益比河流/目標價/產業鏈）與 **類股專屬頁**，由上列頁面點入。
+
+**公開頁（免登入、伺服器端渲染）**：`/rankings`（漲跌幅/成交值/法人買超排行）、`/stocks`（全市場個股索引）、`/stock/{id}`（個股公開頁：行情/估值/月營收/季財報/股利，不含買賣參數）。命名空間約定：`/api/*` = JSON API（需登入）、`/app/*` = 上表的 SPA、其餘 = 公開頁（`backend/app/web/`）。
 
 右下角常駐 **🤖 浮動 AI 助手**：情境感知（知道你在看哪頁/哪檔）、跨頁不消失、逐字串流、只根據 App 內部已算好的結論回答。
 
@@ -41,7 +48,9 @@
 每日盤後排程抓資料 → 引擎全算好 → LLM 翻白話存快取 → Discord 通知；白天前端只讀算好的結果。
 依賴單向往下：**換來源 / 加指標 / 換模型只動一層**。
 
-**每日 pipeline 8 步**：Fetch → Indicator → Sector → News → Scoring → Exit → LLM → Notify。
+**每日 pipeline（以 `scheduler/run.py` 的清單為準）**：Fetch → Indicator → Sector → News →
+TargetPrice → Attention → Scoring → MLConsensus → Corners → **SignalLog** → Exit → Notify →
+PoppableEfficacy。LLM 翻白話已移出 pipeline，改端點首讀懶生成（`llm/lazy.py`）。
 整條冪等（增量補缺 + upsert 覆寫）→ 可重跑、關機後補跑安全。
 
 ---
@@ -92,7 +101,7 @@ uvicorn app.main:app --port 8000
 ```bash
 cd frontend
 npm install
-npm run dev          # → http://localhost:5173（請用 localhost，非 127.0.0.1）
+npm run dev          # → http://localhost:5173/app（App 掛在 /app 下；請用 localhost，非 127.0.0.1）
 npm run gen:api      # 後端改欄位後重生 TS 型別
 ```
 dev 模式 Vite 會把 `/api` 代理到後端 `:8000`。
@@ -138,13 +147,13 @@ backend/app/
   credentials.py       token 讀取（Keychain / toml）
   sources/             來源 adapter（base/interfaces/twse/tpex/combined/finmind/fugle/registry）
   storage/             models（六群表）/ repositories（冪等 upsert）/ database
-  engines/             indicators / sector / scoring / exit / news + rules(可插拔規則)
+  engines/             indicators / sector / scoring / exit / news / signal_log + rules(可插拔規則)
   llm/                 client / translators / batch / assistant / store
   services/            holding_service / settings_service
   scheduler/           pipeline / steps / run / trading_calendar
   api/                 routes*（推薦/詳情/持股/類股/觀察/設定/總覽/助手）+ schemas
 frontend/src/
-  pages/               6 頁 + 個股詳情 + 類股專屬
+  pages/               9 頁 + 個股詳情 + 類股專屬 + 登入
   components/          Layout / FloatingAssistant / KLineChart / SectorHeatmap / …
   api/                 client（React Query hooks）+ types（openapi 生成）
 deploy/launchd/        每日排程
@@ -155,7 +164,7 @@ deploy/launchd/        每日排程
 ## 疑難排解
 
 - **`/recommendations` 空 / 數字怪**：先確認當日 pipeline 有跑成功（設定無誤、`/system/status` 看資料筆數）。
-- **前端連不到後端**：用 `http://localhost:5173`（Vite 綁 IPv6），並確認後端在 `:8000`。
+- **前端連不到後端**：用 `http://localhost:5173/app`（App 掛在 /app 下；Vite 綁 IPv6），並確認後端在 `:8000`。
 - **AI 卡片/助手沒反應**：未設 Claude 金鑰時會略過或提示；設定後重啟後端。
 - **改 `tailwind.config.js` 沒生效**：重啟 `npm run dev`（Tailwind config 有快取）。
 - **新增市場/來源後沒歷史資料**：FetchStep 用全域 max_date 增量，需清行情表重抓一次。

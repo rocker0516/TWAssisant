@@ -20,12 +20,55 @@ const FAMILY_STYLE: Record<CornerFired["family"], string> = {
   allweather: "border-violet-700/60 bg-violet-950/40 text-violet-200",
 };
 
+/** stable_edge 用自己的外框：它的證據型態與地板紀律不同，混色會被誤讀成同一種東西。 */
+const EDGE_STYLE = "border-sky-600/60 bg-sky-950/40 text-sky-200";
+
+function cardStyle(c: CornerFired): string {
+  return c.origin === "stable_edge" ? EDGE_STYLE : FAMILY_STYLE[c.family];
+}
+
 function yearBand(c: CornerFired): string {
   const hits = Object.values(c.per_year)
     .map((y) => y.hit)
     .filter((h): h is number => h != null);
   if (!hits.length) return "";
   return `${Math.round(Math.min(...hits))}~${Math.round(Math.max(...hits))}%`;
+}
+
+/** 角落的招牌數字：地板紀律看地板，超額紀律看兩窗增量（它的地板本來就不高）。 */
+function Headline({ c, verbose }: { c: CornerFired; verbose?: boolean }) {
+  if (c.origin !== "stable_edge") {
+    return (
+      <span className="ml-auto whitespace-nowrap">
+        {verbose ? `歷史分年 ${yearBand(c)}（地板 ${Math.round(c.floor)}%）` : `地板 ${Math.round(c.floor)}%`}
+      </span>
+    );
+  }
+  // OOS 增量是試跑實測，與挖掘期反號時要比挖掘數字更顯眼——那才是它現在的成績
+  const oos = c.oos_edge_pp;
+  return (
+    <span className="ml-auto whitespace-nowrap">
+      同日超額 挖 <b>+{c.edge_mine_pp}</b>/後 <b>+{c.edge_holdout_pp}</b>pp
+      {oos != null && (
+        <span className={oos < 0 ? "ml-1 text-amber-300" : "ml-1 text-emerald-300"}>
+          · OOS <b>{oos > 0 ? "+" : ""}{oos}</b>pp
+        </span>
+      )}
+      {verbose && c.holdout_hit != null && (
+        <span className="opacity-70">
+          {" "}· holdout {c.holdout_hit}%（n={c.holdout_n}）· 地板 {Math.round(c.floor)}%
+        </span>
+      )}
+    </span>
+  );
+}
+
+function EdgeBadge() {
+  return (
+    <span className="rounded border border-sky-600/60 px-1 py-0.5 text-[10px] text-sky-300">
+      超額·試跑
+    </span>
+  );
 }
 
 function StockChips({ c }: { c: CornerFired }) {
@@ -69,11 +112,12 @@ export function CornerSignalsStrip() {
 
       <div className="mt-2 space-y-2">
         {data.fired.map((c) => (
-          <div key={c.id} className={`rounded-md border px-3 py-2 ${FAMILY_STYLE[c.family]}`}>
+          <div key={c.id} className={`rounded-md border px-3 py-2 ${cardStyle(c)}`}>
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <b>{c.family_label}</b>
+              {c.origin === "stable_edge" && <EdgeBadge />}
               <span className="opacity-80">{c.atoms.join(" ∧ ")}</span>
-              <span className="ml-auto whitespace-nowrap">地板 {Math.round(c.floor)}%</span>
+              <Headline c={c} />
             </div>
             <StockChips c={c} />
           </div>
@@ -115,14 +159,16 @@ export function CornerLabSection() {
       <div className="rounded-xl border border-edge bg-panel px-3.5 py-3 text-sm">
         <div className="space-y-2">
           {fired.map((c) => (
-            <div key={c.id} className={`rounded-md border px-3 py-2 ${FAMILY_STYLE[c.family]}`}>
+            <div key={c.id} className={`rounded-md border px-3 py-2 ${cardStyle(c)}`}>
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <b>{c.family_label}</b>
+                {c.origin === "stable_edge" && <EdgeBadge />}
                 <span className="opacity-80">{c.atoms.join(" ∧ ")}</span>
-                <span className="ml-auto whitespace-nowrap">
-                  歷史分年 {yearBand(c)}（地板 {Math.round(c.floor)}%）
-                </span>
+                <Headline c={c} verbose />
               </div>
+              {c.caveat && (
+                <p className="mt-1 text-[11px] leading-relaxed text-amber-300/90">⚠ {c.caveat}</p>
+              )}
               <StockChips c={c} />
             </div>
           ))}
@@ -165,7 +211,7 @@ export function CornerLabSection() {
                     <tr>
                       <th className="py-1 pr-2">角落</th>
                       <th className="py-1 pr-2">家族</th>
-                      <th className="py-1 pr-2">歷史地板</th>
+                      <th className="py-1 pr-2">及格線</th>
                       <th className="py-1 pr-2">滿窗命中</th>
                       <th className="py-1 pr-2">未滿窗（已先摸到）</th>
                     </tr>
@@ -175,12 +221,23 @@ export function CornerLabSection() {
                       .filter((r) => r.matured > 0 || r.pending > 0)
                       .map((r) => (
                         <tr key={r.id} className="border-t border-edge/60">
-                          <td className="py-1 pr-2">{r.atoms.join(" ∧ ")}</td>
+                          <td className="py-1 pr-2">
+                            {r.origin === "stable_edge" && (
+                              <span className="mr-1 text-sky-300">超額·試跑</span>
+                            )}
+                            {r.atoms.join(" ∧ ")}
+                          </td>
                           <td className="py-1 pr-2">{r.family_label}</td>
-                          <td className="py-1 pr-2">{Math.round(r.floor)}%</td>
+                          {/* 及格線依紀律而異：地板紀律比地板，超額紀律比它自己的 holdout 命中 */}
+                          <td className="py-1 pr-2">
+                            {Math.round(r.benchmark)}%
+                            <span className="ml-1 opacity-50">
+                              {r.origin === "stable_edge" ? "holdout" : "地板"}
+                            </span>
+                          </td>
                           <td className="py-1 pr-2">
                             {r.matured > 0 ? (
-                              <span className={r.hit_rate != null && r.hit_rate >= r.floor - 5 ? "text-up" : "text-amber-300"}>
+                              <span className={r.hit_rate != null && r.hit_rate >= r.benchmark - 5 ? "text-up" : "text-amber-300"}>
                                 {r.hits}/{r.matured}（{r.hit_rate}%）
                               </span>
                             ) : (

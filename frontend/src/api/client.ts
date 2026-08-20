@@ -1,57 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { components } from "./types";
 
+// 型別一律由 openapi 生成（npm run gen:api），這裡只取別名。
+// 欄位語意的真相來源是 backend/app/api/schemas.py 的註解——別在這邊手寫副本，
+// 那份副本沒有任何機制保證它跟後端一致（本檔曾因此累積出三塊手補型別）。
 export type RecommendationList = components["schemas"]["RecommendationList"];
-// openapi 型別未重跑，手補標籤制新欄（後端 schemas.RecommendationItem 已回）
-export type RecommendationItem = components["schemas"]["RecommendationItem"] & {
-  passed_styles?: string[] | null; // 通過的純門檻風格（explosive/strong/story/crash）
-  passed_filter?: boolean | null; // 會噴硬篩(含遲滯)是否通過
-  prob_hit?: number | null; // 同條件歷史命中%（分數帶×波動帶×大盤狀態查五年表）
-  prob_n?: number | null;
-  prob_cond?: string | null;
-  prob_mae?: number | null; // 同條件歷史平均最深回撤%
-  vol_ratio?: number | null; // 量增比 vol_ma5/vol_ma20（共振徽章：爆發×量增/故事×量縮）
-  attention?: string | null; // 注意/處置動能徽章：punish（處置10日內/執行中）/ notice（近5日列注意）
-  ml_consensus?: boolean | null; // ML 共識：GBM 模型也排前20%（holdout 交集命中 ~34% vs 單獨 ~30%）
-  attention_tags?: string[] | null; // 完整旗標集（可同時 punish+notice；精確組合篩選用）
-  target_zone?: LongTargetZone | null; // 長線軌限定：目標區間（12 個月參考）
-  graduation?: LongGraduation | null; // 長線軌限定：畢業條件狀態
-};
-// 長線軌目標區間：基準錨=法人目標價（analyst）或 PE 河流中位帶（pe_river）
-export type LongTargetZone = {
-  basis: "analyst" | "pe_river";
-  base: number;
-  upside_pct?: number | null;
-  low?: number | null; // 保守：PE 河流中位帶
-  high?: number | null; // 樂觀：PE 河流上緣帶
-  analyst_target?: number | null;
-  analyst_date?: string | null;
-  analyst_count?: number | null;
-  hit: boolean;
-};
-// 長線軌畢業條件（重新審視訊號，非停損）
-export type LongGraduation = {
-  hit_target: boolean;
-  streak_months?: number | null; // 魚齡：連續營收 YoY>0 月數
-  mom12_pct?: number | null; // 近 12 月漲幅 %
-};
+export type RecommendationItem = components["schemas"]["RecommendationItem"];
+export type LongTargetZone = components["schemas"]["LongTargetZone"];
+export type LongGraduation = components["schemas"]["LongGraduation"];
 export type RecommendationDetail = components["schemas"]["RecommendationDetail"];
 export type RecommendationLookbackResponse = components["schemas"]["RecommendationLookbackResponse"];
 export type LookbackReview = components["schemas"]["LookbackReview"];
 export type LookbackSummary = components["schemas"]["LookbackSummary"];
-// 月曆端點型別（新加，尚未跑 openapi 生型別；等 openapi 重跑後改回 components["schemas"][…]）
-export type LookbackDatePoint = {
-  date: string;
-  n: number;
-  hit_count: number;
-  hit_rate: number | null;
-};
-export type LookbackCalendar = {
-  today_date: string | null;
-  top_pct: number;
-  cutoff: number;
-  dates: LookbackDatePoint[];
-};
+export type LookbackDatePoint = components["schemas"]["LookbackDatePoint"];
+export type LookbackCalendar = components["schemas"]["LookbackCalendar"];
 export type StockDetail = components["schemas"]["StockDetail"];
 export type OhlcvResponse = components["schemas"]["OhlcvResponse"];
 export type Candle = components["schemas"]["Candle"];
@@ -67,31 +29,9 @@ export type PeRiverResponse = components["schemas"]["PeRiverResponse"];
 export type IndustryChainResponse = components["schemas"]["IndustryChainResponse"];
 export type ScoreDTO = components["schemas"]["ScoreDTO"];
 export type HoldingsResponse = components["schemas"]["HoldingsResponse"];
-// openapi 型別未重跑，手補進場快照/論點欄（後端 schemas.HoldingItem 已回）
-export type HoldingItem = components["schemas"]["HoldingItem"] & {
-  entry_snapshot?: EntrySnapshot | null;
-  thesis?: ThesisStatus | null;
-};
-// 建倉當下 Score 凍結副本
-export type EntrySnapshot = {
-  score_date: string;
-  total_score: number | null;
-  passed_filter: boolean | null;
-  passed_styles: string[] | null;
-  reasons: string[] | null;
-  buy_low: number | null;
-  buy_high: number | null;
-  stop_loss: number | null;
-  close: number | null;
-};
-// 進場論點追蹤（intact/weakening/broken/unknown）
-export type ThesisStatus = {
-  status: "intact" | "weakening" | "broken" | "unknown";
-  entry_score: number | null;
-  latest_score: number | null;
-  latest_passed_filter: boolean | null;
-  messages: string[];
-};
+export type HoldingItem = components["schemas"]["HoldingItem"];
+export type EntrySnapshot = components["schemas"]["EntrySnapshot"];
+export type ThesisStatus = components["schemas"]["ThesisStatus"];
 export type HoldingCreate = components["schemas"]["HoldingCreate"];
 export type TransactionCreate = components["schemas"]["TransactionCreate"];
 export type HoldingPatch = components["schemas"]["HoldingPatch"];
@@ -740,6 +680,92 @@ export function useIntel(filter: IntelFilter = {}) {
   });
 }
 
+// ── 回測實驗室 ──
+
+export type Condition = { field: string; op: string; value: number | { n: number; threshold: number } };
+export type Strategy = {
+  id: number; name: string; conditions: Condition[];
+  sort_field: string; sort_desc: boolean; top_n: number;
+  target_pct: number; horizon_days: number; stop_pct: number | null; is_active: boolean;
+};
+export type FieldMeta = { key: string; label: string; group: string; unit: string };
+export type BacktestResult = {
+  samples: number; hits: number; hit_rate: number | null; base_rate: number | null;
+  lift: number | null; avg_max_drawdown: number | null;
+  monthly: { month: string; samples: number; hits: number }[];
+  recent: { date: string; stock_id: string; name: string; entry: number; hit: boolean;
+            stopped: boolean; max_gain_pct: number; max_dd_pct: number }[];
+  warn_loose: boolean; signal_days: number;
+};
+export type StrategyDaily = {
+  strategy: Strategy | null; date: string | null;
+  items: { stock_id: string; name: string; close: number | null; sort_value: number | null }[];
+};
+
+export function useStrategyFields() {
+  return useQuery({ queryKey: ["strategy-fields"], staleTime: Infinity,
+    queryFn: () => getJson<FieldMeta[]>("/lab/strategies/fields") });
+}
+export function useStrategies() {
+  return useQuery({ queryKey: ["strategies"],
+    queryFn: () => getJson<Strategy[]>("/lab/strategies/") });
+}
+function useStrategyMutation<T, A>(fn: (a: A) => Promise<T>) {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: fn, onSuccess: () => {
+    qc.invalidateQueries({ queryKey: ["strategies"] });
+    qc.invalidateQueries({ queryKey: ["strategy-daily"] });
+  }});
+}
+export function useCreateStrategy() {
+  return useStrategyMutation((body: Partial<Strategy>) =>
+    sendJson<Strategy>("POST", "/lab/strategies/", body));
+}
+export function usePatchStrategy() {
+  return useStrategyMutation(({ id, ...body }: Partial<Strategy> & { id: number; clear_stop?: boolean }) =>
+    sendJson<Strategy>("PATCH", `/lab/strategies/${id}`, body));
+}
+export function useDeleteStrategy() {
+  return useStrategyMutation((id: number) =>
+    sendJson<{ ok: boolean }>("DELETE", `/lab/strategies/${id}`));
+}
+export function useActivateStrategy() {
+  return useStrategyMutation((id: number) =>
+    sendJson<Strategy>("POST", `/lab/strategies/${id}/activate`));
+}
+export function useDeactivateStrategy() {
+  return useStrategyMutation(() =>
+    sendJson<{ ok: boolean }>("POST", "/lab/strategies/deactivate"));
+}
+export function useBacktest() {
+  return useMutation({ mutationFn: ({ id, start, end }: { id: number; start: string; end: string }) =>
+    sendJson<BacktestResult>("POST", `/lab/strategies/${id}/backtest`, { start, end }) });
+}
+export function useActiveStrategyDaily() {
+  return useQuery({ queryKey: ["strategy-daily"],
+    queryFn: () => getJson<StrategyDaily>("/lab/strategies/active/daily") });
+}
+
+// ── 帳號 ──
+
+// /auth/me 回傳三態：無登入牆（auth_enabled=false）／未登入／已登入。
+// 不在 openapi schema（後端回 dict），手寫小型別。
+export type Me = {
+  authenticated: boolean;
+  auth_enabled: boolean;
+  email?: string | null;
+  tier?: string | null;   // free / pro
+  role?: string | null;   // user / admin
+};
+
+export function useMe() {
+  return useQuery({
+    queryKey: ["me"],
+    queryFn: () => getJson<Me>("/auth/me"),
+    staleTime: 5 * 60 * 1000, // 身分很少變，登入/登出都會整頁導向
+  });
+}
+
 // ── 設定 ──
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -875,8 +901,17 @@ export type CornerFired = {
   atoms: string[];
   family: "crash" | "dip" | "allweather";
   family_label: string;
+  /** floor=分年地板紀律（既有）；stable_edge=兩窗同日增量皆正（試跑中） */
+  origin: "floor" | "stable_edge";
   floor: number; // 挖掘窗(2021-24)分年地板命中 %
-  per_year: Record<string, { hit: number | null; n: number; days: number }>;
+  per_year: Record<string, { hit: number | null; n: number; days?: number }>;
+  edge_mine_pp: number | null;
+  edge_holdout_pp: number | null;
+  /** 真 OOS 期實測的同日同錨增量（試跑結果，可能與挖掘期反號） */
+  oos_edge_pp: number | null;
+  holdout_hit: number | null;
+  holdout_n: number | null;
+  caveat: string | null;
   stocks: CornerStock[];
 };
 export type CornerSignalsResponse = {
@@ -897,7 +932,11 @@ export function useCornerSignals() {
 }
 
 export type CornerReviewRow = {
-  id: string; atoms: string[]; family_label: string; floor: number;
+  id: string; atoms: string[]; family_label: string;
+  origin: "floor" | "stable_edge";
+  floor: number;
+  /** 該角落自己的及格線：floor 用地板、stable_edge 用它的 holdout 命中 */
+  benchmark: number;
   n: number; matured: number; hits: number; hit_rate: number | null;
   pending: number; early_hits: number;
 };
@@ -1080,12 +1119,23 @@ export function useSignalDecay() {
 }
 
 export type SensitivityPoint = {
-  prob_min: number; n: number; avg_daily_n: number | null;
-  hit_count: number; hit_rate: number | null; avg_return_pct: number | null;
+  prob_min: number; n: number; days: number; day_cover: number | null;
+  avg_daily_n: number | null; hit_count: number;
+  hit_rate: number | null; hit_rate_lo: number | null; hit_rate_hi: number | null;
+  day_hit_rate: number | null; lift: number | null;
+  avg_return_pct: number | null; avg_return_open_pct: number | null;
+  avg_mfe_pct: number | null; avg_mae_pct: number | null;
+  reliable: boolean;
+};
+export type CalibrationBin = {
+  lo: number; hi: number; n: number; days: number; pred_avg: number;
+  hit_rate: number | null; hit_rate_lo: number | null; hit_rate_hi: number | null;
+  err_pp: number | null; reliable: boolean;
 };
 export type SensitivityResponse = {
   since: string | null; today_date: string | null; min_age_days: number;
-  points: SensitivityPoint[];
+  entry_days: number; base_hit_rate: number | null;
+  points: SensitivityPoint[]; calibration: CalibrationBin[]; note: string;
 };
 
 export function useLookbackSensitivity(since?: string) {

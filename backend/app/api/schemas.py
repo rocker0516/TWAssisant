@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import datetime as _dt
 from datetime import date
+from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class RecommendationDetail(BaseModel):
@@ -56,7 +57,7 @@ class LongTargetZone(BaseModel):
     保守/樂觀恆為 PE 河流中位帶/上緣帶 × 隱含 EPS（長線硬篩②保證 EPS>0，缺的只會是 PE 史料）。
     """
 
-    basis: str                        # 基準錨來源：analyst=法人目標價 | pe_river=估值推算
+    basis: Literal["analyst", "pe_river"]  # 基準錨來源：法人目標價 / 估值推算
     base: float                       # 基準目標價
     upside_pct: float | None          # 基準相對現價上漲空間 %
     low: float | None                 # 保守：PE 河流中位帶價
@@ -711,6 +712,7 @@ class HoldingCreate(BaseModel):
     trail_trigger_override: float | None = None
     trail_pullback_override: float | None = None
     note: str | None = None
+    strategy_id: int | None = None
 
 
 class TransactionCreate(BaseModel):
@@ -741,10 +743,29 @@ class TransactionDTO(BaseModel):
     note: str | None
 
 
+class EntrySnapshot(BaseModel):
+    """建倉當下 Score 的凍結副本。
+
+    欄位固定，故宣告成模型而非 dict：宣告成 dict 時 openapi 只能吐出
+    `{[key: string]: unknown}`，前端就得自己手寫一份同名型別 & 上來——
+    那份手寫副本沒有任何機制保證它跟後端一致。
+    """
+
+    score_date: date
+    total_score: float | None = None
+    passed_filter: bool | None = None
+    passed_styles: list[str] | None = None
+    reasons: list[str] | None = None
+    buy_low: float | None = None
+    buy_high: float | None = None
+    stop_loss: float | None = None
+    close: float | None = None
+
+
 class ThesisStatus(BaseModel):
     """進場論點追蹤：進場快照 vs 最新評分的對照結論。"""
 
-    status: str  # intact / weakening / broken / unknown
+    status: Literal["intact", "weakening", "broken", "unknown"]
     entry_score: float | None = None
     latest_score: float | None = None
     latest_passed_filter: bool | None = None
@@ -775,10 +796,16 @@ class HoldingItem(BaseModel):
     highest: float | None
     drawdown_pct: float | None
     trail_active: bool
+    thesis_state: str | None = None
+    days_left: int | None = None
+    reaudit_count: int | None = None
+    target_price: float | None = None
+    stop_price: float | None = None
+    horizon_days: int | None = None
     stop_loss_override: float | None
     trail_trigger_override: float | None
     trail_pullback_override: float | None
-    entry_snapshot: dict | None = None  # 建倉當下 Score 凍結副本
+    entry_snapshot: EntrySnapshot | None = None  # 建倉當下 Score 凍結副本
     thesis: ThesisStatus | None = None  # 論點是否還成立
     note: str | None
     transactions: list[TransactionDTO]
@@ -1229,16 +1256,152 @@ class LookbackStatsResponse(BaseModel):
 
 
 class SensitivityPoint(BaseModel):
+    """累積門檻（prob ≥ X）的成效。
+
+    days 才是有效樣本數：同一天的個股命中高度相關，n=22 若只落在 2 天，統計上就是
+    2 個觀測。故 reliable 以 days 為主判準，前端據此把不可信的列灰化。
+    """
+
     prob_min: float
-    n: int                  # 全期樣本數
-    avg_daily_n: float | None  # 平均每日推薦檔數
+    n: int                     # 個股樣本數（同日高度相關，勿當獨立觀測）
+    days: int                  # 有貨的進場日數 ← 有效樣本數
+    day_cover: float | None    # 有貨日 / 全部進場日（揭露「集中在少數幾天」）
+    avg_daily_n: float | None  # 平均每日推薦檔數（分母=全部進場日）
     hit_count: int
-    hit_rate: float | None
-    avg_return_pct: float | None
+    hit_rate: float | None     # 個股級碰到率
+    hit_rate_lo: float | None  # Wilson 95% 下界（以 days 為有效 n 調整）
+    hit_rate_hi: float | None
+    day_hit_rate: float | None  # 日層級（每日一觀測取平均，不被大日子灌權重）
+    lift: float | None          # vs 無門檻基準的倍數
+    avg_return_pct: float | None       # 隔日高錨（保守／最壞追高）
+    avg_return_open_pct: float | None  # 隔日開盤錨（貼近實務）
+    avg_mfe_pct: float | None
+    avg_mae_pct: float | None
+    reliable: bool
+
+
+class CalibrationBin(BaseModel):
+    """非累積分箱：預測機率 vs 實現碰到率，看查表準不準（累積門檻看不出來）。"""
+
+    lo: float
+    hi: float
+    n: int
+    days: int
+    pred_avg: float             # 該箱預測機率均值
+    hit_rate: float | None      # 該箱實現碰到率
+    hit_rate_lo: float | None
+    hit_rate_hi: float | None
+    err_pp: float | None        # 實現 − 預測（負＝機率高估）
+    reliable: bool
 
 
 class SensitivityResponse(BaseModel):
     since: date | None
     today_date: date | None
     min_age_days: int
+    entry_days: int                 # 統計涵蓋的進場日總數
+    base_hit_rate: float | None     # 不設門檻的碰到率（lift 的分母）
     points: list[SensitivityPoint]
+    calibration: list[CalibrationBin]
+    note: str
+
+
+# ── 回測實驗室（spec 2026-08-20-backtest-lab）──
+
+
+class FieldInfo(BaseModel):
+    key: str
+    label: str
+    group: str
+    unit: str
+
+
+class ConditionDTO(BaseModel):
+    field: str
+    op: Literal["gt", "lt", "gte", "lte", "streak_gt", "streak_lt"]
+    value: float | dict  # streak op 用 {n, threshold}
+
+
+class StrategyDTO(BaseModel):
+    id: int
+    name: str
+    conditions: list[ConditionDTO]
+    sort_field: str
+    sort_desc: bool
+    top_n: int
+    target_pct: float
+    horizon_days: int
+    stop_pct: float | None
+    is_active: bool
+
+
+class StrategyCreate(BaseModel):
+    name: str = "我的策略"
+    conditions: list[ConditionDTO] = []
+    sort_field: str = "turnover"
+    sort_desc: bool = True
+    top_n: int = Field(30, ge=1, le=200)
+    target_pct: float = Field(10.0, ge=0.1, le=100)
+    horizon_days: int = Field(10, ge=1, le=60)
+    stop_pct: float | None = Field(None, ge=0.1, le=100)
+
+
+class StrategyPatch(BaseModel):
+    name: str | None = None
+    conditions: list[ConditionDTO] | None = None
+    sort_field: str | None = None
+    sort_desc: bool | None = None
+    top_n: int | None = Field(None, ge=1, le=200)
+    target_pct: float | None = Field(None, ge=0.1, le=100)
+    horizon_days: int | None = Field(None, ge=1, le=60)
+    stop_pct: float | None = Field(None, ge=0.1, le=100)
+    clear_stop: bool = False  # PATCH 語意下 null 無法表達「清掉停損」，用旗標；
+    # 與顯式 stop_pct 同時提交時 clear_stop 優先（見 routes_strategies.patch_strategy）
+
+
+class BacktestRequest(BaseModel):
+    start: date
+    end: date
+
+
+class BacktestMonthly(BaseModel):
+    month: str
+    samples: int
+    hits: int
+
+
+class BacktestDetail(BaseModel):
+    date: str
+    stock_id: str
+    name: str
+    entry: float
+    hit: bool
+    stopped: bool
+    max_gain_pct: float
+    max_dd_pct: float
+
+
+class BacktestResponse(BaseModel):
+    samples: int
+    hits: int
+    hit_rate: float | None
+    base_rate: float | None
+    lift: float | None
+    avg_max_drawdown: float | None
+    monthly: list[BacktestMonthly]
+    recent: list[BacktestDetail]
+    warn_loose: bool
+    signal_days: int
+
+
+class StrategyDailyItem(BaseModel):
+    stock_id: str
+    name: str
+    close: float | None
+    sort_value: float | None
+
+
+class StrategyDailyResponse(BaseModel):
+    strategy: StrategyDTO | None
+    date: str | None
+    items: list[StrategyDailyItem]

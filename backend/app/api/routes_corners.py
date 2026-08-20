@@ -34,12 +34,27 @@ class CornerStockOut(BaseModel):
 
 
 class CornerOut(BaseModel):
+    """一個角落的當日亮燈。
+
+    origin 區分兩套挖掘紀律：floor=分年地板≥門檻（既有 30 個）；
+    stable_edge=挖掘窗與 holdout 的**同日同錨增量皆為正**（試跑中的 2 個）。
+    後者刻意不以絕對地板取勝——窮舉 24k 組合證明「兩窗都 ≥70%」是空集合
+    （見 scripts/pop_70_mine.py），故改賭超額穩定；edge_* 才是它的主指標。
+    """
+
     id: str
     atoms: list[str]
     family: str            # crash / dip / allweather
     family_label: str
+    origin: str            # floor / stable_edge
     floor: float           # 挖掘窗分年地板命中 %
     per_year: dict         # {"2021": {"hit","n","days"}, ...}
+    edge_mine_pp: float | None = None      # 同日同錨增量（挖掘窗）
+    edge_holdout_pp: float | None = None   # 同日同錨增量（holdout）
+    oos_edge_pp: float | None = None       # 真 OOS 期的同日同錨增量（試跑實測）
+    holdout_hit: float | None = None
+    holdout_n: int | None = None
+    caveat: str | None = None              # 已知的資料/口徑風險，必須讓使用者看見
     stocks: list[CornerStockOut]
 
 
@@ -77,12 +92,19 @@ def corner_signals(
         CornerOut(
             id=c["id"], atoms=c["atoms"], family=c["family"],
             family_label=_FAMILY_LABEL.get(c["family"], c["family"]),
+            origin=c.get("origin", "floor"),
             floor=c["floor"], per_year=c["per_year"],
+            edge_mine_pp=c.get("edge_mine_pp"), edge_holdout_pp=c.get("edge_holdout_pp"),
+            oos_edge_pp=c.get("oos_edge_pp"),
+            holdout_hit=c.get("holdout_hit"), holdout_n=c.get("holdout_n"),
+            caveat=c.get("caveat"),
             stocks=sorted(by_corner[c["id"]], key=lambda s: s.stock_id),
         )
         for c in corners if c["id"] in by_corner
     ]
-    fired.sort(key=lambda c: -c.floor)
+    # 試跑中的 stable_edge 置頂：它們的證據型態與既有角落不同（超額而非地板），
+    # 混在依地板排序的隊伍中間會被誤讀成「又一個中段班角落」。
+    fired.sort(key=lambda c: (c.origin != "stable_edge", -c.floor))
 
     recent_rows = session.execute(
         select(models.CornerSignal.date,
@@ -94,11 +116,17 @@ def corner_signals(
     recent = [{"date": str(r.date), "signals": r.signals, "corners": r.corners}
               for r in recent_rows]
 
-    floors = [c["floor"] for c in corners] or [0.0]
+    n_edge = sum(1 for c in corners if c.get("origin") == "stable_edge")
+    floors = [c["floor"] for c in corners if c.get("origin", "floor") == "floor"] or [0.0]
     note = (f"高確信角落（實驗中）：條件由 2021~24 反推挖掘、分年地板 "
             f"{min(floors):.0f}~{max(floors):.0f}%（門檻依 10 日基率倍數搬移，"
             f"非固定 70%），2025~26 軟檢查通過；forward 驗證累積中，"
             "多數日子無訊號屬正常（低波動期＝空手）。與推薦排序無關。")
+    if n_edge:
+        note += (f" 另有 {n_edge} 個標「超額」的角落試跑中：它們不追絕對地板——窮舉 24k "
+                 "組合證實「挖掘窗與 holdout 都 ≥70%」是空集合，且地板最高那批在 holdout "
+                 "的同日增量已轉負。這批改以「兩窗同日同錨增量皆為正」入選，賭的是超額穩定。"
+                 "注意其 holdout 樣本高度集中在 2026，跨 regime 證據仍薄。")
     return CornerSignalsResponse(
         date=d, evaluated=bool(rows) or bool(recent),
         total_corners=len(corners), fired=fired, recent=recent, note=note)
@@ -111,7 +139,9 @@ class CornerReviewRow(BaseModel):
     id: str
     atoms: list[str]
     family_label: str
+    origin: str            # floor / stable_edge
     floor: float           # 挖掘窗地板（對照用）
+    benchmark: float       # 這個角落該被拿來比什麼：floor 用地板、stable_edge 用 holdout 命中
     n: int                 # 影子期訊號筆數
     matured: int           # 已滿窗（訊號後滿 _REVIEW_WINDOW 交易日）——只有這些進命中率
     hits: int
@@ -195,13 +225,19 @@ def corner_review(session: Session = Depends(get_session)) -> CornerReviewRespon
         if not c:
             continue
         a = _agg(g)
+        origin = c.get("origin", "floor")
         by_corner.append(CornerReviewRow(
             id=cid, atoms=c["atoms"],
             family_label=_FAMILY_LABEL.get(c["family"], c["family"]),
-            floor=c["floor"], hit_rate=a["hit_rate"],
+            origin=origin, floor=c["floor"],
+            # stable_edge 沒有「地板」承諾（它的地板本來就只有 48~55%），拿地板當
+            # 及格線會給出過寬的判定；改用它自己的 holdout 命中當基準。
+            benchmark=(c.get("holdout_hit") or c["floor"]) if origin == "stable_edge"
+            else c["floor"],
+            hit_rate=a["hit_rate"],
             n=a["n"], matured=a["matured"], hits=a["hits"], pending=a["pending"],
             early_hits=a["early_hits"]))
-    by_corner.sort(key=lambda r: -r.matured)
+    by_corner.sort(key=lambda r: (r.origin != "stable_edge", -r.matured))
 
     by_day = [
         {"date": str(dt), **_agg(g)}

@@ -142,7 +142,7 @@ export default function OverviewPage() {
   const visible = edit ? order : order.filter((k) => !hidden.includes(k));
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-6">
+    <div className="w-full px-6 py-6">
       <div className="mb-1 flex items-center justify-between">
         <h1 className="text-xl font-bold">今日總覽</h1>
         <button onClick={() => setEdit((e) => !e)} className="rounded-md bg-panel2 px-3 py-1 text-sm text-gray-300 hover:bg-edge">

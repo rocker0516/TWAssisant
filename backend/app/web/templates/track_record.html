@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}公開戰績（波段軌）｜TWAssistant{% endblock %}
+{% block description %}TWAssistant 波段軌公開戰績：訊號當日寫下、不可改寫；10 日內高點碰 +10% 命中率與相對大盤超額報酬。{% endblock %}
+{% block content %}
+
+<h1 style="margin-top: 8px;">公開戰績（波段軌）</h1>
+<p style="color: var(--ink-2); font-size: 15px; max-width: 66ch; margin: 0 0 8px;">
+  每檔訊號在<strong style="color: var(--ink);">上榜當天</strong>寫入不可改寫的紀錄（append-only），
+  10 個交易日後結算：期間高點是否碰到 +10%、10 日報酬相對大盤的超額。
+  重點看<strong style="color: var(--ink);">超額</strong>——絕對命中率是行情的函數，超額才能跨行情比較。
+</p>
+<p style="color: var(--ink-3); font-size: 12.5px; margin: 0 0 22px;">
+  結算中的訊號仍屬近期建議，名單需登入；此頁只揭露已結算的歷史紀錄。
+</p>
+
+<h2>事前紀錄（訊號當日寫下）</h2>
+{% if live_summary %}
+<div class="stats">
+  <div class="stat"><div class="k">已結算</div><div class="v">{{ live_summary.n }} 筆</div></div>
+  <div class="stat"><div class="k">10 日碰 +10%</div>
+    <div class="v">{{ "%.0f%%"|format(live_summary.hit_rate) }}</div></div>
+  <div class="stat"><div class="k">平均 10 日報酬</div>
+    <div class="v {{ 'up' if live_summary.avg_ret > 0 else ('down' if live_summary.avg_ret < 0 else '') }}">
+      {{ "%+.1f%%"|format(live_summary.avg_ret) }}</div></div>
+  <div class="stat"><div class="k">大盤同期</div>
+    <div class="v">{{ "%+.1f%%"|format(live_summary.avg_mkt) if live_summary.avg_mkt is not none else "—" }}</div></div>
+  <div class="stat"><div class="k">平均超額</div>
+    <div class="v" style="color: var(--brand);">
+      {{ "%+.1f pp"|format(live_summary.avg_excess) if live_summary.avg_excess is not none else "—" }}</div></div>
+</div>
+
+<div class="tbl" style="margin-top: 16px;">
+  <table>
+    <thead><tr>
+      <th class="l">訊號日</th><th class="l">個股</th><th>訊號價</th>
+      <th>期間最高</th><th>10 日報酬</th><th>大盤同期</th><th>超額</th><th>碰 +10%</th>
+    </tr></thead>
+    <tbody>
+      {% for r in live_rows %}
+      <tr>
+        <td class="l mono">{{ r.date.isoformat() }}</td>
+        <td class="l"><a class="code" href="/stock/{{ r.stock_id }}">{{ r.stock_id }} {{ r.name }}</a></td>
+        <td>{{ "%.2f"|format(r.entry) }}</td>
+        <td class="{{ 'up' if r.peak_pct and r.peak_pct > 0 else '' }}">
+          {{ "%+.1f%%"|format(r.peak_pct) if r.peak_pct is not none else "—" }}</td>
+        <td class="{{ 'up' if r.ret10 > 0 else ('down' if r.ret10 < 0 else '') }}">{{ "%+.1f%%"|format(r.ret10) }}</td>
+        <td>{{ "%+.1f%%"|format(r.mkt10) if r.mkt10 is not none else "—" }}</td>
+        <td style="color: var(--brand); font-weight: 700;">
+          {{ "%+.1f"|format(r.excess) if r.excess is not none else "—" }}</td>
+        <td>{% if r.hit %}<span style="color: var(--brand);">✓</span>{% else %}<span style="color: var(--ink-3);">—</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="tbl" style="padding: 26px 28px;">
+  <div style="font-size: 15.5px; font-weight: 700;">事前紀錄累積中</div>
+  <p style="font-size: 13.5px; color: var(--ink-2); margin: 8px 0 0; max-width: 62ch;">
+    即時訊號紀錄自 2026-08-19 起逐日寫入；每筆需滿 10 個交易日才結算。
+    第一批結算結果約兩週後出現在這裡——寫下之後就不可改寫，這是本頁存在的意義。
+  </p>
+  {% if pending %}
+  <p style="font-size: 13px; color: var(--ink-3); margin: 8px 0 0;">目前 {{ pending }} 筆結算中。</p>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if pending and live_summary %}
+<p style="font-size: 13px; color: var(--ink-3); margin-top: 8px;">另有 {{ pending }} 筆結算中（未滿 10 個交易日），不列入上表。</p>
+{% endif %}
+
+{% if back_summary %}
+<h2>背景參考（歷史回填）</h2>
+<p style="color: var(--ink-3); font-size: 12.5px; margin: -4px 0 10px; max-width: 66ch;">
+  以下為系統上線前、由歷史評分回推的段落——<strong>不是</strong>事前紀錄，僅供了解策略在過往行情的樣貌，不揭個股名單。
+</p>
+<div class="stats">
+  <div class="stat"><div class="k">已結算</div><div class="v">{{ back_summary.n }} 筆</div></div>
+  <div class="stat"><div class="k">10 日碰 +10%</div>
+    <div class="v">{{ "%.0f%%"|format(back_summary.hit_rate) }}</div></div>
+  <div class="stat"><div class="k">平均 10 日報酬</div>
+    <div class="v {{ 'up' if back_summary.avg_ret > 0 else ('down' if back_summary.avg_ret < 0 else '') }}">
+      {{ "%+.1f%%"|format(back_summary.avg_ret) }}</div></div>
+  <div class="stat"><div class="k">大盤同期</div>
+    <div class="v">{{ "%+.1f%%"|format(back_summary.avg_mkt) if back_summary.avg_mkt is not none else "—" }}</div></div>
+  <div class="stat"><div class="k">平均超額</div>
+    <div class="v" style="color: var(--brand);">
+      {{ "%+.1f pp"|format(back_summary.avg_excess) if back_summary.avg_excess is not none else "—" }}</div></div>
+</div>
+{% endif %}
+
+<h2>結算規則</h2>
+<div class="tbl" style="padding: 18px 24px; font-size: 13.5px; color: var(--ink-2);">
+  <ul style="margin: 0; padding-left: 20px; line-height: 2;">
+    <li>訊號價＝上榜當日收盤；結算窗＝其後 10 個「交易日」（跨連假不縮水）。</li>
+    <li>命中＝結算窗內任一日最高價 ≥ 訊號價 ×1.10。</li>
+    <li>超額＝10 日收盤報酬 − 同期加權指數報酬（單位 pp）。</li>
+    <li>紀錄 append-only：資料修訂或模型重算都不會改寫已寫下的訊號。</li>
+  </ul>
+</div>
+
+{% endblock %}

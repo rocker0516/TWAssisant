@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}{{ day.isoformat() }} 台股盤後報告｜TWAssistant{% endblock %}
+{% block description %}{{ day.isoformat() }} 台股盤後：加權指數、成交額、漲跌家數、三大法人、類股強弱與重要消息。{% endblock %}
+{% block content %}
+
+<div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-top: 8px;">
+  <h1 style="margin: 0;">{{ day.isoformat() }} 盤後報告</h1>
+  <span style="display: flex; gap: 6px; font-size: 13px;">
+    {% if prev_day %}<a class="code" href="/daily/{{ prev_day.isoformat() }}"
+        style="border: 1px solid var(--line); border-radius: 7px; padding: 3px 12px;">← {{ prev_day.strftime("%m/%d") }}</a>{% endif %}
+    {% if next_day %}<a class="code" href="/daily/{{ next_day.isoformat() }}"
+        style="border: 1px solid var(--line); border-radius: 7px; padding: 3px 12px;">{{ next_day.strftime("%m/%d") }} →</a>
+    {% else %}<a class="code" href="/daily"
+        style="border: 1px solid var(--line); border-radius: 7px; padding: 3px 12px; color: var(--brand);">最新</a>{% endif %}
+  </span>
+</div>
+
+<h2>大盤</h2>
+<div class="stats">
+  <div class="stat"><div class="k">加權指數</div>
+    <div class="v">{{ "{:,.0f}".format(idx_close) if idx_close is not none else "—" }}</div></div>
+  <div class="stat"><div class="k">漲跌</div>
+    <div class="v {{ 'up' if idx_chg and idx_chg > 0 else ('down' if idx_chg and idx_chg < 0 else '') }}">
+      {{ "%+.2f%%"|format(idx_chg) if idx_chg is not none else "—" }}</div></div>
+  <div class="stat"><div class="k">成交額（億）</div>
+    <div class="v">{{ "{:,.0f}".format(turnover_total) if turnover_total else "—" }}</div></div>
+  <div class="stat"><div class="k">漲／跌家數</div>
+    <div class="v"><span class="up">{{ n_up }}</span> / <span class="down">{{ n_down }}</span></div></div>
+</div>
+
+<h2>三大法人（億）</h2>
+<div class="stats">
+  {% for label, v in [("外資", inst.foreign_net if inst else none),
+                      ("投信", inst.trust_net if inst else none),
+                      ("自營商", inst.dealer_net if inst else none),
+                      ("合計", inst.total_net if inst else none)] %}
+  <div class="stat"><div class="k">{{ label }}</div>
+    <div class="v {{ 'up' if v and v > 0 else ('down' if v and v < 0 else '') }}">
+      {{ "%+.0f"|format(v) if v is not none else "—" }}</div></div>
+  {% endfor %}
+</div>
+
+{% if fg_score is not none %}
+<h2>市場情緒（恐懼貪婪指數）</h2>
+<div class="tbl" style="padding: 22px 26px; display: flex; align-items: center; gap: 28px; flex-wrap: wrap;">
+  <div style="text-align: center; min-width: 120px;">
+    <div style="font-size: 44px; font-weight: 900; line-height: 1.1; font-variant-numeric: tabular-nums;
+                color: var(--brand);">{{ "%.0f"|format(fg_score) }}</div>
+    <div style="font-size: 15px; font-weight: 700;">{{ fg_label }}</div>
+  </div>
+  <div style="flex: 1; min-width: 240px;">
+    <div style="position: relative; height: 12px; border-radius: 999px;
+                background: linear-gradient(90deg, var(--down), var(--ink-3) 50%, var(--up));">
+      <div style="position: absolute; top: -4px; left: calc({{ "%.1f"|format(fg_score) }}% - 2px);
+                  width: 4px; height: 20px; border-radius: 2px; background: var(--ink);
+                  box-shadow: 0 0 8px rgba(233, 238, 243, .8);"></div>
+    </div>
+    <div style="display: flex; justify-content: space-between; font-size: 11.5px; color: var(--ink-3); margin-top: 8px;">
+      <span>極度恐懼</span><span>恐懼</span><span>中性</span><span>貪婪</span><span>極度貪婪</span>
+    </div>
+    {% if fg_points %}
+    <svg viewBox="-4 -6 648 152" style="width: 100%; height: auto; display: block; margin-top: 16px;" role="img"
+         aria-label="恐懼貪婪指數近 120 個交易日曲線">
+      <line x1="0" y1="70" x2="640" y2="70" stroke="var(--line-2)" stroke-dasharray="4 5" stroke-width="1"/>
+      <polyline points="{{ fg_points }}" fill="none" stroke="var(--brand)" stroke-width="2"
+                stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>
+    <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-3); margin-top: 4px;">
+      <span>{{ fg_hist_from }}</span><span>虛線＝中性 50</span><span>最新</span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% if fg_components %}
+<div class="tbl" style="margin-top: 10px;">
+  <table>
+    <thead><tr><th class="l">組件</th><th class="l">說明</th><th>原始值</th><th>分數</th><th class="l" style="width: 28%;">位置</th></tr></thead>
+    <tbody>
+      {% for c in fg_components %}
+      <tr>
+        <td class="l" style="font-family: var(--sans); font-size: 14px; color: var(--ink); font-weight: 500;">{{ c.label }}</td>
+        <td class="l" style="font-size: 12.5px; color: var(--ink-2); white-space: normal;">{{ c.desc }}</td>
+        <td>{{ "%.2f"|format(c.value) }}</td>
+        <td style="font-weight: 700;">{{ "%.0f"|format(c.score) }}</td>
+        <td class="l">
+          <div style="height: 6px; border-radius: 999px; background: var(--card-2); min-width: 110px;">
+            <div style="height: 6px; border-radius: 999px; width: {{ "%.0f"|format(c.score) }}%;
+                        background: var(--brand); opacity: .85;"></div>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p style="font-size: 12.5px; color: var(--ink-3); margin-top: 8px;">
+  八組件各對近一年歷史做百分位排名（0～100，越高越貪婪）；反向組件（Put/Call 比、波動率）已統一方向。情緒溫度計，非買賣訊號。
+</p>
+{% endif %}
+{% endif %}
+
+{% if commentary %}
+<h2>盤後總評</h2>
+<div class="tbl" style="padding: 20px 24px;">
+  {% for p in commentary %}
+  <p style="margin: {{ '0' if loop.first else '12px' }} 0 0; color: var(--ink); font-size: 14.5px;">{{ p }}</p>
+  {% endfor %}
+  <p style="margin: 14px 0 0; font-size: 12px; color: var(--ink-3);">由模型於盤後批次生成，屬趨勢判讀、非投資建議。</p>
+</div>
+{% endif %}
+
+<div class="tbl" style="margin-top: 30px; padding: 22px 24px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap;">
+  <div style="flex: 1; min-width: 240px;">
+    <div style="font-size: 17px; font-weight: 700;">
+      本日 <span style="color: var(--brand); font-size: 24px;">{{ n_wave + n_long }}</span> 檔在榜
+      {% if n_listed or n_delisted %}
+      <span style="font-size: 14px; font-weight: 500; color: var(--ink-2);">
+        ・新上榜 {{ n_listed }}・掉榜 {{ n_delisted }}</span>
+      {% endif %}
+    </div>
+    <div style="font-size: 13px; color: var(--ink-2);">
+      波段軌 {{ n_wave }} 檔 ・ 長線軌 {{ n_long }} 檔 ｜ 名單、買進區間與出場提醒需登入
+    </div>
+  </div>
+  <a href="/login" style="color: var(--bg); background: var(--brand); text-decoration: none;
+     font-weight: 700; font-size: 14px; padding: 9px 26px; border-radius: 9px; white-space: nowrap;">
+    登入查看名單</a>
+</div>
+
+{% if sectors %}
+<h2><a class="code" href="/sectors" style="color: var(--ink-2);">類股強弱 →</a></h2>
+<div class="boards" style="grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 10px;">
+  {% for s in sectors %}
+  <section style="padding: 12px 16px 10px;">
+    <div style="font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><a class="code" style="color: var(--ink-2);" href="/sectors/{{ s.id }}">{{ s.name }}</a></div>
+    <div style="font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums;"
+         >{{ "%.0f"|format(s.score) if s.score is not none else "—" }}
+      <span class="{{ 'up' if s.mom and s.mom > 0 else ('down' if s.mom and s.mom < 0 else '') }}"
+            style="font-size: 12.5px; font-weight: 500;">
+        {{ "%+.1f%%"|format(s.mom) if s.mom is not none else "" }}</span></div>
+    <div style="font-size: 11.5px; color: var(--ink-3);">{{ s.trend or "" }}{% if s.stage %}・{{ s.stage }}{% endif %}</div>
+  </section>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if news %}
+<h2>本日消息</h2>
+<div class="tbl">
+  <table>
+    <thead><tr><th class="l">個股</th><th class="l">摘要</th><th class="l">分類</th></tr></thead>
+    <tbody>
+      {% for n in news %}
+      <tr>
+        <td class="l">{% if n.stock_id %}<a class="code" href="/stock/{{ n.stock_id }}">{{ n.stock_name or n.stock_id }}</a>{% else %}—{% endif %}</td>
+        <td class="l" style="white-space: normal;">{{ n.title }}</td>
+        <td class="l">{% if n.is_risk %}<span class="down">利空</span>{% else %}{{ n.category or "—" }}{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}

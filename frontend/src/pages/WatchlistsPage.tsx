@@ -36,7 +36,7 @@ export default function WatchlistsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-6">
+    <div className="w-full px-6 py-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-bold">觀察清單</h1>
         {current && (

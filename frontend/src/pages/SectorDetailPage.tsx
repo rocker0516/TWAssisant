@@ -203,7 +203,7 @@ export default function SectorDetailPage() {
     : data.constituents) as SectorConstituent[];
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-6">
+    <div className="w-full px-6 py-6">
       <Link to="/sectors" className="text-sm text-sky-400 hover:underline">← 類股行情</Link>
 
       <div className="mb-5 mt-3 flex items-center gap-3">

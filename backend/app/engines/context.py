@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 
 import pandas as pd
@@ -31,6 +31,9 @@ class StockContext:
     # 長線軌（釣大魚）補充：類股相對量尺 + 近 60 日展望/利空事件
     fund_rel: dict | None = None  # {"yoy3m_rank": 0~1|None（近3月均YoY類股內百分位）, "pe_sector_median": float|None}
     events_60d: list[models.Event] | None = None  # 近 60 日「展望」「利空」事件（OutlookScore 用）
+    # 長線分數滑落訊號（ScoreSlipSignal）用：該股 long 軌最近 5 筆 total_score（新→舊）
+    long_scores: list = field(default_factory=list)
+    long_passed_filter: bool | None = None  # 最近一筆 Score 的 passed_filter
 
     # ── 行情 / 指標 ──
 

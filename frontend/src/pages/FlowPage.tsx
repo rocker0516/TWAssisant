@@ -81,7 +81,7 @@ export default function FlowPage() {
   const stockIC = relation.data?.actors?.[actor]; // 個股 法人累積→未來報酬
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-6">
+    <div className="w-full px-6 py-6">
       <div className="mb-4">
         <h1 className="text-xl font-bold">籌碼動向</h1>
         <p className="text-sm text-muted">

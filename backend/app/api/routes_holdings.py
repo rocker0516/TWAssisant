@@ -12,7 +12,8 @@ from sqlalchemy.orm import Session
 from ..engines.exit_engine import ExitEngine
 from ..services.holding_service import HoldingService
 from ..storage import models
-from .deps import get_session, get_session_write
+from ..storage.user_data import UserData
+from .deps import get_user_data, get_user_data_write
 from .schemas import (
     HoldingCreate,
     HoldingItem,
@@ -122,6 +123,8 @@ def build_item(session: Session, h: models.Holding, td: date | None) -> HoldingI
         realized_pnl=round((h.realized_pnl if h.realized_pnl is not None else pos.realized_pnl) * LOT),
         light=st.light, level=st.level, signals=st.signals, hard_stop=st.hard_stop,
         highest=st.highest, drawdown_pct=st.drawdown_pct, trail_active=st.trail_active,
+        thesis_state=st.thesis_state, days_left=st.days_left, reaudit_count=st.reaudit_count,
+        target_price=st.target_price, stop_price=st.stop_price, horizon_days=st.horizon_days,
         stop_loss_override=h.stop_loss_override, trail_trigger_override=h.trail_trigger_override,
         trail_pullback_override=h.trail_pullback_override,
         entry_snapshot=h.entry_snapshot,
@@ -141,13 +144,11 @@ _LEVEL_ORDER = {"red": 0, "orange": 1, "yellow": 2, "green": 3}
 @router.get("", response_model=HoldingsResponse)
 def list_holdings(
     status: str = Query("open", pattern="^(open|closed)$"),
-    session: Session = Depends(get_session),
+    ud: UserData = Depends(get_user_data),
 ) -> HoldingsResponse:
+    session = ud.session
     td = _market_date(session)
-    holdings = session.execute(
-        select(models.Holding).where(models.Holding.status == status)
-    ).scalars().all()
-    items = [build_item(session, h, td) for h in holdings]
+    items = [build_item(session, h, td) for h in ud.holdings(status)]
     # 緊急優先排序（🔴在上）
     items.sort(key=lambda i: (_LEVEL_ORDER.get(i.level, 9), -(i.return_pct or 0)))
 
@@ -165,16 +166,19 @@ def list_holdings(
 
 
 @router.post("", response_model=HoldingItem)
-def create_holding(body: HoldingCreate, session: Session = Depends(get_session_write)) -> HoldingItem:
+def create_holding(body: HoldingCreate, ud: UserData = Depends(get_user_data_write)) -> HoldingItem:
+    session = ud.session
     if session.get(models.Stock, body.stock_id) is None:
         raise HTTPException(404, f"找不到股票 {body.stock_id}")
     try:
         h = _svc.create(
-            session, stock_id=body.stock_id, track=body.track, date_=body.date,
+            session, user_id=ud.user_id,
+            stock_id=body.stock_id, track=body.track, date_=body.date,
             price=body.price, shares=body.shares, fee=body.fee,
             stop_loss_override=body.stop_loss_override,
             trail_trigger_override=body.trail_trigger_override,
             trail_pullback_override=body.trail_pullback_override, note=body.note,
+            strategy_id=body.strategy_id,
         )
     except OperationalError as e:
         _raise_if_db_locked(e)
@@ -184,17 +188,19 @@ def create_holding(body: HoldingCreate, session: Session = Depends(get_session_w
 
 @router.post("/{holding_id}/transactions", response_model=HoldingItem)
 def add_transaction(
-    holding_id: int, body: TransactionCreate, session: Session = Depends(get_session_write)
+    holding_id: int, body: TransactionCreate, ud: UserData = Depends(get_user_data_write)
 ) -> HoldingItem:
+    session = ud.session
     if body.type not in ("add", "sell", "buy"):
         raise HTTPException(400, "type 必須為 add / sell")
+    h = ud.holding(holding_id)
+    if h is None:
+        raise HTTPException(404, f"持股 {holding_id} 不存在")
     try:
         h = _svc.add_transaction(
-            session, holding_id, type_=body.type, date_=body.date, price=body.price,
+            session, h, type_=body.type, date_=body.date, price=body.price,
             shares=body.shares, fee=body.fee, tax=body.tax, note=body.note,
         )
-    except ValueError as e:
-        raise HTTPException(404, str(e)) from e
     except OperationalError as e:
         _raise_if_db_locked(e)
         raise
@@ -203,9 +209,10 @@ def add_transaction(
 
 @router.patch("/{holding_id}", response_model=HoldingItem)
 def patch_holding(
-    holding_id: int, body: HoldingPatch, session: Session = Depends(get_session_write)
+    holding_id: int, body: HoldingPatch, ud: UserData = Depends(get_user_data_write)
 ) -> HoldingItem:
-    h = session.get(models.Holding, holding_id)
+    session = ud.session
+    h = ud.holding(holding_id)
     if h is None:
         raise HTTPException(404, f"持股 {holding_id} 不存在")
     for field, val in body.model_dump(exclude_unset=True).items():
@@ -219,8 +226,9 @@ def patch_holding(
 
 
 @router.delete("/{holding_id}")
-def delete_holding(holding_id: int, session: Session = Depends(get_session_write)) -> dict:
-    h = session.get(models.Holding, holding_id)
+def delete_holding(holding_id: int, ud: UserData = Depends(get_user_data_write)) -> dict:
+    session = ud.session
+    h = ud.holding(holding_id)
     if h is None:
         raise HTTPException(404, f"持股 {holding_id} 不存在")
     try:

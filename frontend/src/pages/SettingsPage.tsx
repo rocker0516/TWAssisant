@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  useMe,
   usePoppableEfficacy,
   useRecompute,
   useRecomputePoppableEfficacy,
@@ -16,6 +17,7 @@ import { CATEGORY_LABELS, changeColor } from "../lib/format";
 import { applyTheme, getStoredTheme, type Theme } from "../lib/theme";
 
 const SECTIONS = [
+  { key: "account", label: "帳號" },
   { key: "data", label: "資料更新" },
   { key: "scoring", label: "評分與推薦" },
   { key: "sector", label: "類股方向" },
@@ -29,6 +31,13 @@ const EXIT_LABELS: Record<string, string> = {
   stop_cap: "停損 %",
   trail_trigger: "移動停利啟動 %",
   trail_pullback: "回落 %",
+  score_slip_warn: "分數滑落警戒（分）",
+};
+
+const WAVE_DEFAULTS_LABELS: Record<string, string> = {
+  target_pct: "目標 %",
+  horizon_days: "天期（日）",
+  stop_pct: "停損 %",
 };
 
 function NumGrid({ obj, labels, onChange }: { obj: Record<string, number>; labels: Record<string, string>; onChange: (k: string, v: number) => void }) {
@@ -50,7 +59,8 @@ export default function SettingsPage() {
   const update = useUpdateSettings();
   const reset = useResetSettings();
   const recompute = useRecompute();
-  const [section, setSection] = useState<string>("scoring");
+  // 預設落在「帳號」——側欄底部帳號卡是本頁的主要入口。
+  const [section, setSection] = useState<string>("account");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [draft, setDraft] = useState<any>(null);
   const [draftFor, setDraftFor] = useState<string | null>(null);
@@ -80,7 +90,7 @@ export default function SettingsPage() {
     return <div className="p-6 text-muted">載入中…</div>;
 
   return (
-    <div className="mx-auto flex max-w-6xl gap-6 px-6 py-6">
+    <div className="flex w-full gap-6 px-6 py-6">
       <aside className="w-40 shrink-0">
         <h1 className="mb-3 text-xl font-bold">設定</h1>
         <nav className="flex flex-col gap-0.5">
@@ -142,20 +152,32 @@ export default function SettingsPage() {
         {/* 出場提醒 */}
         {section === "exit" && (
           <div className="flex flex-col gap-5">
-            {(["wave", "long"] as const).map((tk) => (
-              <div key={tk} className="rounded-xl border border-edge bg-panel p-4">
-                <div className="mb-3 font-semibold">{tk === "wave" ? "波段軌" : "長線軌"}出場參數</div>
-                <NumGrid obj={draft[tk]} labels={EXIT_LABELS}
-                  onChange={(k, v) => setDraft({ ...draft, [tk]: { ...draft[tk], [k]: v } })} />
-                <label className="mt-3 flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={draft[tk].break_ma_exit ?? true}
-                    onChange={(e) => setDraft({ ...draft, [tk]: { ...draft[tk], break_ma_exit: e.target.checked } })} />
-                  <span>跌破{tk === "wave" ? "月線" : "季線"}即建議出場</span>
-                  <span className="text-xs text-muted">（關閉＝只降為警示、不催出場；回測顯示放寬較佳但回撤較大）</span>
-                </label>
-              </div>
-            ))}
-            <p className="text-xs text-muted">出場參數即時反映於持股頁的停損價與移動停利判斷。</p>
+            <div className="rounded-xl border border-edge bg-panel p-4">
+              <div className="mb-3 font-semibold">波段軌（非策略持股預設）</div>
+              <p className="mb-3 text-xs leading-relaxed text-muted">
+                波段軌採論點式出場：新增持股時套用下方目標／天期／停損預設（個股可個別覆寫）；
+                天期到期未達標可重審，重審上限見下。
+              </p>
+              <NumGrid obj={draft.wave_defaults} labels={WAVE_DEFAULTS_LABELS}
+                onChange={(k, v) => setDraft({ ...draft, wave_defaults: { ...draft.wave_defaults, [k]: v } })} />
+              <label className="mt-3 block w-40">
+                <span className="mb-1 block text-xs text-muted">重審上限（次）</span>
+                <input type="number" min={0} className={inputCls} value={draft.reaudit_max}
+                  onChange={(e) => setDraft({ ...draft, reaudit_max: Number(e.target.value) })} />
+              </label>
+            </div>
+            <div className="rounded-xl border border-edge bg-panel p-4">
+              <div className="mb-3 font-semibold">長線軌出場參數</div>
+              <NumGrid obj={draft.long} labels={EXIT_LABELS}
+                onChange={(k, v) => setDraft({ ...draft, long: { ...draft.long, [k]: v } })} />
+              <label className="mt-3 flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={draft.long.break_ma_exit ?? true}
+                  onChange={(e) => setDraft({ ...draft, long: { ...draft.long, break_ma_exit: e.target.checked } })} />
+                <span>跌破季線即建議出場</span>
+                <span className="text-xs text-muted">（關閉＝只降為警示、不催出場；回測顯示放寬較佳但回撤較大）</span>
+              </label>
+            </div>
+            <p className="text-xs text-muted">出場參數即時反映於持股頁的停損價與論點進度判斷。</p>
           </div>
         )}
 
@@ -171,7 +193,10 @@ export default function SettingsPage() {
         {/* 一般（主題）*/}
         {section === "general" && <GeneralPanel />}
 
-        {section !== "data" && section !== "sources" && section !== "general" && section !== "poppable_efficacy" && (
+        {/* 帳號 */}
+        {section === "account" && <AccountPanel />}
+
+        {section !== "data" && section !== "sources" && section !== "general" && section !== "poppable_efficacy" && section !== "account" && (
           <div className="mt-5 flex items-center gap-3">
             <button onClick={save} disabled={update.isPending || recompute.isPending}
               className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium disabled:opacity-50">
@@ -505,6 +530,87 @@ function PoppableEfficacyPanel() {
       )}
 
       {has && eff!.note && <p className="text-xs leading-relaxed text-muted">{eff!.note}</p>}
+    </div>
+  );
+}
+
+function AccountPanel() {
+  const { data: me, isLoading } = useMe();
+  const [pending, setPending] = useState<"logout" | "logout-all" | null>(null);
+
+  const doLogout = async (all: boolean) => {
+    setPending(all ? "logout-all" : "logout");
+    await fetch(`/api/auth/${all ? "logout-all" : "logout"}`, { method: "POST" }).catch(() => {});
+    window.location.href = "/login";
+  };
+
+  if (isLoading) return <div className="text-muted">載入中…</div>;
+
+  // 本機無登入牆模式：沒有帳號可顯示。
+  if (!me?.auth_enabled) {
+    return (
+      <div className="rounded-xl border border-edge bg-panel p-4 text-sm text-muted">
+        目前為本機模式（未啟用登入），沒有帳號資訊。
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-xl border border-edge bg-panel p-4">
+        <div className="mb-3 font-semibold">帳號資訊</div>
+        <div className="flex flex-col gap-2 text-sm">
+          <div className="flex items-center gap-3">
+            <span className="w-16 text-muted">Email</span>
+            <span>{me.email}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="w-16 text-muted">方案</span>
+            <span
+              className={`rounded px-1.5 py-0.5 text-xs font-medium ${
+                me.tier === "pro" ? "bg-amber-900/60 text-amber-300" : "bg-panel2 text-gray-300"
+              }`}
+            >
+              {me.tier === "pro" ? "Pro" : "Free"}
+            </span>
+          </div>
+          {me.role === "admin" && (
+            <div className="flex items-center gap-3">
+              <span className="w-16 text-muted">權限</span>
+              <span className="rounded bg-sky-900/50 px-1.5 py-0.5 text-xs text-sky-300">管理員</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-edge bg-panel p-4">
+        <div className="mb-1 font-semibold">密碼</div>
+        <p className="mb-3 text-sm text-muted">透過 Email 重設連結更改密碼（重設後所有裝置需重新登入）。</p>
+        <a href="/forgot" className="rounded-md bg-panel2 px-3 py-1.5 text-sm hover:bg-edge">
+          寄送重設密碼信
+        </a>
+      </div>
+
+      <div className="rounded-xl border border-edge bg-panel p-4">
+        <div className="mb-3 font-semibold">登出</div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => doLogout(false)}
+            disabled={pending !== null}
+            className="rounded-md bg-panel2 px-4 py-2 text-sm hover:bg-edge disabled:opacity-50"
+          >
+            {pending === "logout" ? "登出中…" : "登出"}
+          </button>
+          <button
+            onClick={() => doLogout(true)}
+            disabled={pending !== null}
+            className="rounded-md px-4 py-2 text-sm text-down hover:bg-panel2 disabled:opacity-50"
+          >
+            {pending === "logout-all" ? "登出中…" : "登出所有裝置"}
+          </button>
+          <span className="text-xs text-muted">登出所有裝置＝所有已登入的瀏覽器立即失效。</span>
+        </div>
+      </div>
     </div>
   );
 }

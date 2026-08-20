@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}台股排行榜 {{ cutoff }}｜TWAssistant{% endblock %}
+{% block description %}{{ cutoff }} 台股漲幅、跌幅、成交值、三大法人買超排行，取自證交所／櫃買中心官方盤後資料。{% endblock %}
+{% block content %}
+<h1>排行榜</h1>
+
+<div class="boards">
+  {% for board in boards %}
+  <section>
+    <h2>{{ board.title }}</h2>
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr><th class="l">代號</th><th class="l">名稱</th><th>收盤</th><th>{{ board.value_label }}</th></tr>
+        </thead>
+        <tbody>
+          {% for r in board.rows %}
+          <tr>
+            <td><a class="code" href="/stock/{{ r.stock_id }}">{{ r.stock_id }}</a></td>
+            <td class="l"><a class="code" href="/stock/{{ r.stock_id }}">{{ r.name }}</a></td>
+            <td>{{ "%.2f"|format(r.close) if r.close is not none else "—" }}</td>
+            <td class="{{ 'up' if r.signed and r.value > 0 else ('down' if r.signed and r.value < 0 else '') }}">{{ r.display }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}

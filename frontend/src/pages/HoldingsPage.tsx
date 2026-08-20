@@ -35,6 +35,56 @@ function ThesisChip({ h }: { h: HoldingItem }) {
   );
 }
 
+// 波段軌論點進度（wave_thesis：目標/停損/天期，取代舊訊號列表）
+const WAVE_THESIS_META: Record<string, { label: string; cls: string }> = {
+  active: { label: "追蹤中", cls: "text-sky-300" },
+  expiring: { label: "即將到期", cls: "text-amber-300" },
+  awaiting_reaudit: { label: "待重審", cls: "text-amber-300" },
+  fulfilled: { label: "已命中", cls: "text-emerald-400" },
+  expired: { label: "已逾期", cls: "text-gray-400" },
+  refuted: { label: "論點被推翻", cls: "text-red-400" },
+};
+
+function waveTargetPct(h: HoldingItem): number | null {
+  if (h.target_price == null || h.avg_cost == null || h.avg_cost === 0) return null;
+  return Math.round(((h.target_price / h.avg_cost - 1) * 100 + Number.EPSILON) * 10) / 10;
+}
+
+function ThesisProgress({ h, compact = false }: { h: HoldingItem; compact?: boolean }) {
+  if (!h.thesis_state) return null;
+  const horizon = h.horizon_days ?? null;
+  const daysLeft = h.days_left ?? null;
+  const daysElapsed = horizon != null && daysLeft != null ? Math.max(0, horizon - daysLeft) : null;
+  const pct = horizon != null && horizon > 0 && daysElapsed != null
+    ? Math.min(100, Math.max(0, (daysElapsed / horizon) * 100))
+    : null;
+  const meta = WAVE_THESIS_META[h.thesis_state] ?? WAVE_THESIS_META.active;
+  const targetPct = waveTargetPct(h);
+
+  return (
+    <div className={compact ? "space-y-1" : "mt-2 space-y-1"}>
+      <div className="flex flex-wrap items-center justify-between gap-x-2 text-xs text-muted">
+        <span className={meta.cls}>
+          {meta.label}
+          {daysElapsed != null && horizon != null && `　第 ${daysElapsed}/${horizon} 天`}
+          {(h.reaudit_count ?? 0) > 0 && `（已重審 ${h.reaudit_count}）`}
+        </span>
+        <span>目標 {fmtNum(h.target_price)} ／ 停損 {fmtNum(h.stop_price)}</span>
+      </div>
+      {pct != null && (
+        <div className="h-1.5 w-full rounded bg-slate-700">
+          <div className="h-1.5 rounded bg-sky-500" style={{ width: `${pct}%` }} />
+        </div>
+      )}
+      {h.thesis_state === "fulfilled" && (
+        <span className="inline-block rounded bg-emerald-600/20 px-1.5 py-0.5 text-xs text-emerald-400">
+          已命中{targetPct != null ? ` +${targetPct}%` : ""}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function SummaryBar({ s }: { s: { count: number; total_market_value: number; total_unrealized_pnl: number; total_return_pct: number | null; total_realized_pnl: number } }) {
   const cell = (label: string, value: string, color?: string) => (
     <div>
@@ -60,7 +110,7 @@ export default function HoldingsPage() {
   const del = useDeleteHolding();
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-6">
+    <div className="w-full px-6 py-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-bold">我的持股</h1>
         <button onClick={() => setModal({ kind: "new" })} className="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium">
@@ -154,7 +204,13 @@ function RowGroup({ h, tab, expanded, onToggle, onAdd, onSell, onDelete }: {
         <td className={`px-3 py-2 text-right tabular-nums ${pnlColor(tab === "open" ? h.return_pct : h.realized_pnl)}`}>
           {tab === "open" ? fmtPct(h.return_pct) : fmtNum(h.realized_pnl, 0)}
         </td>
-        <td className="px-3 py-2 text-xs text-gray-300">{h.signals.slice(0, 2).join("、") || "—"}</td>
+        <td className="px-3 py-2 text-xs text-gray-300">
+          {h.track === "wave" && h.thesis_state ? (
+            <ThesisProgress h={h} compact />
+          ) : (
+            h.signals.slice(0, 2).join("、") || "—"
+          )}
+        </td>
         <td className="px-3 py-2 text-right">
           <div className="flex justify-end gap-2 text-xs">
             {tab === "open" && <button onClick={onAdd} className="text-sky-400 hover:underline">加碼</button>}
@@ -178,11 +234,20 @@ function RowGroup({ h, tab, expanded, onToggle, onAdd, onSell, onDelete }: {
                 <div className="text-sm">持有高點 {fmtNum(h.highest)} · 回落 {fmtPct(h.drawdown_pct)} {h.trail_active ? "（移動停利啟動）" : ""}</div>
               </div>
               <div>
-                <div className="mb-1 text-xs text-muted">全部出場訊號</div>
-                {h.signals.length ? (
-                  <ul className="list-inside list-disc text-sm text-gray-300">{h.signals.map((s, i) => <li key={i}>{s}</li>)}</ul>
+                {h.track === "wave" && h.thesis_state ? (
+                  <>
+                    <div className="mb-1 text-xs text-muted">論點進度</div>
+                    <ThesisProgress h={h} />
+                  </>
                 ) : (
-                  <div className="text-sm text-muted">無</div>
+                  <>
+                    <div className="mb-1 text-xs text-muted">全部出場訊號</div>
+                    {h.signals.length ? (
+                      <ul className="list-inside list-disc text-sm text-gray-300">{h.signals.map((s, i) => <li key={i}>{s}</li>)}</ul>
+                    ) : (
+                      <div className="text-sm text-muted">無</div>
+                    )}
+                  </>
                 )}
               </div>
             </div>

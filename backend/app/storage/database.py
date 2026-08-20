@@ -47,6 +47,7 @@ def init_db() -> None:
 
     Base.metadata.create_all(bind=engine)
     _ensure_columns()
+    _migrate_multiuser()
 
 
 # create_all 只補缺表、不補既有表的新欄；本機 SQLite 用輕量 ADD COLUMN 補欄（冪等）
@@ -59,9 +60,21 @@ _COLUMN_ADDITIONS: dict[str, dict[str, str]] = {
     },
     "indicators": {"ma120": "FLOAT", "ma240": "FLOAT"},  # 半年線/年線（長期支撐）
     "company_profile": {"listed_date": "DATE"},  # 正確上市/上櫃日（t187ap03）
-    "holdings": {"entry_snapshot": "JSON"},  # 進場理由快照（論點追蹤）
-
+    "holdings": {"entry_snapshot": "JSON", "thesis": "JSON",
+                 "user_id": "INTEGER REFERENCES users(id)"},
+    # 多租戶隔離（分層設計第 6 節）：使用者資料四表補 user_id
+    "transactions": {"user_id": "INTEGER REFERENCES users(id)"},
+    "watchlists": {"user_id": "INTEGER REFERENCES users(id)"},
+    "watchlist_items": {"user_id": "INTEGER REFERENCES users(id)"},
 }
+
+# ALTER ADD COLUMN 補不了索引；user_id 是每個使用者資料查詢的必要條件，補上
+_INDEX_ADDITIONS = [
+    "CREATE INDEX IF NOT EXISTS ix_holdings_user_id ON holdings(user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_transactions_user_id ON transactions(user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_watchlists_user_id ON watchlists(user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_watchlist_items_user_id ON watchlist_items(user_id)",
+]
 
 
 def _ensure_columns() -> None:
@@ -73,6 +86,79 @@ def _ensure_columns() -> None:
             for name, ddl in cols.items():
                 if name not in existing:
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+
+
+_BACKFILL_OWNER = [
+    "UPDATE holdings SET user_id = :uid WHERE user_id IS NULL",
+    "UPDATE transactions SET user_id = :uid WHERE user_id IS NULL",
+    "UPDATE watchlists SET user_id = :uid WHERE user_id IS NULL",
+    "UPDATE watchlist_items SET user_id = :uid WHERE user_id IS NULL",
+]
+
+
+def _migrate_multiuser() -> None:
+    """單人 → 多租戶的冪等遷移（分層設計第 6 節「遷移」）。
+
+    1. 補 user_id 索引（ALTER ADD COLUMN 做不到的部分）。
+    2. bootstrap 管理員：.env 的 TWA_AUTH_USERNAME/PASSWORD 若已設定，確保
+       users 表有對應的 admin 帳號（密碼雜湊存 DB；.env 明文只在 bootstrap
+       與舊版相容路徑用到）。
+    3. 既有無主資料（user_id IS NULL）全部歸第一個 admin——單人時代的資料
+       本來就是站主的。
+
+    每一步以「查了才做」達成冪等，重跑無副作用——與 pipeline 同一條慣例。
+    """
+    from sqlalchemy import text
+
+    from .. import auth
+    from ..config import settings as cfg
+
+    with engine.begin() as conn:
+        for ddl in _INDEX_ADDITIONS:
+            conn.execute(text(ddl))
+
+        if cfg.auth_password:
+            email = cfg.auth_username if "@" in cfg.auth_username \
+                else cfg.auth_username + "@local.twa"
+            row = conn.execute(
+                text("SELECT id, password_hash FROM users WHERE email = :e"), {"e": email}
+            ).first()
+            if row:
+                admin_id = row[0]
+                # .env 是 bootstrap admin 密碼的真相來源：改了 .env 就同步雜湊，
+                # 否則使用者以為改了密碼、實際上舊密碼還能登入
+                if not auth.verify_password(cfg.auth_password, row[1]):
+                    conn.execute(
+                        text("UPDATE users SET password_hash = :h, session_version = "
+                             "session_version + 1 WHERE id = :i"),
+                        {"h": auth.hash_password(cfg.auth_password), "i": admin_id},
+                    )
+            else:
+                admin_id = conn.execute(
+                    text(
+                        "INSERT INTO users (email, password_hash, tier, role, "
+                        "email_verified_at, session_version, failed_logins) "
+                        "VALUES (:e, :h, 'pro', 'admin', CURRENT_TIMESTAMP, 1, 0)"
+                    ),
+                    {"e": email, "h": auth.hash_password(cfg.auth_password)},
+                ).lastrowid
+        else:
+            # 開發模式（無密碼）：仍需一個帳號承接資料與 scoped 查詢
+            row = conn.execute(text("SELECT id FROM users ORDER BY id LIMIT 1")).first()
+            if row:
+                admin_id = row[0]
+            else:
+                admin_id = conn.execute(
+                    text(
+                        "INSERT INTO users (email, password_hash, tier, role, "
+                        "email_verified_at, session_version, failed_logins) "
+                        "VALUES ('dev@local.twa', '!', 'pro', 'admin', "
+                        "CURRENT_TIMESTAMP, 1, 0)"
+                    )
+                ).lastrowid
+
+        for sql in _BACKFILL_OWNER:
+            conn.execute(text(sql), {"uid": admin_id})
 
 
 @contextmanager

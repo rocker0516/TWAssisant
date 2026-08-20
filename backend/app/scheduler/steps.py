@@ -13,12 +13,13 @@ import pandas as pd
 from sqlalchemy import delete, func, select
 
 from ..engines.corners import CornerEngine
-from ..engines.exit_engine import ExitEngine
+from ..engines.exit_engine import ExitEngine, ExitStatus
 from ..engines.indicators import IndicatorEngine
 from ..engines.news_engine import NewsEngine
 from ..engines.poppability import PoppabilityEfficacyEngine
 from ..engines.scoring import ScoringEngine
 from ..engines.sector_engine import SectorEngine
+from ..engines.signal_log import SignalLogEngine
 from ..notify import build_daily_message, send_discord
 from ..sources import registry
 from ..sources.base import SourceError
@@ -377,6 +378,24 @@ class ScoringStep(PipelineStep):
         return ScoringEngine().run(ctx.session, ctx.trading_date)
 
 
+class SignalLogStep(PipelineStep):
+    """名單進出 → signal_log（append-only）。
+
+    緊接 ScoringStep：它只依賴 scores.passed，而 ScoringStep 之後沒有任何 step
+    會再動那個欄位（MLConsensus/Corner 都是純標籤層）。放這裡而不是最後，是為了
+    讓後面的 NotifyStep 能直接讀事件、不必自己再比對一次兩日名單。
+
+    required=False：事件寫失敗不該擋掉當日推薦與出場評估——那是使用者當天要看的東西，
+    事件只影響通知與事後回顧，下次重跑會補上（insert-ignore 天生可重跑）。
+    """
+
+    name = "signal_log"
+    required = False
+
+    def run(self, ctx: PipelineContext) -> dict:
+        return SignalLogEngine().run(ctx.session, ctx.trading_date)
+
+
 class ExitStep(PipelineStep):
     """持股出場評估：日更持有最高價（P2）。"""
 
@@ -385,6 +404,25 @@ class ExitStep(PipelineStep):
 
     def run(self, ctx: PipelineContext) -> dict:
         return ExitEngine().run(ctx.session, ctx.trading_date)
+
+
+def format_exit_lines(rows: list[tuple[str, ExitStatus]]) -> list[str]:
+    """持股出場燈號 → Discord 推播行（純函式，不觸資料庫）。
+
+    - 🔴🟠 持股原樣列出（label 已含股名/報酬%，signals 附後）。
+    - 波段持股論點明日到期（thesis_state == "expiring" 且 days_left == 1）
+      追加一行「⏳ 論點明日到期」預告（awaiting_reaudit 本身已是 🟠 會自然入列，不重複判斷）。
+    """
+    lines: list[str] = []
+    for label, st in rows:
+        if st.level in ("red", "orange"):
+            sig = "、".join(st.signals[:3]) or "—"
+            lines.append(f"{st.light} {label}：{sig}")
+        if st.thesis_state == "expiring" and st.days_left == 1:
+            n = st.horizon_days
+            frac = f"（第 {n - 1}/{n} 天未兌現）" if isinstance(n, int) else ""
+            lines.append(f"⏳ {label} 論點明日到期{frac}")
+    return lines
 
 
 class NotifyStep(PipelineStep):

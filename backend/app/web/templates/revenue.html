@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}月營收速報{% if ym %}（{{ cutoff }}）{% endif %}｜TWAssistant{% endblock %}
+{% block description %}台股月營收速報：最新月份年增率、月增率、營收規模排行與創歷史新高名單。{% endblock %}
+{% block content %}
+
+<div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-top: 8px;">
+  <h1 style="margin: 0;">月營收速報{% if ym %}<span style="font-size: 17px; color: var(--ink-2); font-weight: 500;">　{{ cutoff }}・已公布 {{ n_reported }} 家</span>{% endif %}</h1>
+  {% if ym %}
+  <span style="display: flex; gap: 6px; font-size: 13px;">
+    {% if prev_ym %}<a class="code" href="/revenue/{{ prev_ym[0] }}/{{ prev_ym[1] }}"
+        style="border: 1px solid var(--line); border-radius: 7px; padding: 3px 12px;">← {{ prev_ym[0] }}/{{ prev_ym[1] }}</a>{% endif %}
+    {% if next_ym %}<a class="code" href="/revenue/{{ next_ym[0] }}/{{ next_ym[1] }}"
+        style="border: 1px solid var(--line); border-radius: 7px; padding: 3px 12px;">{{ next_ym[0] }}/{{ next_ym[1] }} →</a>
+    {% else %}<a class="code" href="/revenue"
+        style="border: 1px solid var(--line); border-radius: 7px; padding: 3px 12px; color: var(--brand);">最新</a>{% endif %}
+  </span>
+  {% endif %}
+</div>
+<p style="color: var(--ink-2); font-size: 15px; max-width: 62ch; margin: 0 0 22px;">
+  年增／月增排行僅收錄單月營收 1 億元以上的公司，避免小基數暴衝洗版。
+</p>
+
+{% if boards %}
+<div class="boards">
+  {% for b in boards %}
+  <section>
+    <h2 style="margin-top: 0;">{{ b.title }}</h2>
+    <div class="tbl">
+      <table>
+        <thead><tr><th class="l">代號</th><th class="l">名稱</th><th>營收(億)</th><th>{{ b.value_label }}</th></tr></thead>
+        <tbody>
+          {% for r in b.rows %}
+          <tr>
+            <td class="l"><a class="code" href="/stock/{{ r.stock_id }}">{{ r.stock_id }}</a></td>
+            <td class="l"><a class="code" href="/stock/{{ r.stock_id }}">{{ r.name }}</a></td>
+            <td>{{ r.rev_disp }}</td>
+            <td class="{{ ('up' if r.value > 0 else 'down') if b.signed else '' }}">{{ r.display }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endfor %}
+</div>
+{% else %}
+<div class="tbl" style="padding: 22px 26px; font-size: 14px; color: var(--ink-2);">尚無資料。</div>
+{% endif %}
+
+{% if highs %}
+<h2>創歷史新高（依年增率排序）</h2>
+<div class="tbl">
+  <table>
+    <thead><tr><th class="l">代號</th><th class="l">名稱</th><th>營收(億)</th><th>YoY</th><th>MoM</th></tr></thead>
+    <tbody>
+      {% for r in highs %}
+      <tr>
+        <td class="l"><a class="code" href="/stock/{{ r.stock_id }}">{{ r.stock_id }}</a></td>
+        <td class="l"><a class="code" href="/stock/{{ r.stock_id }}">{{ r.name }}</a></td>
+        <td>{{ r.rev_disp }}</td>
+        <td class="{{ 'up' if r.yoy and r.yoy > 0 else ('down' if r.yoy and r.yoy < 0 else '') }}">
+          {{ "%+.1f%%"|format(r.yoy) if r.yoy is not none else "—" }}</td>
+        <td class="{{ 'up' if r.mom and r.mom > 0 else ('down' if r.mom and r.mom < 0 else '') }}">
+          {{ "%+.1f%%"|format(r.mom) if r.mom is not none else "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}

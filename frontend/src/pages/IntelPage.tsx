@@ -26,24 +26,48 @@ function DigestCard({ title, hint, children }: { title: string; hint?: string; c
   );
 }
 
+// 標題尾巴常帶「 - FTNN 新聞網」這類轉載來源，跟 source 欄重複 → 顯示前剝掉。
+function cleanTitle(e: IntelEvent): string {
+  const m = e.title.match(/^(.*?)\s*[-–|]\s*([^-–|]{2,24})$/);
+  if (!m) return e.title;
+  const tail = m[2].trim().toLowerCase();
+  const src = (e.source ?? "").trim().toLowerCase();
+  // 尾巴＝來源名（或互為子字串，如「ftnn.com.tw」vs「FTNN 新聞網」）才剝，避免誤砍正文。
+  if (src && (tail === src || tail.includes(src) || src.includes(tail))) return m[1];
+  return e.title;
+}
+
+// 同一則新聞常被多家轉載（標題僅尾巴不同）→ 以「股票＋淨標題」去重，保留最早出現的那筆。
+function dedupeEvents(events: IntelEvent[]): IntelEvent[] {
+  const seen = new Set<string>();
+  return events.filter((e) => {
+    const key = `${e.stock_id}|${cleanTitle(e).replace(/\s+/g, "")}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function EventRow({ e }: { e: IntelEvent }) {
+  const title = cleanTitle(e);
   return (
-    <li className="flex items-start gap-2 border-b border-edge/50 py-2 text-sm last:border-0">
+    <li className="flex items-start gap-2 py-1.5 text-sm">
       <span className={`mt-0.5 shrink-0 rounded px-1 text-xs ${catClass(e.category, e.is_risk)}`}>
         {e.is_risk ? "⚠️ 利空" : e.category ?? "中性"}
       </span>
-      <span className="shrink-0 text-xs tabular-nums text-muted">{e.date}</span>
       <Link to={`/stocks/${e.stock_id}`} className="shrink-0 font-medium hover:underline">
         {e.name}
       </Link>
-      {e.url ? (
-        <a href={e.url} target="_blank" rel="noreferrer" className="truncate text-muted hover:text-gray-200 hover:underline">
-          {e.title}
-        </a>
-      ) : (
-        <span className="truncate text-muted">{e.title}</span>
-      )}
-      {e.source && <span className="ml-auto shrink-0 text-[10px] text-gray-600">{e.source}</span>}
+      <span className="min-w-0">
+        {e.url ? (
+          <a href={e.url} target="_blank" rel="noreferrer" className="text-muted hover:text-gray-200 hover:underline">
+            {title}
+          </a>
+        ) : (
+          <span className="text-muted">{title}</span>
+        )}
+        {e.source && <span className="ml-2 whitespace-nowrap text-[10px] text-gray-600">{e.source}</span>}
+      </span>
     </li>
   );
 }
@@ -60,7 +84,7 @@ export default function IntelPage() {
   });
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-6">
+    <div className="w-full px-6 py-6">
       <h1 className="text-xl font-bold">📰 情報</h1>
       <p className="mb-4 text-sm text-muted">
         近期消息與研報重點 · 盤後資料：{data?.date ?? "—"}
@@ -146,7 +170,24 @@ export default function IntelPage() {
         {data && data.events.length === 0 ? (
           <p className="text-sm text-muted">此條件下近期無事件</p>
         ) : (
-          <ul className="flex flex-col">{data?.events.map((e, i) => <EventRow key={i} e={e} />)}</ul>
+          data &&
+          (() => {
+            const deduped = dedupeEvents(data.events);
+            const byDate = new Map<string, IntelEvent[]>();
+            for (const e of deduped) {
+              (byDate.get(e.date) ?? byDate.set(e.date, []).get(e.date)!).push(e);
+            }
+            return [...byDate.entries()].map(([date, evs]) => (
+              <div key={date} className="border-b border-edge/50 py-2 last:border-0">
+                <div className="mb-1 text-xs font-medium tabular-nums text-gray-500">{date}</div>
+                <ul className="flex flex-col">
+                  {evs.map((e, i) => (
+                    <EventRow key={i} e={e} />
+                  ))}
+                </ul>
+              </div>
+            ));
+          })()
         )}
       </div>
     </div>

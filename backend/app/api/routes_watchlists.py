@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 from ..services.holding_service import HoldingService
 from ..services.settings_service import SettingsService
 from ..storage import models
-from .deps import get_session, get_session_write
+from ..storage.user_data import UserData
+from .deps import get_user_data, get_user_data_write
 from .schemas import (
     ToHolding,
     WatchlistCreate,
@@ -91,12 +92,12 @@ def _thresholds(session: Session) -> dict[str, float]:
 
 
 @router.get("/watchlists", response_model=WatchlistsResponse)
-def list_watchlists(session: Session = Depends(get_session)) -> WatchlistsResponse:
+def list_watchlists(ud: UserData = Depends(get_user_data)) -> WatchlistsResponse:
+    session = ud.session
     td = _market_date(session)
     thresholds = _thresholds(session)
-    lists = session.execute(select(models.Watchlist).order_by(models.Watchlist.id)).scalars().all()
     out = []
-    for wl in lists:
+    for wl in ud.watchlists():
         items = [_build_item(session, it, td, thresholds) for it in wl.items]
         items.sort(key=lambda i: _LIGHT_ORDER.get(i.light, 9))
         out.append(WatchlistDTO(id=wl.id, name=wl.name, items=items))
@@ -104,29 +105,31 @@ def list_watchlists(session: Session = Depends(get_session)) -> WatchlistsRespon
 
 
 @router.post("/watchlists", response_model=WatchlistDTO)
-def create_watchlist(body: WatchlistCreate, session: Session = Depends(get_session_write)) -> WatchlistDTO:
-    wl = models.Watchlist(name=body.name)
-    session.add(wl)
-    session.flush()
+def create_watchlist(body: WatchlistCreate, ud: UserData = Depends(get_user_data_write)) -> WatchlistDTO:
+    wl = models.Watchlist(name=body.name, user_id=ud.user_id)
+    ud.session.add(wl)
+    ud.session.flush()
     return WatchlistDTO(id=wl.id, name=wl.name, items=[])
 
 
 @router.delete("/watchlists/{wl_id}")
-def delete_watchlist(wl_id: int, session: Session = Depends(get_session_write)) -> dict:
-    wl = session.get(models.Watchlist, wl_id)
+def delete_watchlist(wl_id: int, ud: UserData = Depends(get_user_data_write)) -> dict:
+    wl = ud.watchlist(wl_id)
     if wl is None:
         raise HTTPException(404, "清單不存在")
-    session.delete(wl)
+    ud.session.delete(wl)
     return {"ok": True}
 
 
 @router.post("/watchlists/{wl_id}/items", response_model=WatchlistItemDTO)
-def add_item(wl_id: int, body: WatchlistItemCreate, session: Session = Depends(get_session_write)) -> WatchlistItemDTO:
-    if session.get(models.Watchlist, wl_id) is None:
+def add_item(wl_id: int, body: WatchlistItemCreate, ud: UserData = Depends(get_user_data_write)) -> WatchlistItemDTO:
+    session = ud.session
+    if ud.watchlist(wl_id) is None:
         raise HTTPException(404, "清單不存在")
     if session.get(models.Stock, body.stock_id) is None:
         raise HTTPException(404, f"找不到股票 {body.stock_id}")
     it = models.WatchlistItem(
+        user_id=ud.user_id,
         watchlist_id=wl_id, stock_id=body.stock_id, target_price=body.target_price,
         added_price=body.added_price, added_date=body.added_date or date.today(),
         reason=body.reason, note=body.note,
@@ -139,22 +142,23 @@ def add_item(wl_id: int, body: WatchlistItemCreate, session: Session = Depends(g
 
 
 @router.delete("/watchlist-items/{item_id}")
-def delete_item(item_id: int, session: Session = Depends(get_session_write)) -> dict:
-    it = session.get(models.WatchlistItem, item_id)
+def delete_item(item_id: int, ud: UserData = Depends(get_user_data_write)) -> dict:
+    it = ud.watchlist_item(item_id)
     if it is None:
         raise HTTPException(404, "項目不存在")
-    session.delete(it)
+    ud.session.delete(it)
     return {"ok": True}
 
 
 @router.post("/watchlist-items/{item_id}/to-holding")
-def item_to_holding(item_id: int, body: ToHolding, session: Session = Depends(get_session_write)) -> dict:
-    it = session.get(models.WatchlistItem, item_id)
+def item_to_holding(item_id: int, body: ToHolding, ud: UserData = Depends(get_user_data_write)) -> dict:
+    it = ud.watchlist_item(item_id)
     if it is None:
         raise HTTPException(404, "項目不存在")
     h = _holding.create(
-        session, stock_id=it.stock_id, track=body.track, date_=body.date,
+        ud.session, user_id=ud.user_id,
+        stock_id=it.stock_id, track=body.track, date_=body.date,
         price=body.price, shares=body.shares,
     )
-    session.delete(it)  # 轉持股後從觀察清單移除
+    ud.session.delete(it)  # 轉持股後從觀察清單移除
     return {"ok": True, "holding_id": h.id}

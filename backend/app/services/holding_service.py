@@ -79,11 +79,34 @@ def _capture_entry_snapshot(
     }
 
 
+WAVE_THESIS_DEFAULTS = {"target_pct": 10.0, "horizon_days": 10, "stop_pct": 8.0}
+
+
+def _capture_thesis(session: Session, *, user_id: int, track: str,
+                    date_: date, strategy_id: int | None) -> dict | None:
+    """波段建倉論點快照。strategy 來源凍結該策略參數與條件；其餘用全域預設。"""
+    if track != "wave":
+        return None
+    base = {"clock_start": date_.isoformat(), "reaudit_count": 0, "state": "active"}
+    if strategy_id is not None:
+        st = session.get(models.UserStrategy, strategy_id)
+        if st is not None and st.user_id == user_id:
+            return {**base, "source": "strategy", "strategy_id": st.id,
+                    "conditions": list(st.conditions or []),
+                    "target_pct": st.target_pct, "horizon_days": st.horizon_days,
+                    "stop_pct": st.stop_pct if st.stop_pct is not None
+                    else WAVE_THESIS_DEFAULTS["stop_pct"]}
+    row = session.get(models.Setting, "exit")
+    cfg = (row.value or {}).get("wave_defaults", {}) if row and isinstance(row.value, dict) else {}
+    return {**base, "source": "manual", **{**WAVE_THESIS_DEFAULTS, **{k: v for k, v in cfg.items() if v is not None}}}
+
+
 class HoldingService:
     def create(
         self,
         session: Session,
         *,
+        user_id: int,
         stock_id: str,
         track: str,
         date_: date,
@@ -94,13 +117,16 @@ class HoldingService:
         trail_trigger_override: float | None = None,
         trail_pullback_override: float | None = None,
         note: str | None = None,
+        strategy_id: int | None = None,
     ) -> models.Holding:
         holding = models.Holding(
+            user_id=user_id,
             stock_id=stock_id,
             track=track,
             status="open",
             opened_date=date_,
             entry_snapshot=_capture_entry_snapshot(session, stock_id, track, date_),
+            thesis=_capture_thesis(session, user_id=user_id, track=track, date_=date_, strategy_id=strategy_id),
             stop_loss_override=stop_loss_override,
             trail_trigger_override=trail_trigger_override,
             trail_pullback_override=trail_pullback_override,
@@ -110,7 +136,8 @@ class HoldingService:
         session.flush()
         session.add(
             models.Transaction(
-                holding_id=holding.id, type="buy", date=date_, price=price, shares=shares, fee=fee
+                user_id=user_id, holding_id=holding.id,
+                type="buy", date=date_, price=price, shares=shares, fee=fee,
             )
         )
         session.flush()
@@ -119,7 +146,7 @@ class HoldingService:
     def add_transaction(
         self,
         session: Session,
-        holding_id: int,
+        holding: models.Holding,
         *,
         type_: str,
         date_: date,
@@ -129,12 +156,12 @@ class HoldingService:
         tax: float | None = None,
         note: str | None = None,
     ) -> models.Holding:
-        holding = session.get(models.Holding, holding_id)
-        if holding is None:
-            raise ValueError(f"持股 {holding_id} 不存在")
+        """收 Holding 物件而非 id：ownership 檢查在取得物件那一步（UserData）
+        就完成了——這裡再收 id 重查，等於留一條繞過 scope 的路。"""
         session.add(
             models.Transaction(
-                holding_id=holding_id, type=type_, date=date_, price=price,
+                user_id=holding.user_id, holding_id=holding.id,
+                type=type_, date=date_, price=price,
                 shares=shares, fee=fee, tax=tax, note=note,
             )
         )

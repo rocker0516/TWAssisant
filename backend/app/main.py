@@ -29,12 +29,22 @@ from .api.routes_lab import router as lab_router
 from .api.routes_overview import router as overview_router
 from .api.routes_sectors import router as sectors_router
 from .api.routes_settings import router as settings_router
+from .api.routes_strategies import router as strategies_router
 from .api.routes_watchlists import router as watchlists_router
 from .config import settings
 from .credentials import set_token
 from .sources import registry
+from .web.routes_account import router as account_router
+from .web.routes_public import router as public_router
 from .storage import models
 from .storage.database import init_db, session_scope
+
+# API 一律掛在真前綴下。曾經的做法是前端打 /api/*、middleware 剝掉前綴再交給
+# 掛在根的路由——於是瀏覽器路徑與 API 路徑共用同一個命名空間：`/holdings`、
+# `/recommendations`、`/sectors` 既是前端 client route 也是後端 API 路由，靠
+# 「GET + Accept: text/html 就回 SPA 殼」硬閃過去。公開頁要進來時這條路走不通，
+# 因為公開頁本身就是「GET + text/html」。改成真前綴後兩者結構上不可能撞。
+_API = "/api"
 
 app = FastAPI(title="TWAssistant", version="0.1.0")
 
@@ -45,18 +55,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth_router)
-app.include_router(api_router)
-app.include_router(holdings_router)
-app.include_router(sectors_router)
-app.include_router(flow_router)
-app.include_router(overview_router)
-app.include_router(intel_router)
-app.include_router(watchlists_router)
-app.include_router(settings_router)
-app.include_router(assistant_router)
-app.include_router(corners_router)
-app.include_router(lab_router)
+app.include_router(auth_router, prefix=_API)
+app.include_router(api_router, prefix=_API)
+app.include_router(holdings_router, prefix=_API)
+app.include_router(sectors_router, prefix=_API)
+app.include_router(flow_router, prefix=_API)
+app.include_router(overview_router, prefix=_API)
+app.include_router(intel_router, prefix=_API)
+app.include_router(watchlists_router, prefix=_API)
+app.include_router(settings_router, prefix=_API)
+app.include_router(strategies_router, prefix=_API)
+app.include_router(assistant_router, prefix=_API)
+app.include_router(corners_router, prefix=_API)
+app.include_router(lab_router, prefix=_API)
+# 公開頁：無前綴。命名空間約定見 web/routes_public.py 檔頭。
+app.include_router(public_router)
+app.include_router(account_router)  # 機能畫面（帳號流程），同屬公開命名空間
 
 
 @app.on_event("startup")
@@ -77,10 +91,11 @@ def _shutdown() -> None:
 
 @app.get("/health")
 def health() -> dict:
+    """存活探測：刻意留在根路徑，不隨 API 進 /api。"""
     return {"ok": True}
 
 
-@app.get("/system/status")
+@app.get(_API + "/system/status")
 def system_status() -> dict:
     tables = {
         "stocks": models.Stock,
@@ -122,7 +137,7 @@ def system_status() -> dict:
     }
 
 
-@app.get("/sources")
+@app.get(_API + "/sources")
 def sources_health() -> list[dict]:
     return [src.health() for src in registry.all_sources().values()]
 
@@ -132,7 +147,7 @@ class TokenBody(BaseModel):
     save: bool = False  # 測通後是否寫入 Keychain
 
 
-@app.post("/sources/{name}/test")
+@app.post(_API + "/sources/{name}/test")
 def test_source(name: str, body: TokenBody) -> dict:
     """設定頁[測試連線]：可先測再存（測通才存）。"""
     try:
@@ -146,7 +161,7 @@ def test_source(name: str, body: TokenBody) -> dict:
     return result
 
 
-@app.post("/pipeline/run")
+@app.post(_API + "/pipeline/run")
 def trigger_pipeline(background: BackgroundTasks) -> dict:
     """設定頁[立即載入]：背景補齊「所有缺的交易日（含分數）」到最新。
 
@@ -166,25 +181,21 @@ def trigger_pipeline(background: BackgroundTasks) -> dict:
 # dev 時前端跑 Vite(:5173) 用 /api 代理；打包後 dist 存在，這裡就接手，
 # 使用者只需開一個 :8000 就能看整個 App。dist 不存在（純開發）則完全略過。
 _DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+_SPA_MODE = _DIST.exists()  # 打包模式：後端兼服務 SPA（登入牆的「殼放行」只在此模式才成立）
 
-if _DIST.exists():
+if _SPA_MODE:
     _INDEX = _DIST / "index.html"
 
     @app.middleware("http")
-    async def _spa_and_api(request: Request, call_next):
+    async def _spa_shell(request: Request, call_next):
+        """/app/* → SPA 殼（前端 router 以 basename="/app" 接手）。
+
+        只認 /app 前綴，不再認 Accept——公開頁本身就是 GET + text/html，
+        以 Accept 判斷會把公開頁整層蓋掉。其餘路徑放行給 FastAPI 路由
+        （/api、公開頁、/health），沒配到的自然 404。
+        """
         path = request.scope["path"]
-        # 前端一律打 /api/*：剝掉前綴再交給上面已註冊的 API 路由，
-        # 等同 Vite dev proxy 的 rewrite，改在同一行程內做。
-        if path == "/api" or path.startswith("/api/"):
-            stripped = path[4:] or "/"
-            request.scope["path"] = stripped
-            request.scope["raw_path"] = stripped.encode()
-            return await call_next(request)
-        # 瀏覽器導覽 / 重新整理子頁（GET text/html）一律回 SPA，
-        # 讓前端 router 接手 — 且避開 client route 撞到同名的 root API 路由
-        # （/holdings、/recommendations、/sectors… 後端也有）。
-        accept = request.headers.get("accept", "")
-        if request.method == "GET" and "text/html" in accept and not path.startswith("/assets/"):
+        if path == "/app" or path.startswith("/app/"):
             return FileResponse(_INDEX)
         return await call_next(request)
 
@@ -193,10 +204,16 @@ if _DIST.exists():
 
 
 # --- 登入保護（網站模式）---
-# 註冊在 _spa_and_api 之後 → 在洋蔥最外層，看到的是原始路徑（含 /api 前綴）。
-# 放行：登入相關端點、健康檢查、SPA 頁面載入（GET html，前端自己導去 /login）
-# 與靜態資源；其餘（= 所有 API）沒有有效 session 一律 401。
-_AUTH_EXEMPT = {"/auth/login", "/auth/logout", "/auth/me", "/health"}
+# 註冊在 _spa_shell 之後 → 在洋蔥最外層，看到的是原始路徑。
+# 命名空間就是授權邊界：/api/* 需 session（AUTH_EXEMPT 除外）；其餘一律匿名——
+# 那裡只有公開頁（web/routes_public.py，僅全站共用盤後資料）、/app 的 SPA 殼
+# （純靜態、資料仍要打 /api）與 /health。判斷依據只有路徑；Accept 等 header
+# 由客戶端控制，拿它當授權依據曾是實際漏洞（curl -H "Accept: text/html" 繞過）。
+_AUTH_EXEMPT = {
+    _API + "/auth/login", _API + "/auth/logout", _API + "/auth/me",
+    # 身分自助流程：本質上就是給未登入者用的
+    _API + "/auth/signup", _API + "/auth/forgot", _API + "/auth/reset",
+}
 
 
 @app.middleware("http")
@@ -206,13 +223,14 @@ async def _require_login(request: Request, call_next):
     if request.method == "OPTIONS":  # CORS preflight（dev）交給 CORS middleware
         return await call_next(request)
     path = request.scope["path"]
-    normalized = path[4:] or "/" if path == "/api" or path.startswith("/api/") else path
-    if normalized in _AUTH_EXEMPT or path.startswith("/assets/"):
+    if not (path == _API or path.startswith(_API + "/")):
+        return await call_next(request)  # 非 /api = 公開命名空間
+    if path in _AUTH_EXEMPT:
         return await call_next(request)
-    accept = request.headers.get("accept", "")
-    if request.method == "GET" and "text/html" in accept:
-        return await call_next(request)  # SPA 殼放行，資料仍受保護
-    if auth.verify_token(request.cookies.get(auth.SESSION_COOKIE)):
+    # 驗簽之外還要對 DB 比 session_version——撤銷（改密碼/登出全部）才真的生效
+    with session_scope() as s:
+        user = auth.resolve_user(s, request.cookies.get(auth.SESSION_COOKIE))
+    if user is not None:
         return await call_next(request)
     from fastapi.responses import JSONResponse
 

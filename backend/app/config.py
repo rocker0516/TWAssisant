@@ -43,6 +43,14 @@ class Settings(BaseSettings):
     auth_password: str = ""
     auth_session_days: int = 30
 
+    # --- 信件（驗證信/重設信）：TWA_SMTP_HOST 未設 = console 模式，連結寫進 log ---
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "TWAssistant <no-reply@localhost>"
+    site_base_url: str = "http://localhost:8000"  # 信裡連結的基底（上線改網域）
+
     # --- 能力 → 來源實作 綁定（DI）。換來源只動這裡 ---
     # key = 能力介面，value = registry 中註冊的來源名稱
     #

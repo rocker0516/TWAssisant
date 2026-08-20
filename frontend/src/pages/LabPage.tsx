@@ -14,6 +14,7 @@ import {
   type PaperSimResponse,
   type LabStyle,
 } from "../api/client";
+import { BacktestLabSection } from "../components/BacktestLab";
 import { CornerLabSection } from "../components/CornerSignalsPanel";
 import { Modal } from "../components/Modal";
 import { changeColor, fmtNum, fmtPct } from "../lib/format";
@@ -45,7 +46,7 @@ export default function LabPage() {
   const since = useMemo(() => sinceOf(range), [range]);
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-6">
+    <div className="w-full px-6 py-6">
       <div className="mb-1 flex items-center justify-between">
         <h1 className="text-xl font-bold">策略室</h1>
         <div className="flex gap-1">
@@ -62,6 +63,7 @@ export default function LabPage() {
         進場錨＝推薦隔日最高價（追高最壞情境，偏保守）。
       </p>
 
+      <BacktestLabSection />
       <PaperSection since={since} />
       <StatsSection since={since} />
       <CooccurrenceSection since={since} />
@@ -583,49 +585,140 @@ function StatsSection({ since }: { since?: string }) {
 
 // ─────────────────────────── 參數敏感度 ───────────────────────────
 
+/** 命中率 + Wilson 95% 區間的水平條。區間畫出來，薄樣本的長條就騙不了人。 */
+function HitBar({ rate, lo, hi, max, dim }: {
+  rate: number | null; lo: number | null; hi: number | null; max: number; dim: boolean;
+}) {
+  if (rate == null) return <span className="text-muted">—</span>;
+  const pct = (v: number) => `${Math.min(100, (v / max) * 100)}%`;
+  return (
+    <div className="flex items-center gap-2">
+      <div className="relative h-2 flex-1 overflow-hidden rounded bg-panel2">
+        {lo != null && hi != null && (
+          <div className="absolute inset-y-0 bg-sky-500/20"
+            style={{ left: pct(lo), width: `calc(${pct(hi)} - ${pct(lo)})` }} />
+        )}
+        <div className={`absolute inset-y-0 left-0 ${dim ? "bg-sky-500/25" : "bg-sky-500/70"}`}
+          style={{ width: pct(rate) }} />
+      </div>
+      <span className="w-11 text-right text-xs tabular-nums">{fmtPct(rate * 100)}</span>
+    </div>
+  );
+}
+
 function SensitivitySection({ since }: { since?: string }) {
   const { data, isLoading } = useLookbackSensitivity(since);
-  const max = Math.max(1, ...(data?.points.map((p) => p.hit_rate ?? 0) ?? [1]));
+  const max = Math.max(
+    0.05,
+    ...(data?.points.map((p) => p.hit_rate_hi ?? p.hit_rate ?? 0) ?? [0.05]),
+  );
+  const calMax = Math.max(
+    5,
+    ...(data?.calibration.flatMap((b) => [b.pred_avg, (b.hit_rate ?? 0) * 100]) ?? [5]),
+  );
   return (
     <section className="mb-8">
-      <h2 className="mb-2 text-base font-semibold">🎛️ 參數敏感度 — 機率門檻拉多高才划算</h2>
+      <h2 className="mb-1 text-base font-semibold">🎛️ 參數敏感度 — 機率門檻拉多高才划算</h2>
       {isLoading && <p className="text-muted">掃描中…</p>}
       {data && (
-        <div className="overflow-hidden rounded-xl border border-edge">
-          <table className="w-full text-sm">
-            <thead className="bg-panel2 text-xs text-muted">
-              <tr>
-                <th className="px-3 py-2 text-left">機率門檻</th>
-                <th className="px-3 py-2 text-right">樣本數</th>
-                <th className="px-3 py-2 text-right">平均每日檔數</th>
-                <th className="px-3 py-2 text-left">10日碰到率</th>
-                <th className="px-3 py-2 text-right">平均報酬</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.points.map((p) => (
-                <tr key={p.prob_min} className="border-t border-edge">
-                  <td className="px-3 py-1.5 tabular-nums">≥ {p.prob_min}%</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums text-muted">{p.n}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums text-muted">{p.avg_daily_n ?? "—"}</td>
-                  <td className="px-3 py-1.5">
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 flex-1 overflow-hidden rounded bg-panel2">
-                        <div className="h-full bg-sky-500/70" style={{ width: `${((p.hit_rate ?? 0) / max) * 100}%` }} />
-                      </div>
-                      <span className="w-12 text-right text-xs tabular-nums">{p.hit_rate != null ? fmtPct(p.hit_rate * 100) : "—"}</span>
-                    </div>
-                  </td>
-                  <td className={`px-3 py-1.5 text-right tabular-nums ${changeColor(p.avg_return_pct)}`}>{fmtPct(p.avg_return_pct)}</td>
+        <>
+          <p className="mb-2 text-xs text-muted">
+            涵蓋 <b className="text-body">{data.entry_days}</b> 個進場日
+            ／基準碰到率 <b className="text-body">{fmtPct((data.base_hit_rate ?? 0) * 100)}</b>
+            （不設門檻）。同日個股高度相關，<b className="text-body">日數才是有效樣本數</b>。
+          </p>
+          <div className="overflow-x-auto rounded-xl border border-edge">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead className="bg-panel2 text-xs text-muted">
+                <tr>
+                  <th className="px-3 py-2 text-left">機率門檻</th>
+                  <th className="px-3 py-2 text-right">樣本 / 日數</th>
+                  <th className="px-3 py-2 text-right">檔/日</th>
+                  <th className="px-3 py-2 text-left">10日碰到率（含95%區間）</th>
+                  <th className="px-3 py-2 text-right">倍數</th>
+                  <th className="px-3 py-2 text-right">報酬 開盤錨</th>
+                  <th className="px-3 py-2 text-right">最大有利／不利</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {data.points.map((p) => (
+                  <tr key={p.prob_min} className={`border-t border-edge ${p.reliable ? "" : "opacity-45"}`}>
+                    <td className="px-3 py-1.5 tabular-nums">
+                      ≥ {p.prob_min}%
+                      {!p.reliable && <span className="ml-1 rounded bg-amber-900/40 px-1 text-[10px] text-amber-300">樣本不足</span>}
+                    </td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-muted">
+                      {fmtNum(p.n)} <span className="text-[11px]">/ {p.days} 天</span>
+                      {p.day_cover != null && p.day_cover < 0.5 && (
+                        <span className="ml-1 text-[10px] text-amber-400">僅 {Math.round(p.day_cover * 100)}% 交易日有貨</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-muted">{p.avg_daily_n ?? "—"}</td>
+                    <td className="px-3 py-1.5">
+                      <HitBar rate={p.hit_rate} lo={p.hit_rate_lo} hi={p.hit_rate_hi} max={max} dim={!p.reliable} />
+                    </td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{p.lift != null ? `${p.lift}×` : "—"}</td>
+                    <td className={`px-3 py-1.5 text-right tabular-nums ${changeColor(p.avg_return_open_pct)}`}>
+                      {fmtPct(p.avg_return_open_pct)}
+                    </td>
+                    <td className="px-3 py-1.5 text-right text-xs tabular-nums text-muted">
+                      <span className="text-rose-400">{fmtPct(p.avg_mfe_pct)}</span>
+                      {" / "}
+                      <span className="text-emerald-400">{fmtPct(p.avg_mae_pct)}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-2 text-xs text-muted">
+            門檻只挑少不挑好時，<b className="text-body">倍數</b>不會跟著升；報酬用<b className="text-body">隔日開盤錨</b>
+            （買在隔日最高的最壞情境會讓報酬恆為負，那是追高懲罰、不是策略績效）。
+            碰到率是「摸到過 +10%」，<b className="text-body">最大不利</b>提醒它可能是先跌爛才彈上去的。
+          </p>
+
+          <h3 className="mb-1 mt-5 text-sm font-semibold">📐 機率校準 — 說 40% 真的有 40% 嗎</h3>
+          <div className="overflow-x-auto rounded-xl border border-edge">
+            <table className="w-full min-w-[620px] text-sm">
+              <thead className="bg-panel2 text-xs text-muted">
+                <tr>
+                  <th className="px-3 py-2 text-left">預測機率帶</th>
+                  <th className="px-3 py-2 text-right">樣本 / 日數</th>
+                  <th className="px-3 py-2 text-right">查表說</th>
+                  <th className="px-3 py-2 text-left">實際（含95%區間）</th>
+                  <th className="px-3 py-2 text-right">誤差</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.calibration.map((b) => (
+                  <tr key={`${b.lo}-${b.hi}`} className={`border-t border-edge ${b.reliable ? "" : "opacity-45"}`}>
+                    <td className="px-3 py-1.5 tabular-nums">{b.lo}–{b.hi}%</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-muted">
+                      {fmtNum(b.n)} <span className="text-[11px]">/ {b.days} 天</span>
+                    </td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-muted">{fmtPct(b.pred_avg)}</td>
+                    <td className="px-3 py-1.5">
+                      <HitBar rate={b.hit_rate} lo={b.hit_rate_lo} hi={b.hit_rate_hi} max={calMax / 100} dim={!b.reliable} />
+                    </td>
+                    {/* 不用 changeColor：負誤差=機率高估，染成台股跌色的綠會讀成「沒事」 */}
+                    <td className={`px-3 py-1.5 text-right tabular-nums ${
+                      b.err_pp == null ? "text-muted"
+                        : b.err_pp <= -10 ? "text-amber-300"
+                        : b.err_pp <= -4 ? "text-amber-400/70" : "text-muted"}`}>
+                      {b.err_pp != null ? `${b.err_pp > 0 ? "+" : ""}${b.err_pp} pp` : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-2 text-xs text-muted">
+            誤差為<b className="text-body">負＝機率高估</b>，且愈往高機率端愈嚴重。累積門檻表看不出這件事，
+            因為「≥40%」那格把 40% 與 60% 的樣本混在一起。查表以 2021 年起全市場為母體，
+            而 10 日碰到率本身逐季在 9.5%～35% 之間漂移，故絕對機率天生帶 regime 偏移，看<b className="text-body">倍數</b>比看絕對值穩。
+          </p>
+        </>
       )}
-      <p className="mt-2 text-xs text-muted">
-        「命中率升但平均報酬沒跟著升」＝門檻只是把樣本挑少、沒挑好；理想門檻是兩者同時改善的那格。
-      </p>
     </section>
   );
 }

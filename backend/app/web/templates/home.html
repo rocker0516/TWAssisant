@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}TWAssistant 台股盤後{% endblock %}
+{% block description %}台股每日盤後：大盤狀態、類股強弱、排行榜、全市場個股資料。雙軌選股工具，資料取自證交所／櫃買中心官方開放資料。{% endblock %}
+{% block content %}
+
+<h1 style="margin-top: 8px;">台股盤後，一站看完</h1>
+<p style="color: var(--ink-2); font-size: 15px; max-width: 60ch; margin: 0 0 22px;">
+  每日收盤後自動整理大盤、類股與全市場個股資料，並以雙軌規則篩選標的。
+  方向與輪動為趨勢判讀、非預測；所有內容非投資建議。
+</p>
+
+<h2>大盤（{{ cutoff }}）</h2>
+<div class="stats">
+  <div class="stat"><div class="k">加權指數</div>
+    <div class="v">{{ "{:,.0f}".format(idx_close) if idx_close is not none else "—" }}</div></div>
+  <div class="stat"><div class="k">漲跌</div>
+    <div class="v {{ 'up' if idx_chg and idx_chg > 0 else ('down' if idx_chg and idx_chg < 0 else '') }}">
+      {{ "%+.2f%%"|format(idx_chg) if idx_chg is not none else "—" }}</div></div>
+  <div class="stat"><div class="k">成交額（億）</div>
+    <div class="v">{{ "{:,.0f}".format(turnover_total) if turnover_total else "—" }}</div></div>
+  <div class="stat"><div class="k">漲／跌家數</div>
+    <div class="v"><span class="up">{{ n_up }}</span> / <span class="down">{{ n_down }}</span></div></div>
+  <div class="stat"><div class="k">三大法人（億）</div>
+    <div class="v {{ 'up' if inst_total and inst_total > 0 else ('down' if inst_total and inst_total < 0 else '') }}">
+      {{ "%+.0f"|format(inst_total) if inst_total is not none else "—" }}</div></div>
+</div>
+
+<div class="tbl" style="margin-top: 30px; padding: 22px 24px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap;">
+  <div style="flex: 1; min-width: 240px;">
+    <div style="font-size: 17px; font-weight: 700;">
+      今日共 <span style="color: var(--brand); font-size: 24px;">{{ n_passed }}</span> 檔通過雙軌篩選
+    </div>
+    <div style="font-size: 13px; color: var(--ink-2);">
+      波段軌 {{ n_wave }} 檔 ・ 長線軌 {{ n_long }} 檔 ｜ 名單、買進區間與出場提醒需登入
+    </div>
+  </div>
+  <a href="/login" style="color: var(--bg); background: var(--brand); text-decoration: none;
+     font-weight: 700; font-size: 14px; padding: 9px 26px; border-radius: 9px; white-space: nowrap;">
+    登入查看名單</a>
+</div>
+
+{% if sectors %}
+<h2><a class="code" href="/sectors" style="color: var(--ink-2);">類股強弱 →</a></h2>
+<div class="boards" style="grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 10px;">
+  {% for s in sectors %}
+  <section style="padding: 12px 16px 10px;">
+    <div style="font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><a class="code" style="color: var(--ink-2);" href="/sectors/{{ s.id }}">{{ s.name }}</a></div>
+    <div style="font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums;"
+         >{{ "%.0f"|format(s.score) if s.score is not none else "—" }}
+      <span class="{{ 'up' if s.mom and s.mom > 0 else ('down' if s.mom and s.mom < 0 else '') }}"
+            style="font-size: 12.5px; font-weight: 500;">
+        {{ "%+.1f%%"|format(s.mom) if s.mom is not none else "" }}</span></div>
+    <div style="font-size: 11.5px; color: var(--ink-3);">{{ s.trend or "" }}{% if s.stage %}・{{ s.stage }}{% endif %}</div>
+  </section>
+  {% endfor %}
+</div>
+<p style="font-size: 12.5px; color: var(--ink-3); margin-top: 8px;">
+  分數＝動能／基本面／技術三維綜合（0~100）；百分比＝近 5 日動能。
+</p>
+{% endif %}
+
+{% if news %}
+<h2>今日重要消息</h2>
+<div class="tbl">
+  <table>
+    <thead><tr><th class="l">個股</th><th class="l">摘要</th><th class="l">分類</th></tr></thead>
+    <tbody>
+      {% for n in news %}
+      <tr>
+        <td class="l">{% if n.stock_id %}<a class="code" href="/stock/{{ n.stock_id }}">{{ n.stock_name or n.stock_id }}</a>{% else %}—{% endif %}</td>
+        <td class="l" style="white-space: normal;">{{ n.title }}</td>
+        <td class="l">{% if n.is_risk %}<span class="down">利空</span>{% else %}{{ n.category or "—" }}{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<h2>探索</h2>
+<div class="boards" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+  <section style="padding: 18px 20px;">
+    <a class="code" href="/daily" style="font-size: 16px; font-weight: 700;">每日盤後報告 →</a>
+    <p style="font-size: 13.5px; color: var(--ink-2); margin: 6px 0 0;">每個交易日一頁：大盤、法人、市場情緒、類股、消息與盤後總評。</p>
+  </section>
+  <section style="padding: 18px 20px;">
+    <a class="code" href="/rankings" style="font-size: 16px; font-weight: 700;">排行榜 →</a>
+    <p style="font-size: 13.5px; color: var(--ink-2); margin: 6px 0 0;">漲跌幅、成交值、三大法人買超，每日盤後更新。</p>
+  </section>
+  <section style="padding: 18px 20px;">
+    <a class="code" href="/revenue" style="font-size: 16px; font-weight: 700;">月營收速報 →</a>
+    <p style="font-size: 13.5px; color: var(--ink-2); margin: 6px 0 0;">最新月份年增、月增、創歷史新高名單。</p>
+  </section>
+  <section style="padding: 18px 20px;">
+    <a class="code" href="/dividends" style="font-size: 16px; font-weight: 700;">除權息行事曆 →</a>
+    <p style="font-size: 13.5px; color: var(--ink-2); margin: 6px 0 0;">即將除息與近期已除息，附現金殖利率概算。</p>
+  </section>
+  <section style="padding: 18px 20px;">
+    <a class="code" href="/track-record" style="font-size: 16px; font-weight: 700;">公開戰績 →</a>
+    <p style="font-size: 13.5px; color: var(--ink-2); margin: 6px 0 0;">訊號當日寫下、不可改寫；10 日結算對大盤超額。</p>
+  </section>
+  <section style="padding: 18px 20px;">
+    <a class="code" href="/stocks" style="font-size: 16px; font-weight: 700;">個股索引 →</a>
+    <p style="font-size: 13.5px; color: var(--ink-2); margin: 6px 0 0;">{{ n_stocks }} 檔上市／上櫃個股，估值、月營收、財報、股利。</p>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}台股個股索引｜TWAssistant{% endblock %}
+{% block description %}台股上市／上櫃全部個股依產業分類索引，共 {{ total }} 檔，每日盤後更新收盤價。{% endblock %}
+{% block content %}
+<h1>個股索引</h1>
+<p style="color: var(--ink-2); font-size: 14px;">共 {{ total }} 檔，依產業分組。</p>
+
+{% for g in groups %}
+<section>
+  <h2>{{ g.sector }}（{{ g.stocks|length }}）</h2>
+  <div class="tbl">
+    <table>
+      <thead>
+        <tr><th class="l">代號</th><th class="l">名稱</th><th>收盤</th></tr>
+      </thead>
+      <tbody>
+        {% for s in g.stocks %}
+        <tr>
+          <td><a class="code" href="/stock/{{ s.stock_id }}">{{ s.stock_id }}</a></td>
+          <td class="l"><a class="code" href="/stock/{{ s.stock_id }}">{{ s.name }}</a></td>
+          <td>{{ "%.2f"|format(s.close) if s.close is not none else "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endfor %}
+{% endblock %}
