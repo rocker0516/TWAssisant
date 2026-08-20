@@ -343,19 +343,16 @@ function StrategyEditor({ strategy }: { strategy: Strategy }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* 名稱 */}
-      <div className="rounded-xl border border-edge bg-panel p-4">
-        <label className="block">
-          <span className="mb-1 block text-xs text-muted">策略名稱</span>
-          <input className={`${inputCls} max-w-md`} value={draft.name}
-            onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
-        </label>
-      </div>
-
-      {/* 模式切換 + 條件 */}
-      <div className="rounded-xl border border-edge bg-panel p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <span className="font-semibold">選股條件</span>
+      {/* 上半：左「名稱＋條件」大卡 ＋ 右窄欄「目標/排序/儲存」——填滿寬度、少留白 */}
+      <div className="flex flex-col gap-4 xl:flex-row">
+      {/* 名稱 + 模式切換 + 條件 */}
+      <div className="flex-1 rounded-xl border border-edge bg-panel p-4">
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <label className="flex min-w-0 flex-1 items-center gap-2">
+            <span className="shrink-0 text-xs text-muted">策略名稱</span>
+            <input className={`${cellCls} w-full max-w-xs`} value={draft.name}
+              onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+          </label>
           <div className="flex gap-1">
             {(["simple", "pro"] as const).map((m) => (
               <button key={m} onClick={() => setMode(m)}
@@ -379,6 +376,9 @@ function StrategyEditor({ strategy }: { strategy: Strategy }) {
         <ConditionsEditor conditions={draft.conditions} fields={fieldList}
           onChange={(c) => setDraft({ ...draft, conditions: c })} />
       </div>
+
+      {/* 右欄：目標 / 排序 / 儲存 */}
+      <div className="flex w-full shrink-0 flex-col gap-4 xl:w-80">
 
       {/* 目標區 */}
       <div className="rounded-xl border border-edge bg-panel p-4">
@@ -449,6 +449,9 @@ function StrategyEditor({ strategy }: { strategy: Strategy }) {
         {!dirty && <span className="text-xs text-muted">已儲存</span>}
         {patch.isError && <span className="text-sm text-down">{(patch.error as Error).message}</span>}
       </div>
+
+      </div>{/* /右欄 */}
+      </div>{/* /上半雙欄 */}
 
       {/* 回測區 */}
       <div className="rounded-xl border border-edge bg-panel p-4">
