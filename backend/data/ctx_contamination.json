@@ -1,0 +1,541 @@
+{
+ "generated_at": "2026-08-21 03:11",
+ "kpi": {
+  "base_rates": {
+   "6": 0.3207608410512696,
+   "8": 0.2456443494924614,
+   "10": 0.19186093042074795,
+   "12": 0.15249556487290417
+  },
+  "chosen_x": 12
+ },
+ "excluded_features": [
+  "conc_diff_chg",
+  "daytrade_pct",
+  "etf_add_win_flag",
+  "etf_del_win_flag",
+  "insider_chg",
+  "margin_down_price_up",
+  "news_cnt5_pct",
+  "retail_cnt_chg",
+  "rev_yoy_accel",
+  "rev_yoy_chg",
+  "sbl_chg10",
+  "sbl_chg20",
+  "sbl_chg5",
+  "score_chg20",
+  "sell_exhaust_flag"
+ ],
+ "audit": [
+  {
+   "feat": "retail_cnt_chg",
+   "cover": 0.0,
+   "ts_share": null,
+   "spread_mine": null,
+   "spread_hold": null,
+   "market": "選股層",
+   "health": "覆蓋不足",
+   "verdict": "必修"
+  },
+  {
+   "feat": "insider_chg",
+   "cover": 0.0,
+   "ts_share": null,
+   "spread_mine": null,
+   "spread_hold": null,
+   "market": "選股層",
+   "health": "覆蓋不足",
+   "verdict": "必修"
+  },
+  {
+   "feat": "conc_diff_chg",
+   "cover": 0.001,
+   "ts_share": null,
+   "spread_mine": null,
+   "spread_hold": null,
+   "market": "選股層",
+   "health": "覆蓋不足",
+   "verdict": "必修"
+  },
+  {
+   "feat": "daytrade_pct",
+   "cover": 0.019,
+   "ts_share": null,
+   "spread_mine": null,
+   "spread_hold": null,
+   "market": "選股層",
+   "health": "覆蓋不足",
+   "verdict": "必修"
+  },
+  {
+   "feat": "sbl_chg20",
+   "cover": 0.021,
+   "ts_share": null,
+   "spread_mine": null,
+   "spread_hold": -3.27,
+   "market": "選股層",
+   "health": "覆蓋不足",
+   "verdict": "必修"
+  },
+  {
+   "feat": "sbl_chg10",
+   "cover": 0.028,
+   "ts_share": null,
+   "spread_mine": null,
+   "spread_hold": -3.78,
+   "market": "選股層",
+   "health": "覆蓋不足",
+   "verdict": "必修"
+  },
+  {
+   "feat": "sbl_chg5",
+   "cover": 0.031,
+   "ts_share": null,
+   "spread_mine": null,
+   "spread_hold": -3.47,
+   "market": "選股層",
+   "health": "覆蓋不足",
+   "verdict": "必修"
+  },
+  {
+   "feat": "score_chg20",
+   "cover": 0.055,
+   "ts_share": 0.113,
+   "spread_mine": null,
+   "spread_hold": null,
+   "market": "選股層",
+   "health": "覆蓋不足",
+   "verdict": "必修"
+  },
+  {
+   "feat": "rev_yoy_accel",
+   "cover": 0.944,
+   "ts_share": 0.0,
+   "spread_mine": 0.45,
+   "spread_hold": -0.64,
+   "market": "選股層",
+   "health": "翻號",
+   "verdict": "必修"
+  },
+  {
+   "feat": "rev_yoy_chg",
+   "cover": 0.945,
+   "ts_share": 0.0,
+   "spread_mine": 2.13,
+   "spread_hold": 0.7,
+   "market": "選股層",
+   "health": "衰減>60%",
+   "verdict": "必修"
+  },
+  {
+   "feat": "news_cnt5_pct",
+   "cover": 1.0,
+   "ts_share": 1.0,
+   "spread_mine": 3.67,
+   "spread_hold": -4.61,
+   "market": "市場層",
+   "health": "翻號",
+   "verdict": "必修"
+  },
+  {
+   "feat": "margin_down_price_up",
+   "cover": 1.0,
+   "ts_share": 0.048,
+   "spread_mine": -0.08,
+   "spread_hold": 1.55,
+   "market": "選股層",
+   "health": "翻號",
+   "verdict": "必修"
+  },
+  {
+   "feat": "etf_add_win_flag",
+   "cover": 1.0,
+   "ts_share": 0.032,
+   "spread_mine": -1.19,
+   "spread_hold": 2.46,
+   "market": "選股層",
+   "health": "翻號",
+   "verdict": "必修"
+  },
+  {
+   "feat": "etf_del_win_flag",
+   "cover": 1.0,
+   "ts_share": 0.032,
+   "spread_mine": -0.67,
+   "spread_hold": 2.96,
+   "market": "選股層",
+   "health": "翻號",
+   "verdict": "必修"
+  },
+  {
+   "feat": "sell_exhaust_flag",
+   "cover": 1.0,
+   "ts_share": 0.008,
+   "spread_mine": -1.14,
+   "spread_hold": -0.4,
+   "market": "選股層",
+   "health": "衰減>60%",
+   "verdict": "必修"
+  },
+  {
+   "feat": "trust_net",
+   "cover": 0.901,
+   "ts_share": 0.001,
+   "spread_mine": null,
+   "spread_hold": null,
+   "market": "選股層",
+   "health": "無法評估",
+   "verdict": "待查"
+  },
+  {
+   "feat": "eps_qoq",
+   "cover": 0.948,
+   "ts_share": null,
+   "spread_mine": null,
+   "spread_hold": null,
+   "market": "選股層",
+   "health": "無法評估",
+   "verdict": "待查"
+  },
+  {
+   "feat": "short_cover_flag",
+   "cover": 1.0,
+   "ts_share": 0.317,
+   "spread_mine": null,
+   "spread_hold": 7.49,
+   "market": "市場層",
+   "health": "無法評估",
+   "verdict": "待查"
+  },
+  {
+   "feat": "daytrade_drop_flag",
+   "cover": 1.0,
+   "ts_share": 0.158,
+   "spread_mine": null,
+   "spread_hold": 12.95,
+   "market": "選股層",
+   "health": "無法評估",
+   "verdict": "待查"
+  },
+  {
+   "feat": "f3_flag",
+   "cover": 1.0,
+   "ts_share": 0.015,
+   "spread_mine": null,
+   "spread_hold": null,
+   "market": "選股層",
+   "health": "無法評估",
+   "verdict": "待查"
+  },
+  {
+   "feat": "attn_cnt20",
+   "cover": 1.0,
+   "ts_share": 0.007,
+   "spread_mine": null,
+   "spread_hold": null,
+   "market": "選股層",
+   "health": "無法評估",
+   "verdict": "待查"
+  },
+  {
+   "feat": "trust_adopt_flag",
+   "cover": 1.0,
+   "ts_share": 0.005,
+   "spread_mine": null,
+   "spread_hold": null,
+   "market": "選股層",
+   "health": "無法評估",
+   "verdict": "待查"
+  },
+  {
+   "feat": "sub_big_holder_up",
+   "cover": 1.0,
+   "ts_share": 0.003,
+   "spread_mine": null,
+   "spread_hold": null,
+   "market": "選股層",
+   "health": "無法評估",
+   "verdict": "待查"
+  },
+  {
+   "feat": "big_holder_wk_up",
+   "cover": 1.0,
+   "ts_share": 0.001,
+   "spread_mine": null,
+   "spread_hold": null,
+   "market": "選股層",
+   "health": "無法評估",
+   "verdict": "待查"
+  },
+  {
+   "feat": "big_absorb_flag",
+   "cover": 1.0,
+   "ts_share": 0.001,
+   "spread_mine": null,
+   "spread_hold": null,
+   "market": "選股層",
+   "health": "無法評估",
+   "verdict": "待查"
+  },
+  {
+   "feat": "distribute_warn_flag",
+   "cover": 1.0,
+   "ts_share": 0.001,
+   "spread_mine": null,
+   "spread_hold": null,
+   "market": "選股層",
+   "health": "無法評估",
+   "verdict": "待查"
+  },
+  {
+   "feat": "insider_buyback_flag",
+   "cover": 1.0,
+   "ts_share": null,
+   "spread_mine": null,
+   "spread_hold": null,
+   "market": "選股層",
+   "health": "無法評估",
+   "verdict": "待查"
+  },
+  {
+   "feat": "f1_flag",
+   "cover": 1.0,
+   "ts_share": 0.0,
+   "spread_mine": null,
+   "spread_hold": null,
+   "market": "選股層",
+   "health": "無法評估",
+   "verdict": "待查"
+  },
+  {
+   "feat": "f2_flag",
+   "cover": 1.0,
+   "ts_share": null,
+   "spread_mine": null,
+   "spread_hold": null,
+   "market": "選股層",
+   "health": "無法評估",
+   "verdict": "待查"
+  },
+  {
+   "feat": "netbuy_accel",
+   "cover": 0.797,
+   "ts_share": 0.005,
+   "spread_mine": 0.79,
+   "spread_hold": 1.39,
+   "market": "選股層",
+   "health": "穩定",
+   "verdict": "可用"
+  },
+  {
+   "feat": "margin_chg20",
+   "cover": 0.825,
+   "ts_share": null,
+   "spread_mine": 3.8,
+   "spread_hold": 3.75,
+   "market": "選股層",
+   "health": "穩定",
+   "verdict": "可用"
+  },
+  {
+   "feat": "margin_chg5",
+   "cover": 0.826,
+   "ts_share": null,
+   "spread_mine": 3.86,
+   "spread_hold": 2.5,
+   "market": "選股層",
+   "health": "穩定",
+   "verdict": "可用"
+  },
+  {
+   "feat": "margin_chg10",
+   "cover": 0.826,
+   "ts_share": null,
+   "spread_mine": 4.16,
+   "spread_hold": 3.03,
+   "market": "選股層",
+   "health": "穩定",
+   "verdict": "可用"
+  },
+  {
+   "feat": "short_margin_ratio_pct",
+   "cover": 0.826,
+   "ts_share": 0.0,
+   "spread_mine": 1.58,
+   "spread_hold": 3.61,
+   "market": "選股層",
+   "health": "穩定",
+   "verdict": "可用"
+  },
+  {
+   "feat": "netbuy_turnover_pct",
+   "cover": 0.831,
+   "ts_share": 0.0,
+   "spread_mine": 2.29,
+   "spread_hold": 2.85,
+   "market": "選股層",
+   "health": "穩定",
+   "verdict": "可用"
+  },
+  {
+   "feat": "foreign_net",
+   "cover": 0.901,
+   "ts_share": 0.004,
+   "spread_mine": 2.53,
+   "spread_hold": 3.35,
+   "market": "選股層",
+   "health": "穩定",
+   "verdict": "可用"
+  },
+  {
+   "feat": "rev_yoy",
+   "cover": 0.946,
+   "ts_share": 0.0,
+   "spread_mine": 5.64,
+   "spread_hold": 4.77,
+   "market": "選股層",
+   "health": "穩定",
+   "verdict": "可用"
+  },
+  {
+   "feat": "rev_mom",
+   "cover": 0.947,
+   "ts_share": 0.001,
+   "spread_mine": 0.1,
+   "spread_hold": 0.86,
+   "market": "選股層",
+   "health": "穩定",
+   "verdict": "可用"
+  },
+  {
+   "feat": "turnover_pct",
+   "cover": 0.954,
+   "ts_share": 0.005,
+   "spread_mine": 8.08,
+   "spread_hold": 12.2,
+   "market": "選股層",
+   "health": "穩定",
+   "verdict": "可用"
+  },
+  {
+   "feat": "rel_ret20",
+   "cover": 0.966,
+   "ts_share": 0.0,
+   "spread_mine": 4.47,
+   "spread_hold": 5.02,
+   "market": "選股層",
+   "health": "穩定",
+   "verdict": "可用"
+  },
+  {
+   "feat": "ret20",
+   "cover": 0.973,
+   "ts_share": 0.118,
+   "spread_mine": 7.37,
+   "spread_hold": 7.69,
+   "market": "選股層",
+   "health": "穩定",
+   "verdict": "可用"
+  },
+  {
+   "feat": "ret5",
+   "cover": 0.976,
+   "ts_share": 0.142,
+   "spread_mine": 6.24,
+   "spread_hold": 6.03,
+   "market": "選股層",
+   "health": "穩定",
+   "verdict": "可用"
+  },
+  {
+   "feat": "bias20",
+   "cover": 0.983,
+   "ts_share": 0.15,
+   "spread_mine": 8.03,
+   "spread_hold": 8.15,
+   "market": "選股層",
+   "health": "穩定",
+   "verdict": "可用"
+  },
+  {
+   "feat": "vol_ratio5",
+   "cover": 0.997,
+   "ts_share": 0.052,
+   "spread_mine": 5.26,
+   "spread_hold": 5.03,
+   "market": "選股層",
+   "health": "穩定",
+   "verdict": "可用"
+  },
+  {
+   "feat": "washout_flag",
+   "cover": 1.0,
+   "ts_share": 0.124,
+   "spread_mine": 4.92,
+   "spread_hold": 6.16,
+   "market": "選股層",
+   "health": "穩定",
+   "verdict": "可用"
+  },
+  {
+   "feat": "break20_flag",
+   "cover": 1.0,
+   "ts_share": 0.045,
+   "spread_mine": 7.83,
+   "spread_hold": 9.66,
+   "market": "選股層",
+   "health": "穩定",
+   "verdict": "可用"
+  },
+  {
+   "feat": "squeeze_flag",
+   "cover": 1.0,
+   "ts_share": 0.014,
+   "spread_mine": 7.52,
+   "spread_hold": 8.64,
+   "market": "選股層",
+   "health": "穩定",
+   "verdict": "可用"
+  },
+  {
+   "feat": "dual_net_flag",
+   "cover": 1.0,
+   "ts_share": 0.007,
+   "spread_mine": 0.59,
+   "spread_hold": 7.14,
+   "market": "選股層",
+   "health": "穩定",
+   "verdict": "可用"
+  },
+  {
+   "feat": "receive_flag",
+   "cover": 1.0,
+   "ts_share": 0.007,
+   "spread_mine": -1.07,
+   "spread_hold": -1.21,
+   "market": "選股層",
+   "health": "穩定",
+   "verdict": "可用"
+  },
+  {
+   "feat": "absorb_flag",
+   "cover": 1.0,
+   "ts_share": 0.006,
+   "spread_mine": 0.49,
+   "spread_hold": 1.4,
+   "market": "選股層",
+   "health": "穩定",
+   "verdict": "可用"
+  },
+  {
+   "feat": "attn_flag",
+   "cover": 1.0,
+   "ts_share": 0.003,
+   "spread_mine": 13.51,
+   "spread_hold": 15.22,
+   "market": "選股層",
+   "health": "穩定",
+   "verdict": "可用"
+  }
+ ]
+}
