@@ -4,6 +4,7 @@ import FlowPage from "./pages/FlowPage";
 import LoginPage from "./pages/LoginPage";
 import HoldingsPage from "./pages/HoldingsPage";
 import IntelPage from "./pages/IntelPage";
+import CtxMatrixPage from "./pages/CtxMatrixPage";
 import LabPage from "./pages/LabPage";
 import OverviewPage from "./pages/OverviewPage";
 import RecommendationsPage from "./pages/RecommendationsPage";
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="/flow" element={<FlowPage />} />
         <Route path="/watchlists" element={<WatchlistsPage />} />
         <Route path="/lab" element={<LabPage />} />
+        <Route path="/ctx-matrix" element={<CtxMatrixPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/stocks/:id" element={<StockDetailPage />} />
         <Route path="*" element={<Navigate to="/overview" replace />} />

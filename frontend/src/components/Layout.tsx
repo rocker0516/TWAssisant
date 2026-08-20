@@ -15,6 +15,7 @@ const NAV: NavItem[] = [
   { to: "/holdings", label: "我的持股", icon: "💼", enabled: true },
   { to: "/watchlists", label: "觀察清單", icon: "⭐", enabled: true },
   { to: "/lab", label: "策略室", icon: "🧪", enabled: true },
+  { to: "/ctx-matrix", label: "情境矩陣", icon: "🗺️", enabled: true },
 ];
 
 // 側欄底部帳號卡＝設定入口（帳號與偏好同在設定頁）。

@@ -894,6 +894,25 @@ export function useItemToHolding() {
   });
 }
 
+// ── 情境路由矩陣（實驗）：data/ctx_matrix.json 凍結挖掘產物 ──
+export type CtxCell = components["schemas"]["CtxCellOut"];
+export type CtxGroup = components["schemas"]["GroupOut"];
+export type CtxSignal = components["schemas"]["SignalOut"];
+export type CtxChainAudit = components["schemas"]["ChainAuditOut"];
+export type CtxMatrixResponse = components["schemas"]["CtxMatrixResponse"] & {
+  // kpi/counts 後端是 dict（openapi 生成成 unknown record），手補實際形狀
+  kpi: { horizon: number; x: number; base_rates: Record<string, number> };
+  counts: { pass: number; watch: number; insufficient: number; fail: number };
+};
+
+export function useCtxMatrix() {
+  return useQuery({
+    queryKey: ["ctx-matrix"],
+    queryFn: () => getJson<CtxMatrixResponse>(`/ctx-matrix`),
+    staleTime: 5 * 60_000,
+  });
+}
+
 // ── 高確信角落影子軌（實驗）：data/corners.json 凍結挖掘產物 + corner_signals ──
 export type CornerStock = { stock_id: string; name: string; close: number | null };
 export type CornerFired = {
