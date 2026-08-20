@@ -27,11 +27,13 @@
 `conc_diff_chg`、`daytrade_pct`、`dual_net_flag`、`etf_add_win_flag`、`etf_del_win_flag`、
 `insider_chg`、`margin_down_price_up`、`news_cnt5_pct`、`retail_cnt_chg`、`rev_yoy_accel`、
 `sbl_chg10`、`sbl_chg20`、`sbl_chg5`、`score_chg20`。
-其中 7 個是**覆蓋率不足**（`retail_cnt_chg`/`insider_chg` 覆蓋率 0%、`conc_diff_chg` 0.1%、
-`daytrade_pct` 1.9%、`sbl_chg5/10/20` 2.1~3.1%）——這些不是「訊號無效」，是**資料實質上沒有**；
-其餘 7 個是衰減 >60% 或樣本內外翻號（`rev_yoy_accel`、`news_cnt5_pct`、`margin_down_price_up`、
-`etf_add_win_flag`、`etf_del_win_flag`、`dual_net_flag`、`score_chg20`）——訊號在挖掘窗口顯著但
-holdout 窗口方向反轉或消失，判定不可信。**event 家族（ETF 納剔）因此在 v1 矩陣中完全缺席**
+其中 8 個是**覆蓋率不足**（`retail_cnt_chg`/`insider_chg` 覆蓋率 0%、`conc_diff_chg` 0.1%、
+`daytrade_pct` 1.9%、`sbl_chg5/10/20` 2.1~3.1%、`score_chg20` 5.5%）——這些不是「訊號無效」，是
+**資料實質上沒有**；其餘 6 個是衰減 >60% 或樣本內外翻號，兩種原因不能混為一談：
+`rev_yoy_accel`、`etf_add_win_flag` 是**衰減 >60%**（挖掘窗口 spread 明顯縮水，但樣本外方向
+未反轉）；`news_cnt5_pct`、`margin_down_price_up`、`etf_del_win_flag`、`dual_net_flag` 是
+**翻號**（樣本外方向與挖掘窗口相反）。兩者共通點是訊號在挖掘窗口顯著、但樣本外站不住，
+判定不可信。**event 家族（ETF 納剔）因此在 v1 矩陣中完全缺席**
 （矩陣裡沒有任何 `family=event` 格子）。
 
 ## 2. spec §9 失敗準則的正式回答
@@ -121,9 +123,11 @@ Top 1~3 值得注意：POWER（重電，核心鏈）的 `chip__B3_q0.9`（券資
 - **news（消息熱度）家族樣本最少（2 個訊號、210 格），insufficient 占比 44.8% 為五個家族最高**，
   多數格子連最低樣本數都不滿足；扣掉 insufficient 後 pass 率尚可（39/116≈33.6%），但結論
   暫不能外推——這是典型的「資料量不足、無法下定論」而非「訊號弱」。
-- **event（ETF 納剔）家族本輪矩陣完全缺席**：`etf_add_win_flag`/`etf_del_win_flag` 皆因
-  holdout 翻號（樣本內 spread +1.23/-1.01、樣本外 spread -0.1/+0.55，方向不穩）被稽核排除，
-  spec §3.2 六大家族在 v1 只實際交付了五個。
+- **event（ETF 納剔）家族本輪矩陣完全缺席**：兩個候選訊號被稽核排除的原因並不相同，需分開看。
+  `etf_add_win_flag` 是**衰減 >60%**：挖掘窗口 spread_mine = -1.23，樣本外 spread_hold = -0.1，
+  方向沒有反轉，但幅度腰斬超過六成，判定不可信；`etf_del_win_flag` 才是**翻號**：挖掘窗口
+  spread_mine = -1.01，樣本外 spread_hold = +0.55，樣本外方向與挖掘窗口相反。兩者皆被稽核判
+  「必修」排除，spec §3.2 六大家族在 v1 只實際交付了五個。
 
 ## 4. 核心鏈 vs TPEX 鏈
 
@@ -175,9 +179,9 @@ lift」。但核心鏈 pass 格的 median n_picks（1,840）僅為 TPEX 鏈 pass
 3. `sbl_chg5/10/20`（借券餘額變化，cover 2.1%~3.1%）——D 家族的核心欄位，缺口略小於前兩組。
 4. `rev_yoy_accel`（營收年增加速，cover 94.4% 但衰減 >60%）——這不是覆蓋率問題，是訊號穩定性
    問題，回補無用，需要重新設計（例如換一個平滑窗口或改用分位數而非原始值）。
-5. `news_cnt5_pct`／`margin_down_price_up`／`etf_add_win_flag`／`etf_del_win_flag`／
-   `dual_net_flag`——皆為 holdout 翻號，同樣不是覆蓋率問題，需要重新設計訊號定義後才值得
-   再挖一輪，不建議直接調高覆蓋率了事。
+5. `news_cnt5_pct`／`margin_down_price_up`／`etf_del_win_flag`／`dual_net_flag`——皆為 holdout
+   翻號；`etf_add_win_flag` 則與 `rev_yoy_accel` 同屬衰減 >60%（方向未反轉但幅度腰斬）。
+   五者同樣不是覆蓋率問題，需要重新設計訊號定義後才值得再挖一輪，不建議直接調高覆蓋率了事。
 
 **resonance（同期共振）情境的樣本結構問題**：`resonance_strong`／`resonance_weak` 兩情境的
 insufficient 占比分別高達 57.9%／71.5%，遠高於 `all`（4.3%）／`hold`（6.0%）／`defense`
