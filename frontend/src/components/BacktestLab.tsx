@@ -16,6 +16,10 @@ import {
 import { inputCls } from "../components/Modal";
 import { fmtPct } from "../lib/format";
 
+// inputCls 自帶 w-full，後綴 w-40 之類蓋不掉（Tailwind 衝突取決於樣式表順序）；
+// 表單控件要窄版一律用這個去掉 w-full 的變體＋自己給寬度。
+const cellCls = inputCls.replace("w-full ", "");
+
 // 簡單模式模板：編譯成 conditions，套用後仍可在條件列微調（模板只是起步值，不鎖死）。
 const TEMPLATES: { name: string; desc: string; conditions: Condition[] }[] = [
   { name: "法人進駐低位股", desc: "投信5日買超>0、股價低於季線",
@@ -214,7 +218,7 @@ function ConditionRow({ cond, fields, onChange, onDelete }: {
   };
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <select className={`${inputCls} w-40`} value={cond.field}
+      <select className={`${cellCls} w-40`} value={cond.field}
         onChange={(e) => onChange({ ...cond, field: e.target.value })}>
         {grouped.map(([g, fs]) => (
           <optgroup key={g} label={g}>
@@ -222,27 +226,27 @@ function ConditionRow({ cond, fields, onChange, onDelete }: {
           </optgroup>
         ))}
       </select>
-      <select className={`${inputCls} w-28`} value={cond.op} onChange={(e) => setOp(e.target.value)}>
+      <select className={`${cellCls} w-28`} value={cond.op} onChange={(e) => setOp(e.target.value)}>
         {OPS.map((op) => <option key={op} value={op}>{OP_LABELS[op]}</option>)}
       </select>
       {streak ? (
         <>
           <label className="flex items-center gap-1 text-xs text-muted">
             連
-            <NumInput className={`${inputCls} w-16`}
+            <NumInput className={`${cellCls} w-16`}
               value={(cond.value as { n: number }).n}
               onChange={(n) => onChange({ ...cond, value: { ...(cond.value as { n: number; threshold: number }), n } })} />
             日
           </label>
           <label className="flex items-center gap-1 text-xs text-muted">
             門檻
-            <NumInput className={`${inputCls} w-20`}
+            <NumInput className={`${cellCls} w-20`}
               value={(cond.value as { threshold: number }).threshold}
               onChange={(threshold) => onChange({ ...cond, value: { ...(cond.value as { n: number; threshold: number }), threshold } })} />
           </label>
         </>
       ) : (
-        <NumInput className={`${inputCls} w-24`} value={cond.value as number}
+        <NumInput className={`${cellCls} w-24`} value={cond.value as number}
           onChange={(n) => onChange({ ...cond, value: n })} />
       )}
       <button onClick={onDelete} className="text-xs text-muted hover:text-down">✕</button>
@@ -343,7 +347,7 @@ function StrategyEditor({ strategy }: { strategy: Strategy }) {
       <div className="rounded-xl border border-edge bg-panel p-4">
         <label className="block">
           <span className="mb-1 block text-xs text-muted">策略名稱</span>
-          <input className={inputCls} value={draft.name}
+          <input className={`${inputCls} max-w-md`} value={draft.name}
             onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
         </label>
       </div>
@@ -382,12 +386,12 @@ function StrategyEditor({ strategy }: { strategy: Strategy }) {
         <div className="flex flex-wrap items-end gap-4">
           <label className="block">
             <span className="mb-1 block text-xs text-muted">N 日內</span>
-            <NumInput className={`${inputCls} w-24`} value={draft.horizon_days}
+            <NumInput className={`${cellCls} w-24`} value={draft.horizon_days}
               onChange={(n) => setDraft({ ...draft, horizon_days: n })} />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs text-muted">碰到 +X%</span>
-            <NumInput className={`${inputCls} w-24`} value={draft.target_pct}
+            <NumInput className={`${cellCls} w-24`} value={draft.target_pct}
               onChange={(n) => setDraft({ ...draft, target_pct: n })} />
           </label>
           <label className="flex items-center gap-2 pb-2 text-sm">
@@ -398,7 +402,7 @@ function StrategyEditor({ strategy }: { strategy: Strategy }) {
           {draft.stop_pct !== null && (
             <label className="block">
               <span className="mb-1 block text-xs text-muted">−Y%</span>
-              <NumInput className={`${inputCls} w-24`} value={draft.stop_pct}
+              <NumInput className={`${cellCls} w-24`} value={draft.stop_pct}
                 onChange={(n) => setDraft({ ...draft, stop_pct: n })} />
             </label>
           )}
@@ -411,7 +415,7 @@ function StrategyEditor({ strategy }: { strategy: Strategy }) {
         <div className="flex flex-wrap items-end gap-4">
           <label className="block">
             <span className="mb-1 block text-xs text-muted">排序欄位</span>
-            <select className={`${inputCls} w-44`} value={draft.sort_field}
+            <select className={`${cellCls} w-44`} value={draft.sort_field}
               onChange={(e) => setDraft({ ...draft, sort_field: e.target.value })}>
               {groupFields(fieldList).map(([g, fs]) => (
                 <optgroup key={g} label={g}>
@@ -430,7 +434,7 @@ function StrategyEditor({ strategy }: { strategy: Strategy }) {
           </div>
           <label className="block">
             <span className="mb-1 block text-xs text-muted">top N</span>
-            <NumInput min={1} className={`${inputCls} w-20`} value={draft.top_n}
+            <NumInput min={1} className={`${cellCls} w-20`} value={draft.top_n}
               onChange={(n) => setDraft({ ...draft, top_n: n })} />
           </label>
         </div>
@@ -460,11 +464,11 @@ function StrategyEditor({ strategy }: { strategy: Strategy }) {
           </div>
           <label className="block">
             <span className="mb-1 block text-xs text-muted">起</span>
-            <input type="date" className={`${inputCls} w-36`} value={start} onChange={(e) => setStart(e.target.value)} />
+            <input type="date" className={`${cellCls} w-36`} value={start} onChange={(e) => setStart(e.target.value)} />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs text-muted">迄</span>
-            <input type="date" className={`${inputCls} w-36`} value={end} onChange={(e) => setEnd(e.target.value)} />
+            <input type="date" className={`${cellCls} w-36`} value={end} onChange={(e) => setEnd(e.target.value)} />
           </label>
           <button onClick={() => runBacktest(start, end)} disabled={!start || !end || backtest.isPending}
             className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium disabled:opacity-50">
