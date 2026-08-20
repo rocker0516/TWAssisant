@@ -4,15 +4,21 @@ historical_regime 是 app/engines/market_regime.py 中 wave_market_regime 的
 「純函數化」版本——原引擎只回傳「當下最新一筆」狀態，這裡改成回傳整段歷史
 每一天的狀態序列，供情境矩陣挖掘/回測沿時間軸切片使用。不改動原引擎檔。
 
-遲滯規則（依任務簡報 Step 3，與原引擎不完全相同——原引擎是不對稱遲滯帶，
-這裡採對稱 gap，上下都用 ma*(1±gap) 判斷，屬本任務指定的簡化版）：
+遲滯規則與 wave_market_regime（app/engines/market_regime.py:28-54）**語義完全
+一致、可互相對照**（原本 Step 3 簡報給的對稱 gap 版本已作廢，改為完全複製正式
+引擎的不對稱遲滯帶）：
   - 先算 MA{ma_n}（簡單移動平均）。
-  - 初始態：MA 第一個有效值當天，close >= ma → "hold"，否則 "defense"。
-  - 之後逐日：
-      若目前是 "defense" 且 close > ma*(1+gap) → 轉 "hold"
-      若目前是 "hold" 且 close < ma*(1-gap) → 轉 "defense"
-      否則維持前態（遲滯區間內不動作）。
-  - MA 未滿 ma_n 根（尚無有效 MA）之前的日子，用第一個有效態回填。
+  - 初始態：MA 第一個有效值當天，**一律視為 "hold"**（與引擎 `held = True` 的
+    硬編碼假設一致，不看當天 close 與 ma 的大小關係——引擎本來就是這樣寫的：
+    只要歷史夠長，這個起始假設的影響會被後續逐日遲滯迭代蓋掉）。
+  - 之後逐日（`held` 對應 "hold"）：
+      若目前 held（"hold"）：close > ma*(1-gap) → 維持 hold；
+                              close <= ma*(1-gap) → 轉 defense。
+      若目前非 held（"defense"）：close > ma → 轉 hold；
+                                   close <= ma → 維持 defense。
+    即：hold 出場門檻是跌破 ma 逾 gap（例如 2%），defense 進場（回到 hold）
+    門檻只需站回 ma（無 gap）——上下門檻不對稱，這正是「遲滯」的來源。
+  - MA 未滿 ma_n 根（尚無有效 MA）之前的日子，用第一個有效態（"hold"）回填。
 """
 from __future__ import annotations
 
@@ -23,12 +29,17 @@ _RESONANCE_PRIORITY = {"weak": 0, "neutral": 1, "strong": 2}
 
 
 def historical_regime(index_close: pd.Series, ma_n: int = 60, gap: float = 0.02) -> pd.Series:
-    """把 MA60 遲滯規則改寫成吃整段歷史序列的純函數。
+    """把 wave_market_regime 的 MA60 遲滯規則改寫成吃整段歷史序列的純函數。
+
+    與 app/engines/market_regime.py:28-54 的 wave_market_regime 語義完全一致
+    （同一套不對稱遲滯帶規則），差別只在於：原引擎只回傳「最新一筆」狀態，
+    這裡回傳整段歷史每一天的狀態序列，兩者在任一共同日期上的狀態必然相同，
+    可互相對照驗證。
 
     Args:
         index_close: index=date、值=大盤（或任一指數）收盤價的序列，須依日期由舊到新排序。
-        ma_n: 移動平均天數，預設 60。
-        gap: 遲滯帶寬度，預設 0.02（2%）。
+        ma_n: 移動平均天數，預設 60（對應 wave_market_regime 的 _MA_N）。
+        gap: 遲滯帶寬度，預設 0.02（對應 wave_market_regime 的 _GAP）。
 
     Returns:
         index=date、值 ∈ {"hold", "defense"} 的 Series。
@@ -40,28 +51,24 @@ def historical_regime(index_close: pd.Series, ma_n: int = 60, gap: float = 0.02)
     valid_idx = ma.first_valid_index()
 
     if valid_idx is None:
-        # 全序列都不足 ma_n 根：無法判斷遲滯，一律回填「首日 close>=首日 close」的保守態
-        # （此分支理論上只在極短測試序列出現，正式資料歷史夠長不會走到）
-        state = "hold"
-        return pd.Series([state] * len(close), index=close.index)
+        # 全序列都不足 ma_n 根：無法算出任何 MA，比照引擎的起始假設回填 "hold"
+        # （此分支只在極短測試序列出現，正式資料歷史夠長不會走到）
+        return pd.Series(["hold"] * len(close), index=close.index, name="regime")
 
     positions = close.index.get_indexer([valid_idx])
     start_pos = int(positions[0])
 
-    first_state = "hold" if close.iloc[start_pos] >= ma.iloc[start_pos] else "defense"
+    # 初始態一律 "hold"，比照引擎 `held = True` 的硬編碼假設（不看當天價位）
     for i in range(start_pos):
-        states[i] = first_state
+        states[i] = "hold"
 
-    state = first_state
-    states[start_pos] = state
+    held = True
+    states[start_pos] = "hold"
     for i in range(start_pos + 1, len(close)):
         c = close.iloc[i]
         m = ma.iloc[i]
-        if state == "defense" and c > m * (1.0 + gap):
-            state = "hold"
-        elif state == "hold" and c < m * (1.0 - gap):
-            state = "defense"
-        states[i] = state
+        held = (c > m * (1.0 - gap)) if held else (c > m)
+        states[i] = "hold" if held else "defense"
 
     return pd.Series(states, index=close.index, name="regime")
 
