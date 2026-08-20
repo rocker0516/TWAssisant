@@ -122,6 +122,15 @@ def _build_context(session: Session, stock_id: str, td: date) -> StockContext | 
             models.Event.date >= td - timedelta(days=10),
         ).order_by(models.Event.date.desc())
     ).scalars().all()
+    score_rows = session.execute(
+        select(models.Score).where(
+            models.Score.stock_id == stock_id, models.Score.track == "long",
+            models.Score.date <= td,
+        ).order_by(models.Score.date.desc()).limit(5)
+    ).scalars().all()
+    long_scores = [s.total_score for s in score_rows if s.total_score is not None]
+    long_passed_filter = score_rows[0].passed_filter if score_rows else None
+
     return StockContext(
         stock=stock, date=td, prices=prices, inds=inds, inst=inst,
         valuation=_latest(session, models.Valuation, ["pe", "pb", "dividend_yield"],
@@ -131,6 +140,8 @@ def _build_context(session: Session, stock_id: str, td: date) -> StockContext | 
         financials=_latest(session, models.FinancialQuarter, ["eps", "gross_margin", "op_margin", "net_margin", "roe"],
                            [models.FinancialQuarter.year.desc(), models.FinancialQuarter.quarter.desc()], stock_id),
         events=list(events),
+        long_scores=long_scores,
+        long_passed_filter=long_passed_filter,
     )
 
 

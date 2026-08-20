@@ -21,7 +21,8 @@ from ..storage import models
 
 DEFAULTS = {
     "wave": {"stop_cap": 0.08, "trail_trigger": 0.10, "trail_pullback": 0.10, "break_ma_exit": True},
-    "long": {"stop_cap": 0.15, "trail_trigger": 0.20, "trail_pullback": 0.20, "break_ma_exit": True},
+    "long": {"stop_cap": 0.15, "trail_trigger": 0.20, "trail_pullback": 0.20, "break_ma_exit": True,
+              "score_slip_warn": 15.0},
 }
 
 # 可由設定頁覆寫（即時生效）。ExitEngine 每次評估前以 set_config 注入（百分比→比例）。
@@ -42,6 +43,8 @@ def set_config(percent_cfg: dict) -> None:
                 _ACTIVE.setdefault(track, {})[k] = tc[k] / 100.0
         if tc.get("break_ma_exit") is not None:
             _ACTIVE.setdefault(track, {})["break_ma_exit"] = bool(tc["break_ma_exit"])
+        if track == "long" and tc.get("score_slip_warn") is not None:
+            _ACTIVE.setdefault(track, {})["score_slip_warn"] = tc["score_slip_warn"]
 
 
 class Sev(IntEnum):
@@ -159,6 +162,29 @@ class TechWeakSignal(ExitSignal):
         return hits
 
 
+class ScoreSlipSignal(ExitSignal):
+    """長線分數滑落（主基本面訊號）：近 5 日均值 vs 進場快照分數。"""
+
+    tracks = ("long",)
+
+    def check(self, holding, pos, ctx):
+        snap = holding.entry_snapshot or {}
+        baseline = snap.get("total_score")
+        scores = getattr(ctx, "long_scores", None) or []
+        if baseline is None or len(scores) < 5:
+            return []
+        cur = sum(scores[:5]) / 5
+        slip = float(baseline) - cur
+        warn_at = _ACTIVE["long"].get("score_slip_warn", 15.0)
+        if slip < warn_at:
+            return []
+        passed = getattr(ctx, "long_passed_filter", None)
+        if passed is False:
+            return [Hit("score_slip", Sev.CRITICAL,
+                        f"長線分數自 {baseline:.0f} 降至 {cur:.0f} 且跌破持有門檻")]
+        return [Hit("score_slip", Sev.WARN, f"長線分數自 {baseline:.0f} 降至 {cur:.0f}")]
+
+
 class FundamentalWeakSignal(ExitSignal):
     """基本面轉弱（長線）：月營收年增轉負 / 法人連續賣超。"""
 
@@ -172,14 +198,14 @@ class FundamentalWeakSignal(ExitSignal):
             yoy = None if v is None else float(v)
         if yoy is not None:
             if yoy < -10:
-                hits.append(Hit("rev_drop", Sev.CRITICAL, f"月營收年增大幅轉負 {yoy:.0f}%"))
+                hits.append(Hit("rev_drop", Sev.WARN, f"月營收年增大幅轉負 {yoy:.0f}%"))
             elif yoy < 0:
                 hits.append(Hit("rev_neg", Sev.EARLY, f"月營收年增轉負 {yoy:.0f}%"))
         ind = ctx.ind
         vma_lots = (ind.get("vol_ma20") or 0) / 1000 if ind is not None else 0
         if vma_lots > 0:
-            net10 = ctx.inst_sum("foreign_net", 10) + ctx.inst_sum("trust_net", 10)
-            if net10 / (vma_lots * 10) < -0.05:
+            net20 = ctx.inst_sum("foreign_net", 20) + ctx.inst_sum("trust_net", 20)
+            if net20 / (vma_lots * 20) < -0.05:
                 hits.append(Hit("inst_sell", Sev.EARLY, "法人連續賣超"))
         return hits
 
@@ -204,6 +230,7 @@ ALL_SIGNALS: list[ExitSignal] = [
     StopLossSignal(),
     TrailingStopSignal(),
     TechWeakSignal(),
+    ScoreSlipSignal(),
     FundamentalWeakSignal(),
     NewsRiskSignal(),
 ]
