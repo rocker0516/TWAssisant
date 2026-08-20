@@ -85,3 +85,17 @@ def test_run_backfills_thesis_for_legacy_wave_holding(session):
     ExitEngine().run(session, session.days[3])
     assert h.thesis is not None
     assert h.thesis["clock_start"] == session.days[3].isoformat()  # 時鐘自遷移日起算
+
+
+def test_run_persists_expired_state_when_reaudits_exhausted(session):
+    # reaudit_count 已達上限（預設 reaudit_max=2）且到期 → evaluate_thesis 直接回傳 expired，
+    # run() 必須把這個終態寫回 DB，否則持股會停在 active 之後可能誤判成 refuted/fulfilled。
+    h = _holding(session, {**BASE, "clock_start": session.days[0].isoformat(),
+                           "reaudit_count": 2}, session.days[0])
+    ExitEngine().run(session, session.days[9])
+    assert h.thesis["state"] == "expired"
+    assert h.thesis.get("settled_date") == session.days[9].isoformat()
+
+    # 終態鎖定：再跑一天 run()，expired 不得被之後的價格變動改成 fulfilled/refuted。
+    ExitEngine().run(session, session.days[10])
+    assert h.thesis["state"] == "expired"

@@ -420,7 +420,7 @@ def format_exit_lines(rows: list[tuple[str, ExitStatus]]) -> list[str]:
             lines.append(f"{st.light} {label}：{sig}")
         if st.thesis_state == "expiring" and st.days_left == 1:
             n = st.horizon_days
-            frac = f"（第 {n}/{n - 1} 天未兌現）" if isinstance(n, int) else ""
+            frac = f"（第 {n - 1}/{n} 天未兌現）" if isinstance(n, int) else ""
             lines.append(f"⏳ {label} 論點明日到期{frac}")
     return lines
 

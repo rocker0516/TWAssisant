@@ -273,7 +273,7 @@ class ExitEngine(BaseEngine):
 
             ev = evaluate_thesis(h.thesis, avg_cost=pos.avg_cost, hi_since_clock=hi,
                                  lo_today=lo, days_elapsed=days, reaudit_max=rmax)
-            if ev.state in ("refuted", "fulfilled"):
+            if ev.state in ("refuted", "fulfilled", "expired"):
                 h.thesis = {**h.thesis, "state": ev.state,
                             "settled_date": trading_date.isoformat()}
             elif ev.state == "awaiting_reaudit":
