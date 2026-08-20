@@ -285,11 +285,14 @@ function ConditionsEditor({ conditions, fields, onChange }: {
   return (
     <div className="flex flex-col gap-2">
       {conditions.length === 0 && <p className="text-xs text-muted">尚無條件（無條件＝全市場皆入選，僅靠排序取前 N 檔）</p>}
-      {conditions.map((c, i) => (
-        <ConditionRow key={ids[i] ?? i} cond={c} fields={fields}
-          onChange={(nc) => onChange(conditions.map((x, j) => (j === i ? nc : x)))}
-          onDelete={() => removeAt(i)} />
-      ))}
+      {/* 條件左右兩排併列，塞好塞滿；窄螢幕退回單欄 */}
+      <div className="grid grid-cols-1 gap-x-6 gap-y-2 2xl:grid-cols-2">
+        {conditions.map((c, i) => (
+          <ConditionRow key={ids[i] ?? i} cond={c} fields={fields}
+            onChange={(nc) => onChange(conditions.map((x, j) => (j === i ? nc : x)))}
+            onDelete={() => removeAt(i)} />
+        ))}
+      </div>
       <button onClick={addCondition} className="w-fit rounded-md bg-panel2 px-3 py-1.5 text-xs hover:bg-edge">
         ＋ 加條件
       </button>
