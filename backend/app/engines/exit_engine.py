@@ -19,8 +19,15 @@ from .base import BaseEngine
 from .context import StockContext
 from . import exit_signals
 from .exit_signals import ALL_SIGNALS, Hit, Position, Sev
+from .thesis_engine import evaluate_thesis
+from ..services.strategy_engine import evaluate as eval_conditions, trading_dates
+from ..services.holding_service import HoldingService, WAVE_THESIS_DEFAULTS
 
 _LIGHT = {"red": "🔴", "orange": "🟠", "yellow": "🟡", "green": "🟢"}
+
+_ORANGE_UP = {"green": "orange", "yellow": "orange"}
+
+_svc = HoldingService()
 
 
 @dataclass
@@ -32,6 +39,41 @@ class ExitStatus:
     highest: float | None = None
     drawdown_pct: float | None = None
     trail_active: bool = False
+    thesis_state: str | None = None
+    days_left: int | None = None
+    reaudit_count: int | None = None
+    target_price: float | None = None
+    stop_price: float | None = None
+
+
+def _reaudit_max(session: Session) -> int:
+    row = session.get(models.Setting, "exit")
+    v = (row.value or {}) if row and isinstance(row.value, dict) else {}
+    return int(v.get("reaudit_max", 2))
+
+
+def _days_elapsed(session: Session, clock_start: date, td: date) -> int:
+    return max(1, len(trading_dates(session, clock_start, td)))
+
+
+def _low_today(session: Session, stock_id: str, td: date) -> float | None:
+    return session.execute(
+        select(models.DailyPrice.low).where(
+            models.DailyPrice.stock_id == stock_id, models.DailyPrice.date == td)
+    ).scalar()
+
+
+def _reaudit_pass(session: Session, h: models.Holding, td: date) -> bool:
+    t = h.thesis
+    if t.get("source") == "strategy" and t.get("conditions"):
+        hit = eval_conditions(session, t["conditions"], [td])
+        return h.stock_id in hit.get(td, [])
+    sc = session.execute(
+        select(models.Score).where(
+            models.Score.stock_id == h.stock_id, models.Score.track == "wave",
+            models.Score.date <= td).order_by(models.Score.date.desc()).limit(1)
+    ).scalars().first()
+    return bool(sc and sc.passed_filter)
 
 
 def _aggregate(hits: list[Hit]) -> str:
@@ -113,6 +155,8 @@ class ExitEngine(BaseEngine):
         self, session: Session, holding: models.Holding, td: date, *, avg_cost: float, close: float
     ) -> ExitStatus:
         self._load_exit_config(session)
+        if holding.track == "wave" and holding.thesis:
+            return self._evaluate_wave(session, holding, td, avg_cost=avg_cost, close=close)
         highest = self.highest_since(session, holding.stock_id, holding.opened_date, td) or close
         highest = max(highest, close)
         pos = Position(shares=1, avg_cost=avg_cost, highest=highest, close=close)
@@ -137,8 +181,52 @@ class ExitEngine(BaseEngine):
             trail_active=pos.peak_return >= (holding.trail_trigger_override or 0.10),
         )
 
+    def _evaluate_wave(
+        self, session: Session, holding: models.Holding, td: date, *, avg_cost: float, close: float
+    ) -> ExitStatus:
+        thesis = holding.thesis
+        sid = holding.stock_id
+        clock_start = date.fromisoformat(thesis["clock_start"])
+        hi = self.highest_since(session, sid, clock_start, td) or close
+        hi = max(hi, close)
+        lo = _low_today(session, sid, td)
+        days = _days_elapsed(session, clock_start, td)
+        ev = evaluate_thesis(
+            thesis, avg_cost=avg_cost, hi_since_clock=hi, lo_today=lo,
+            days_elapsed=days, reaudit_max=_reaudit_max(session),
+        )
+
+        level = ev.level
+        messages = list(ev.messages)
+        events = session.execute(
+            select(models.Event).where(
+                models.Event.stock_id == sid,
+                models.Event.is_risk.is_(True),
+                models.Event.category == "處置警示",
+                models.Event.date >= td - timedelta(days=10),
+            ).order_by(models.Event.date.desc())
+        ).scalars().all()
+        if events:
+            level = _ORANGE_UP.get(level, level)
+            messages.extend(f"處置警示：{e.title}" for e in events)
+
+        return ExitStatus(
+            level=level,
+            light=_LIGHT[level],
+            signals=messages,
+            hard_stop=ev.stop_price,
+            highest=round(hi, 2),
+            drawdown_pct=round((close / hi - 1) * 100, 2) if hi else None,
+            trail_active=False,
+            thesis_state=ev.state,
+            days_left=ev.days_left,
+            reaudit_count=ev.reaudit_count,
+            target_price=ev.target_price,
+            stop_price=ev.stop_price,
+        )
+
     def run(self, session: Session, trading_date: date) -> dict:
-        """ExitStep：日更所有持有中部位的最高價（移動停利用）。"""
+        """ExitStep：日更所有持有中部位的最高價（移動停利用）；波段持股再做論點狀態轉移/重審/舊倉補快照。"""
         holdings = session.execute(
             select(models.Holding).where(models.Holding.status == "open")
         ).scalars().all()
@@ -148,5 +236,39 @@ class ExitEngine(BaseEngine):
             if hp is not None:
                 h.highest_price = hp
                 updated += 1
+
+            if h.track != "wave":
+                continue
+            if h.thesis is None:  # 一次性遷移：舊持股補預設快照
+                h.thesis = {**WAVE_THESIS_DEFAULTS, "source": "manual",
+                            "clock_start": trading_date.isoformat(),
+                            "reaudit_count": 0, "state": "active"}
+                continue
+            if h.thesis.get("state") in ("fulfilled", "expired", "refuted"):
+                continue
+
+            pos = _svc.position(session, h)
+            if pos.shares <= 0 or pos.avg_cost is None:
+                continue
+
+            clock_start = date.fromisoformat(h.thesis["clock_start"])
+            hi = self.highest_since(session, h.stock_id, clock_start, trading_date)
+            hi = max(hi, pos.avg_cost) if hi is not None else pos.avg_cost
+            lo = _low_today(session, h.stock_id, trading_date)
+            days = _days_elapsed(session, clock_start, trading_date)
+            rmax = _reaudit_max(session)
+
+            ev = evaluate_thesis(h.thesis, avg_cost=pos.avg_cost, hi_since_clock=hi,
+                                 lo_today=lo, days_elapsed=days, reaudit_max=rmax)
+            if ev.state in ("refuted", "fulfilled"):
+                h.thesis = {**h.thesis, "state": ev.state,
+                            "settled_date": trading_date.isoformat()}
+            elif ev.state == "awaiting_reaudit":
+                if _reaudit_pass(session, h, trading_date):
+                    h.thesis = {**h.thesis, "clock_start": trading_date.isoformat(),
+                                "reaudit_count": int(h.thesis.get("reaudit_count", 0)) + 1}
+                else:
+                    h.thesis = {**h.thesis, "state": "expired",
+                                "settled_date": trading_date.isoformat()}
         session.flush()
         return {"status": "ok", "open_holdings": len(holdings), "updated_highest": updated}
