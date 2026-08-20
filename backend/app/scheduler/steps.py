@@ -13,7 +13,7 @@ import pandas as pd
 from sqlalchemy import delete, func, select
 
 from ..engines.corners import CornerEngine
-from ..engines.exit_engine import ExitEngine
+from ..engines.exit_engine import ExitEngine, ExitStatus
 from ..engines.indicators import IndicatorEngine
 from ..engines.news_engine import NewsEngine
 from ..engines.poppability import PoppabilityEfficacyEngine
@@ -404,6 +404,25 @@ class ExitStep(PipelineStep):
 
     def run(self, ctx: PipelineContext) -> dict:
         return ExitEngine().run(ctx.session, ctx.trading_date)
+
+
+def format_exit_lines(rows: list[tuple[str, ExitStatus]]) -> list[str]:
+    """持股出場燈號 → Discord 推播行（純函式，不觸資料庫）。
+
+    - 🔴🟠 持股原樣列出（label 已含股名/報酬%，signals 附後）。
+    - 波段持股論點明日到期（thesis_state == "expiring" 且 days_left == 1）
+      追加一行「⏳ 論點明日到期」預告（awaiting_reaudit 本身已是 🟠 會自然入列，不重複判斷）。
+    """
+    lines: list[str] = []
+    for label, st in rows:
+        if st.level in ("red", "orange"):
+            sig = "、".join(st.signals[:3]) or "—"
+            lines.append(f"{st.light} {label}：{sig}")
+        if st.thesis_state == "expiring" and st.days_left == 1:
+            n = st.horizon_days
+            frac = f"（第 {n}/{n - 1} 天未兌現）" if isinstance(n, int) else ""
+            lines.append(f"⏳ {label} 論點明日到期{frac}")
+    return lines
 
 
 class NotifyStep(PipelineStep):

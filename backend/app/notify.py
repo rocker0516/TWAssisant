@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .credentials import get_discord_webhook
-from .engines.exit_engine import ExitEngine
+from .engines.exit_engine import ExitEngine, ExitStatus
 from .services.holding_service import HoldingService
 from .storage import models
 
@@ -27,8 +27,10 @@ def _latest_close(session: Session, stock_id: str, td: date) -> float | None:
 
 def build_daily_message(session: Session, td: date) -> str | None:
     """組每日提醒訊息；無任何可報內容回 None。"""
+    from .scheduler.steps import format_exit_lines  # 延遲匯入避免與 scheduler.steps 循環匯入
+
     svc, engine = HoldingService(), ExitEngine()
-    alerts: list[str] = []
+    rows: list[tuple[str, ExitStatus]] = []
     for h in session.execute(select(models.Holding).where(models.Holding.status == "open")).scalars().all():
         pos = svc.position(session, h)
         if pos.shares <= 0 or pos.avg_cost is None:
@@ -37,11 +39,11 @@ def build_daily_message(session: Session, td: date) -> str | None:
         if close is None:
             continue
         st = engine.evaluate(session, h, td, avg_cost=pos.avg_cost, close=close)
-        if st.level in ("red", "orange"):
-            stock = session.get(models.Stock, h.stock_id)
-            ret = (close / pos.avg_cost - 1) * 100
-            sig = "、".join(st.signals[:3]) or "—"
-            alerts.append(f"{st.light} {stock.name if stock else h.stock_id}（{ret:+.1f}%）：{sig}")
+        stock = session.get(models.Stock, h.stock_id)
+        ret = (close / pos.avg_cost - 1) * 100
+        label = f"{stock.name if stock else h.stock_id}（{ret:+.1f}%）"
+        rows.append((label, st))
+    alerts = format_exit_lines(rows)
 
     rec = {
         tk: session.execute(
