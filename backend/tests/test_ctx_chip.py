@@ -15,3 +15,9 @@ def test_chip_templates_expand():
     # A1 n∈{3,5,10,15} → 4 個；總展開數應遠大於模板數
     assert sum(1 for t in out if t.id.startswith("A1_")) == 4
     assert len(out) >= 40
+
+
+def test_other_templates_cover_families():
+    from app.research.ctx_matrix.other_families import other_templates
+    fams = {t.family for t in other_templates()}
+    assert fams >= {"momentum", "volume", "fundamental", "news", "event"}
