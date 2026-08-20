@@ -2,7 +2,13 @@
 
 資料表：daily_prices / indicators / stocks / company_profile /
 revenue_monthly / financials_quarterly / scores(track="long") /
-attention_listings / events / etf_index_events。
+attention_listings / events / index_constituent_events。
+
+（審查修正：事件家族原讀 `etf_index_events`，該表僅 671 筆、覆蓋約1個月，
+觸發率死特徵等級 0.05%。改讀 `index_constituent_events`（models.py
+`IndexConstituentEvent`），13,714 筆、2019~2026 七年覆蓋，欄位
+stock_id/action/effective_date 與視窗邏輯完全相容，`action` 實際值為
+`"add"`/`"remove"`（非中文，已查證 DISTINCT action）。）
 
 防前視紀律（比照 chip.py 的風格與紀律）：
   - 技術欄優先讀 `indicators` 現成值（bias_20 等），不重算。
@@ -106,7 +112,7 @@ def other_feature_frame(db_path: str) -> pd.DataFrame:
         )
         etf_ev = _read(
             con,
-            "SELECT stock_id, action, effective_date FROM etf_index_events "
+            "SELECT stock_id, action, effective_date FROM index_constituent_events "
             "WHERE effective_date IS NOT NULL",
             ["action", "effective_date"],
         )
@@ -251,50 +257,40 @@ def other_feature_frame(db_path: str) -> pd.DataFrame:
         # events 表無可用個股級資料：整欄 NaN 填充，不 crash（brief 明確要求）
         base["news_cnt5_pct"] = np.nan
 
-    # ── 事件：ETF 定審成分股異動，生效日後第 6~10 交易日窗（已驗證甜蜜點） ──
+    # ── 事件：TIP 指數定審成分股異動（index_constituent_events，13,714 筆、
+    #   2019~2026 完整覆蓋；action 實際值為 "add"/"remove"），生效日後第 6~10
+    #   交易日窗（已驗證甜蜜點） ──
     base["etf_add_win_flag"] = False
     base["etf_del_win_flag"] = False
     if not etf_ev.empty:
         etf_ev = etf_ev.merge(pool, on="stock_id", how="inner")
         etf_ev["effective_date"] = pd.to_datetime(etf_ev["effective_date"])
         base = base.sort_values(["stock_id", "date"]).reset_index(drop=True)
-        # 逐股建立「交易日序號」，用於算「生效日後第 N 個交易日」的日期上下界
-        base["_trade_pos"] = base.groupby("stock_id", sort=False).cumcount()
-        pos_lookup = base.set_index(["stock_id", "date"])["_trade_pos"]
-        date_by_pos = {
-            sid: g[["date"]].reset_index(drop=True)
-            for sid, g in base.groupby("stock_id", sort=False)
-        }
-
-        def _window_dates(row: pd.Series) -> tuple[pd.Timestamp | None, pd.Timestamp | None]:
-            sid, eff = row["stock_id"], row["effective_date"]
-            dates = date_by_pos.get(sid)
-            if dates is None or pd.isna(eff):
-                return None, None
-            # 找 >= 生效日的第一個交易日位置（生效日本身視為第 0 個交易日）
-            idx = dates["date"].searchsorted(eff)
-            lo_i, hi_i = idx + 6, idx + 10
-            if hi_i >= len(dates):
-                return None, None
-            return dates["date"].iloc[lo_i], dates["date"].iloc[hi_i]
-
-        etf_ev[["_lo", "_hi"]] = etf_ev.apply(_window_dates, axis=1, result_type="expand")
-        etf_ev = etf_ev.dropna(subset=["_lo", "_hi"])
-
-        for action, col in (("add", "etf_add_win_flag"), ("remove", "etf_del_win_flag")):
-            sub = etf_ev[etf_ev["action"] == action]
+        # 逐股「交易日序號 → base 全域列位置」的對照表（base 依 stock_id,date 排序，
+        # 同股列連續，故序號→全域位置只是加上該股起始位置的偏移）；用整數位置切片
+        # 標旗標，避免對 3M 列全表做逐事件布林遮罩（13,714 筆事件 × 3M 列會很慢）。
+        add_flags = np.zeros(len(base), dtype=bool)
+        del_flags = np.zeros(len(base), dtype=bool)
+        for sid, g in base.groupby("stock_id", sort=False):
+            dates = g["date"].to_numpy()
+            gpos = g.index.to_numpy()  # 該股列在 base 的全域整數位置（RangeIndex）
+            sub = etf_ev[etf_ev["stock_id"] == sid]
             if sub.empty:
                 continue
-            flag = pd.Series(False, index=base.index)
-            for _, r in sub.iterrows():
-                mask = (
-                    (base["stock_id"] == r["stock_id"])
-                    & (base["date"] >= r["_lo"])
-                    & (base["date"] <= r["_hi"])
-                )
-                flag |= mask
-            base[col] = base[col] | flag
-        base = base.drop(columns=["_trade_pos"])
+            for eff, action in zip(sub["effective_date"], sub["action"]):
+                if pd.isna(eff):
+                    continue
+                # 找 >= 生效日的第一個交易日位置（生效日本身視為第 0 個交易日）
+                idx = int(np.searchsorted(dates, np.datetime64(eff)))
+                lo_i, hi_i = idx + 6, idx + 10
+                if hi_i >= len(dates):
+                    continue
+                target = add_flags if action == "add" else del_flags if action == "remove" else None
+                if target is None:
+                    continue
+                target[gpos[lo_i:hi_i + 1]] = True
+        base["etf_add_win_flag"] = add_flags
+        base["etf_del_win_flag"] = del_flags
 
     base = base.sort_values(["stock_id", "date"]).reset_index(drop=True)
 
