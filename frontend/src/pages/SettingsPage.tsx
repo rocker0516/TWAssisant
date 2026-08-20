@@ -31,6 +31,13 @@ const EXIT_LABELS: Record<string, string> = {
   stop_cap: "停損 %",
   trail_trigger: "移動停利啟動 %",
   trail_pullback: "回落 %",
+  score_slip_warn: "分數滑落警戒（分）",
+};
+
+const WAVE_DEFAULTS_LABELS: Record<string, string> = {
+  target_pct: "目標 %",
+  horizon_days: "天期（日）",
+  stop_pct: "停損 %",
 };
 
 function NumGrid({ obj, labels, onChange }: { obj: Record<string, number>; labels: Record<string, string>; onChange: (k: string, v: number) => void }) {
@@ -145,20 +152,32 @@ export default function SettingsPage() {
         {/* 出場提醒 */}
         {section === "exit" && (
           <div className="flex flex-col gap-5">
-            {(["wave", "long"] as const).map((tk) => (
-              <div key={tk} className="rounded-xl border border-edge bg-panel p-4">
-                <div className="mb-3 font-semibold">{tk === "wave" ? "波段軌" : "長線軌"}出場參數</div>
-                <NumGrid obj={draft[tk]} labels={EXIT_LABELS}
-                  onChange={(k, v) => setDraft({ ...draft, [tk]: { ...draft[tk], [k]: v } })} />
-                <label className="mt-3 flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={draft[tk].break_ma_exit ?? true}
-                    onChange={(e) => setDraft({ ...draft, [tk]: { ...draft[tk], break_ma_exit: e.target.checked } })} />
-                  <span>跌破{tk === "wave" ? "月線" : "季線"}即建議出場</span>
-                  <span className="text-xs text-muted">（關閉＝只降為警示、不催出場；回測顯示放寬較佳但回撤較大）</span>
-                </label>
-              </div>
-            ))}
-            <p className="text-xs text-muted">出場參數即時反映於持股頁的停損價與移動停利判斷。</p>
+            <div className="rounded-xl border border-edge bg-panel p-4">
+              <div className="mb-3 font-semibold">波段軌（非策略持股預設）</div>
+              <p className="mb-3 text-xs leading-relaxed text-muted">
+                波段軌採論點式出場：新增持股時套用下方目標／天期／停損預設（個股可個別覆寫）；
+                天期到期未達標可重審，重審上限見下。
+              </p>
+              <NumGrid obj={draft.wave_defaults} labels={WAVE_DEFAULTS_LABELS}
+                onChange={(k, v) => setDraft({ ...draft, wave_defaults: { ...draft.wave_defaults, [k]: v } })} />
+              <label className="mt-3 block w-40">
+                <span className="mb-1 block text-xs text-muted">重審上限（次）</span>
+                <input type="number" min={0} className={inputCls} value={draft.reaudit_max}
+                  onChange={(e) => setDraft({ ...draft, reaudit_max: Number(e.target.value) })} />
+              </label>
+            </div>
+            <div className="rounded-xl border border-edge bg-panel p-4">
+              <div className="mb-3 font-semibold">長線軌出場參數</div>
+              <NumGrid obj={draft.long} labels={EXIT_LABELS}
+                onChange={(k, v) => setDraft({ ...draft, long: { ...draft.long, [k]: v } })} />
+              <label className="mt-3 flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={draft.long.break_ma_exit ?? true}
+                  onChange={(e) => setDraft({ ...draft, long: { ...draft.long, break_ma_exit: e.target.checked } })} />
+                <span>跌破季線即建議出場</span>
+                <span className="text-xs text-muted">（關閉＝只降為警示、不催出場；回測顯示放寬較佳但回撤較大）</span>
+              </label>
+            </div>
+            <p className="text-xs text-muted">出場參數即時反映於持股頁的停損價與論點進度判斷。</p>
           </div>
         )}
 

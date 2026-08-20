@@ -38,6 +38,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/logout-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout All
+         * @description 登出所有裝置：session_version +1，所有已簽發 token 立即失效。
+         */
+        post: operations["logout_all_api_auth_logout_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/me": {
         parameters: {
             query?: never;
@@ -49,6 +69,57 @@ export interface paths {
         get: operations["me_api_auth_me_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Signup */
+        post: operations["signup_api_auth_signup_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/forgot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Forgot */
+        post: operations["forgot_api_auth_forgot_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset */
+        post: operations["reset_api_auth_reset_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -940,6 +1011,131 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/lab/strategies/fields": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fields */
+        get: operations["fields_api_lab_strategies_fields_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/lab/strategies/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Strategies */
+        get: operations["list_strategies_api_lab_strategies__get"];
+        put?: never;
+        /** Create Strategy */
+        post: operations["create_strategy_api_lab_strategies__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/lab/strategies/{sid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Strategy */
+        delete: operations["delete_strategy_api_lab_strategies__sid__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Patch Strategy
+         * @description clear_stop 優先於顯式 stop_pct——兩者同時提交時最終以 clear_stop 為準
+         *     （先套用 stop_pct，clear_stop 是最後一步的覆蓋，而非兩者互斥的錯誤）。
+         */
+        patch: operations["patch_strategy_api_lab_strategies__sid__patch"];
+        trace?: never;
+    };
+    "/api/lab/strategies/{sid}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Activate */
+        post: operations["activate_api_lab_strategies__sid__activate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/lab/strategies/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Deactivate */
+        post: operations["deactivate_api_lab_strategies_deactivate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/lab/strategies/{sid}/backtest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Backtest */
+        post: operations["backtest_api_lab_strategies__sid__backtest_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/lab/strategies/active/daily": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Active Daily */
+        get: operations["active_daily_api_lab_strategies_active_daily_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/stocks/{stock_id}/health": {
         parameters: {
             query?: never;
@@ -1336,6 +1532,70 @@ export interface components {
              */
             entries: components["schemas"]["AttentionEntry"][];
         };
+        /** BacktestDetail */
+        BacktestDetail: {
+            /** Date */
+            date: string;
+            /** Stock Id */
+            stock_id: string;
+            /** Name */
+            name: string;
+            /** Entry */
+            entry: number;
+            /** Hit */
+            hit: boolean;
+            /** Stopped */
+            stopped: boolean;
+            /** Max Gain Pct */
+            max_gain_pct: number;
+            /** Max Dd Pct */
+            max_dd_pct: number;
+        };
+        /** BacktestMonthly */
+        BacktestMonthly: {
+            /** Month */
+            month: string;
+            /** Samples */
+            samples: number;
+            /** Hits */
+            hits: number;
+        };
+        /** BacktestRequest */
+        BacktestRequest: {
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+        };
+        /** BacktestResponse */
+        BacktestResponse: {
+            /** Samples */
+            samples: number;
+            /** Hits */
+            hits: number;
+            /** Hit Rate */
+            hit_rate: number | null;
+            /** Base Rate */
+            base_rate: number | null;
+            /** Lift */
+            lift: number | null;
+            /** Avg Max Drawdown */
+            avg_max_drawdown: number | null;
+            /** Monthly */
+            monthly: components["schemas"]["BacktestMonthly"][];
+            /** Recent */
+            recent: components["schemas"]["BacktestDetail"][];
+            /** Warn Loose */
+            warn_loose: boolean;
+            /** Signal Days */
+            signal_days: number;
+        };
         /** BriefRequest */
         BriefRequest: {
             /**
@@ -1617,6 +1877,20 @@ export interface components {
             market_cap_billion?: number | null;
             /** Website */
             website?: string | null;
+        };
+        /** ConditionDTO */
+        ConditionDTO: {
+            /** Field */
+            field: string;
+            /**
+             * Op
+             * @enum {string}
+             */
+            op: "gt" | "lt" | "gte" | "lte" | "streak_gt" | "streak_lt";
+            /** Value */
+            value: number | {
+                [key: string]: unknown;
+            };
         };
         /**
          * CooccurrenceResponse
@@ -1937,6 +2211,17 @@ export interface components {
             history: components["schemas"]["FearGreedPoint"][];
             us?: components["schemas"]["UsFearGreed"] | null;
         };
+        /** FieldInfo */
+        FieldInfo: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Group */
+            group: string;
+            /** Unit */
+            unit: string;
+        };
         /**
          * FinStatementQuarter
          * @description 單季財務報表關鍵科目（金額單位：億元；比率 %；每股淨值 元）。
@@ -2044,6 +2329,11 @@ export interface components {
             /** Items */
             items: components["schemas"]["FlowStockItem"][];
         };
+        /** ForgotBody */
+        ForgotBody: {
+            /** Email */
+            email: string;
+        };
         /**
          * FundamentalHistoryResponse
          * @description 基本面歷史序列（月營收 + 單季財報），供趨勢圖。
@@ -2132,6 +2422,8 @@ export interface components {
             trail_pullback_override?: number | null;
             /** Note */
             note?: string | null;
+            /** Strategy Id */
+            strategy_id?: number | null;
         };
         /** HoldingHistoryResponse */
         HoldingHistoryResponse: {
@@ -2188,6 +2480,18 @@ export interface components {
             drawdown_pct: number | null;
             /** Trail Active */
             trail_active: boolean;
+            /** Thesis State */
+            thesis_state?: string | null;
+            /** Days Left */
+            days_left?: number | null;
+            /** Reaudit Count */
+            reaudit_count?: number | null;
+            /** Target Price */
+            target_price?: number | null;
+            /** Stop Price */
+            stop_price?: number | null;
+            /** Horizon Days */
+            horizon_days?: number | null;
             /** Stop Loss Override */
             stop_loss_override: number | null;
             /** Trail Trigger Override */
@@ -2989,6 +3293,13 @@ export interface components {
             /** Marks */
             marks: components["schemas"]["RecommendationMark"][];
         };
+        /** ResetBody */
+        ResetBody: {
+            /** Token */
+            token: string;
+            /** Password */
+            password: string;
+        };
         /**
          * RevenuePoint
          * @description 月營收一點。
@@ -3330,6 +3641,13 @@ export interface components {
             /** Lift Recent */
             lift_recent?: number | null;
         };
+        /** SignupBody */
+        SignupBody: {
+            /** Email */
+            email: string;
+            /** Password */
+            password: string;
+        };
         /** StockDetail */
         StockDetail: {
             /** Stock Id */
@@ -3388,6 +3706,112 @@ export interface components {
              * @default false
              */
             is_etf: boolean;
+        };
+        /** StrategyCreate */
+        StrategyCreate: {
+            /**
+             * Name
+             * @default 我的策略
+             */
+            name: string;
+            /**
+             * Conditions
+             * @default []
+             */
+            conditions: components["schemas"]["ConditionDTO"][];
+            /**
+             * Sort Field
+             * @default turnover
+             */
+            sort_field: string;
+            /**
+             * Sort Desc
+             * @default true
+             */
+            sort_desc: boolean;
+            /**
+             * Top N
+             * @default 30
+             */
+            top_n: number;
+            /**
+             * Target Pct
+             * @default 10
+             */
+            target_pct: number;
+            /**
+             * Horizon Days
+             * @default 10
+             */
+            horizon_days: number;
+            /** Stop Pct */
+            stop_pct?: number | null;
+        };
+        /** StrategyDTO */
+        StrategyDTO: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Conditions */
+            conditions: components["schemas"]["ConditionDTO"][];
+            /** Sort Field */
+            sort_field: string;
+            /** Sort Desc */
+            sort_desc: boolean;
+            /** Top N */
+            top_n: number;
+            /** Target Pct */
+            target_pct: number;
+            /** Horizon Days */
+            horizon_days: number;
+            /** Stop Pct */
+            stop_pct: number | null;
+            /** Is Active */
+            is_active: boolean;
+        };
+        /** StrategyDailyItem */
+        StrategyDailyItem: {
+            /** Stock Id */
+            stock_id: string;
+            /** Name */
+            name: string;
+            /** Close */
+            close: number | null;
+            /** Sort Value */
+            sort_value: number | null;
+        };
+        /** StrategyDailyResponse */
+        StrategyDailyResponse: {
+            strategy: components["schemas"]["StrategyDTO"] | null;
+            /** Date */
+            date: string | null;
+            /** Items */
+            items: components["schemas"]["StrategyDailyItem"][];
+        };
+        /** StrategyPatch */
+        StrategyPatch: {
+            /** Name */
+            name?: string | null;
+            /** Conditions */
+            conditions?: components["schemas"]["ConditionDTO"][] | null;
+            /** Sort Field */
+            sort_field?: string | null;
+            /** Sort Desc */
+            sort_desc?: boolean | null;
+            /** Top N */
+            top_n?: number | null;
+            /** Target Pct */
+            target_pct?: number | null;
+            /** Horizon Days */
+            horizon_days?: number | null;
+            /** Stop Pct */
+            stop_pct?: number | null;
+            /**
+             * Clear Stop
+             * @default false
+             */
+            clear_stop: boolean;
         };
         /**
          * TagComboStat
@@ -3765,6 +4189,26 @@ export interface operations {
             };
         };
     };
+    logout_all_api_auth_logout_all_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
     me_api_auth_me_get: {
         parameters: {
             query?: never;
@@ -3783,6 +4227,111 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    signup_api_auth_signup_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignupBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    forgot_api_auth_forgot_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForgotBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_api_auth_reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -5274,6 +5823,251 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    fields_api_lab_strategies_fields_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FieldInfo"][];
+                };
+            };
+        };
+    };
+    list_strategies_api_lab_strategies__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StrategyDTO"][];
+                };
+            };
+        };
+    };
+    create_strategy_api_lab_strategies__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StrategyCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StrategyDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_strategy_api_lab_strategies__sid__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sid: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_strategy_api_lab_strategies__sid__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sid: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StrategyPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StrategyDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activate_api_lab_strategies__sid__activate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sid: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StrategyDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deactivate_api_lab_strategies_deactivate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    backtest_api_lab_strategies__sid__backtest_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sid: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BacktestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BacktestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    active_daily_api_lab_strategies_active_daily_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StrategyDailyResponse"];
                 };
             };
         };
