@@ -176,6 +176,7 @@ def create_holding(body: HoldingCreate, ud: UserData = Depends(get_user_data_wri
             stop_loss_override=body.stop_loss_override,
             trail_trigger_override=body.trail_trigger_override,
             trail_pullback_override=body.trail_pullback_override, note=body.note,
+            strategy_id=body.strategy_id,
         )
     except OperationalError as e:
         _raise_if_db_locked(e)

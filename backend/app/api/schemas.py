@@ -712,6 +712,7 @@ class HoldingCreate(BaseModel):
     trail_trigger_override: float | None = None
     trail_pullback_override: float | None = None
     note: str | None = None
+    strategy_id: int | None = None
 
 
 class TransactionCreate(BaseModel):

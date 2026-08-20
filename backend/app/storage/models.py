@@ -650,6 +650,9 @@ class Holding(Base):
     # reasons/buy_low/buy_high/stop_loss/close）。之後與最新分數對照＝論點是否還成立。
     entry_snapshot: Mapped[dict | None] = mapped_column(JSON)
 
+    # 波段論點快照+狀態機（spec 2026-08-20-exit-philosophy-v2）。long 軌為 None。
+    thesis: Mapped[dict | None] = mapped_column(JSON)
+
     note: Mapped[str | None] = mapped_column(Text)
 
     transactions: Mapped[list["Transaction"]] = relationship(

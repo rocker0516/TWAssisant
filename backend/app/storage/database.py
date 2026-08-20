@@ -60,7 +60,7 @@ _COLUMN_ADDITIONS: dict[str, dict[str, str]] = {
     },
     "indicators": {"ma120": "FLOAT", "ma240": "FLOAT"},  # 半年線/年線（長期支撐）
     "company_profile": {"listed_date": "DATE"},  # 正確上市/上櫃日（t187ap03）
-    "holdings": {"entry_snapshot": "JSON",
+    "holdings": {"entry_snapshot": "JSON", "thesis": "JSON",
                  "user_id": "INTEGER REFERENCES users(id)"},
     # 多租戶隔離（分層設計第 6 節）：使用者資料四表補 user_id
     "transactions": {"user_id": "INTEGER REFERENCES users(id)"},
