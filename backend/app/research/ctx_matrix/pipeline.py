@@ -40,7 +40,11 @@ _CORE_CHAINS_PATH = _DATA_DIR / "core_chains.json"
 _MINE_LO, _MINE_HI = "2021-01-01", "2024-12-31"
 _HOLD_LO = "2025-01-01"
 _LABEL_HORIZON = 20
-_KPI_GRID = (6, 8, 10, 12)
+# 原 grid (6,8,10,12) 全部基率遠高於 5% 目標（x=12 仍 15.25%）——選出的是格邊
+# 界而非真靶心。向上延伸至 25，讓掃描格真正跨過 5% 基率所在的靶心
+# （coordinator 裁定，2026-08-21 task-7 追加修正）。labels.py 的預設 grid
+# 參數不動，這裡明確由 pipeline 傳入。
+_KPI_GRID = (8, 10, 12, 15, 20, 25)
 _N_TPEX_CHAINS = 15
 
 # 稽核常數：照抄 backend/scripts/feature_contamination_audit.py:49-51
