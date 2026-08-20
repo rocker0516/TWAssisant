@@ -22,6 +22,7 @@ from .api.routes import router as api_router
 from .api.routes_assistant import router as assistant_router
 from .api.routes_auth import router as auth_router
 from .api.routes_corners import router as corners_router
+from .api.routes_ctx import router as ctx_router
 from .api.routes_flow import router as flow_router
 from .api.routes_holdings import router as holdings_router
 from .api.routes_intel import router as intel_router
@@ -67,6 +68,7 @@ app.include_router(settings_router, prefix=_API)
 app.include_router(strategies_router, prefix=_API)
 app.include_router(assistant_router, prefix=_API)
 app.include_router(corners_router, prefix=_API)
+app.include_router(ctx_router, prefix=_API)
 app.include_router(lab_router, prefix=_API)
 # 公開頁：無前綴。命名空間約定見 web/routes_public.py 檔頭。
 app.include_router(public_router)

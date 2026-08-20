@@ -1224,6 +1224,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ctx-matrix": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ctx Matrix */
+        get: operations["ctx_matrix_api_ctx_matrix_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/paper/simulate": {
         parameters: {
             query?: never;
@@ -1666,6 +1683,19 @@ export interface components {
             /** Macd Hist */
             macd_hist?: number | null;
         };
+        /** ChainAuditOut */
+        ChainAuditOut: {
+            /** Chain Id */
+            chain_id: string;
+            /** N Cells */
+            n_cells: number;
+            /** N Pass */
+            n_pass: number;
+            /** N Fail */
+            n_fail: number;
+            /** Verdict */
+            verdict: string;
+        };
         /** ChainNode */
         ChainNode: {
             /** Name */
@@ -2042,6 +2072,63 @@ export interface components {
             /** Close */
             close: number | null;
         };
+        /** CtxCellOut */
+        CtxCellOut: {
+            /** Group */
+            group: string;
+            /** Group Kind */
+            group_kind: string;
+            /** Signal */
+            signal: string;
+            /** Family */
+            family: string;
+            /** Context */
+            context: string;
+            /** N Picks */
+            n_picks: number;
+            /** N Days */
+            n_days: number;
+            /** Hit */
+            hit: number;
+            /** Ctrl */
+            ctrl: number;
+            /** T Ctrl */
+            t_ctrl: number;
+            /** Fold Ctrl */
+            fold_ctrl: (number | null)[];
+            /** Holdout Ctrl */
+            holdout_ctrl?: number | null;
+            /** Routing Delta */
+            routing_delta: number;
+            /** Tier */
+            tier: string;
+        };
+        /** CtxMatrixResponse */
+        CtxMatrixResponse: {
+            /** Generated At */
+            generated_at: string;
+            /** Kpi */
+            kpi: {
+                [key: string]: unknown;
+            };
+            /**
+             * Excluded Features
+             * @default []
+             */
+            excluded_features: string[];
+            /** Groups */
+            groups: components["schemas"]["GroupOut"][];
+            /** Signals */
+            signals: components["schemas"]["SignalOut"][];
+            /** Cells */
+            cells: components["schemas"]["CtxCellOut"][];
+            /** Counts */
+            counts: {
+                [key: string]: unknown;
+            };
+            /** Chain Audit */
+            chain_audit: components["schemas"]["ChainAuditOut"][];
+        };
         /**
          * DividendEntry
          * @description 一期股利（年度制一年一列、季配一年四列）。
@@ -2391,6 +2478,13 @@ export interface components {
             eps_yoy?: number | null;
             /** Rev Yoy Streak */
             rev_yoy_streak?: number | null;
+        };
+        /** GroupOut */
+        GroupOut: {
+            /** Group */
+            group: string;
+            /** Group Kind */
+            group_kind: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -3640,6 +3734,13 @@ export interface components {
             hit_recent?: number | null;
             /** Lift Recent */
             lift_recent?: number | null;
+        };
+        /** SignalOut */
+        SignalOut: {
+            /** Signal */
+            signal: string;
+            /** Family */
+            family: string;
         };
         /** SignupBody */
         SignupBody: {
@@ -6216,6 +6317,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CornerReviewResponse"];
+                };
+            };
+        };
+    };
+    ctx_matrix_api_ctx_matrix_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CtxMatrixResponse"];
                 };
             };
         };
