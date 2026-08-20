@@ -102,10 +102,10 @@ def chip_feature_frame(db_path: str) -> pd.DataFrame:
             "netbuy_turnover_pct", "netbuy_accel", "trust_adopt_flag", "sell_exhaust_flag",
             "absorb_flag", "receive_flag", "margin_chg5", "margin_chg10", "margin_chg20",
             "margin_down_price_up", "short_margin_ratio_pct", "squeeze_flag", "washout_flag",
-            "big_holder_wk_up", "retail_cnt_chg", "conc_diff_chg", "mid_holder_up",
+            "big_holder_wk_up", "retail_cnt_chg", "conc_diff_chg", "sub_big_holder_up",
             "big_absorb_flag", "sbl_chg5", "sbl_chg10", "sbl_chg20", "short_cover_flag",
             "daytrade_pct", "daytrade_drop_flag", "insider_chg", "insider_buyback_flag",
-            "distribute_warn_flag",
+            "distribute_warn_flag", "f1_flag", "f2_flag", "f3_flag",
         ])
 
     # ── 基底：股票池 × 日頻收盤/成交量 ──
@@ -209,11 +209,6 @@ def chip_feature_frame(db_path: str) -> pd.DataFrame:
     # 當沖比自 20 日高檔驟降超過一半（門檻屬特徵工程假設，已於註解標明）
     base["daytrade_drop_flag"] = base["_dt_raw"] <= dt_max20 * 0.5
 
-    # ── E. 董監（月頻）— insider_buyback 用的一年自身價格 q30 ──
-    price_q30 = g["close"].transform(
-        lambda s: s.rolling(_YEAR_WIN, min_periods=_YEAR_MIN).quantile(0.3)
-    )
-
     # ── C. 集保級距（週頻）— forward-fill 以「資料日+3 曆日」為可用日 ──
     if not share.empty:
         share = share.merge(pool, on="stock_id", how="inner")
@@ -227,17 +222,19 @@ def chip_feature_frame(db_path: str) -> pd.DataFrame:
         conc = share["over1000_pct"].astype(float) - share["small_pct"].astype(float)
         share["_conc"] = conc
         share["conc_diff_chg"] = share.groupby("stock_id", sort=False)["_conc"].transform(lambda s: s.diff())
-        # 100~400 張級距 DB 無此細級距，以 400~1000 張(big_pct−over1000_pct)近似「中實戶」，
-        # 與 spec §5 C4 字面定義（100~400 張）不同，屬資料限制下的替代口徑，已於此標明。
-        mid = share["big_pct"].astype(float) - share["over1000_pct"].astype(float)
-        share["_mid"] = mid
-        share["mid_holder_up"] = share.groupby("stock_id", sort=False)["_mid"].transform(
+        # C4 spec 字面定義是「100~400 張級距佔比上升」，但 shareholding 表只有
+        # big_pct(≥400張)/over1000_pct(≥1000張)/small_pct(<10張)，無 100~400 張這一細級距。
+        # 以 big_pct − over1000_pct（≈400~1000張「中實戶」）近似替代，欄名 sub_big_holder_up
+        # 明白標示「次大戶」口徑，非 spec 字面的 100~400 張，屬資料限制下的替代口徑。
+        sub_big = share["big_pct"].astype(float) - share["over1000_pct"].astype(float)
+        share["_sub_big"] = sub_big
+        share["sub_big_holder_up"] = share.groupby("stock_id", sort=False)["_sub_big"].transform(
             lambda s: s.diff() > 0
         )
         share["avail_date"] = share["date"] + pd.Timedelta(days=3)
 
         share_cols = [
-            "big_holder_wk_up", "big_down", "retail_cnt_chg", "conc_diff_chg", "mid_holder_up",
+            "big_holder_wk_up", "big_down", "retail_cnt_chg", "conc_diff_chg", "sub_big_holder_up",
         ]
         share_ff = share[["stock_id", "avail_date", *share_cols]].sort_values(
             ["avail_date", "stock_id"]
@@ -247,7 +244,7 @@ def chip_feature_frame(db_path: str) -> pd.DataFrame:
             base, share_ff, left_on="date", right_on="avail_date", by="stock_id", direction="backward"
         ).drop(columns=["avail_date"])
     else:
-        for c in ("big_holder_wk_up", "big_down", "retail_cnt_chg", "conc_diff_chg", "mid_holder_up"):
+        for c in ("big_holder_wk_up", "big_down", "retail_cnt_chg", "conc_diff_chg", "sub_big_holder_up"):
             base[c] = np.nan
 
     # ── E. 董監（月頻）— forward-fill 以「資料月月底+10 曆日」為可用日 ──
@@ -274,18 +271,56 @@ def chip_feature_frame(db_path: str) -> pd.DataFrame:
     base = base.sort_values(["stock_id", "date"]).reset_index(drop=True)
 
     # ── F. 複合型態（跨表） ──
-    base["big_absorb_flag"] = base["big_holder_wk_up"].astype("boolean").fillna(False) & (
-        base["_price_chg5"] < base.groupby(["date", "sector_id"], sort=False)["_price_chg5"].transform("median")
+    # 注意：base 在上面經過多次 merge_asof／sort_values 重新賦值（新物件、新索引），
+    # 之前（合併前）持有的 groupby 物件 `g` 對應的是舊索引順序，不可再拿來對「現在」的
+    # base 做欄位指派（即便舊排序恰好與新排序相同也是隱含假設、不應依賴）。
+    # 這裡對「當下」的 base 重新 groupby，緊接著在使用處計算，避免索引對齊碰巧正確的風險。
+    g_now = base.groupby("stock_id", sort=False)
+    price_q30 = g_now["close"].transform(
+        lambda s: s.rolling(_YEAR_WIN, min_periods=_YEAR_MIN).quantile(0.3)
     )
+    inst_sum5_sell = g_now["total_net"].transform(lambda s: s.rolling(5, min_periods=5).sum()) < 0
+    foreign_sum5_now = g_now["foreign_net"].transform(lambda s: s.rolling(5, min_periods=5).sum())
+    sbl_self_q80 = g_now["sbl_balance"].transform(
+        lambda s: s.rolling(_YEAR_WIN, min_periods=_YEAR_MIN).quantile(0.8)
+    )
+
+    sector_med_chg5_now = base.groupby(["date", "sector_id"], sort=False)["_price_chg5"].transform("median")
+    price_not_up = base["_price_chg5"] < sector_med_chg5_now
+
+    base["big_absorb_flag"] = base["big_holder_wk_up"].astype("boolean").fillna(False) & price_not_up
     base["insider_buyback_flag"] = (base["close"] <= price_q30) & (base["insider_chg"].fillna(0) > 0)
 
     margin_chg5 = base["margin_chg5"]
-    inst_sum5_sell = g["total_net"].transform(lambda s: s.rolling(5, min_periods=5).sum()) < 0
     base["distribute_warn_flag"] = (
         base["big_down"].astype("boolean").fillna(False)
         & (base["retail_cnt_chg"].fillna(0) > 0)
         & (margin_chg5 >= 5)
         & inst_sum5_sell
+    )
+
+    # F1 主力進貨：外投雙買 + 大戶佔比升(連3週) + 價未漲（重用 absorb/big_absorb 的類股中位比較邏輯）
+    base["f1_flag"] = (
+        base["dual_net_flag"].astype("boolean").fillna(False)
+        & base["big_holder_wk_up"].astype("boolean").fillna(False)
+        & price_not_up
+    )
+    # F2 籌碼沉澱完成：大戶升 + 散戶減 + 當沖降 + 融資減
+    # （spec 字面是「大戶升」，此處沿用 big_holder_wk_up 作為「籌碼沉澱」的大戶方向條件；
+    #   部分組成欄覆蓋不足時自然為 False/NaN，去留交給 Task 7 稽核閘判定，不在本層擋）
+    base["f2_flag"] = (
+        base["big_holder_wk_up"].astype("boolean").fillna(False)
+        & (base["retail_cnt_chg"].fillna(0) < 0)
+        & base["daytrade_drop_flag"].astype("boolean").fillna(False)
+        & (margin_chg5 < 0)
+    )
+    # F3 軋空發動：券資比高檔 + 借券水位高檔（sbl_chg20>0 或借券餘額>自身一年 q80，
+    #   兩個條件用「可得欄位」擇一滿足即可，口徑已於此標明）+ 外資近5日轉買
+    sbl_high = (base["sbl_chg20"] > 0) | (base["sbl_balance"].astype(float) > sbl_self_q80)
+    base["f3_flag"] = (
+        base["squeeze_flag"].astype("boolean").fillna(False)
+        & sbl_high.fillna(False)
+        & (foreign_sum5_now > 0)
     )
 
     keep = [
@@ -294,17 +329,17 @@ def chip_feature_frame(db_path: str) -> pd.DataFrame:
         "netbuy_turnover_pct", "netbuy_accel", "trust_adopt_flag", "sell_exhaust_flag",
         "absorb_flag", "receive_flag", "margin_chg5", "margin_chg10", "margin_chg20",
         "margin_down_price_up", "short_margin_ratio_pct", "squeeze_flag", "washout_flag",
-        "big_holder_wk_up", "retail_cnt_chg", "conc_diff_chg", "mid_holder_up",
+        "big_holder_wk_up", "retail_cnt_chg", "conc_diff_chg", "sub_big_holder_up",
         "big_absorb_flag", "sbl_chg5", "sbl_chg10", "sbl_chg20", "short_cover_flag",
         "daytrade_pct", "daytrade_drop_flag", "insider_chg", "insider_buyback_flag",
-        "distribute_warn_flag",
+        "distribute_warn_flag", "f1_flag", "f2_flag", "f3_flag",
     ]
     out = base[keep].copy()
     bool_cols = [
         "dual_net_flag", "trust_adopt_flag", "sell_exhaust_flag", "absorb_flag", "receive_flag",
         "margin_down_price_up", "squeeze_flag", "washout_flag", "big_holder_wk_up",
-        "mid_holder_up", "big_absorb_flag", "short_cover_flag", "daytrade_drop_flag",
-        "insider_buyback_flag", "distribute_warn_flag",
+        "sub_big_holder_up", "big_absorb_flag", "short_cover_flag", "daytrade_drop_flag",
+        "insider_buyback_flag", "distribute_warn_flag", "f1_flag", "f2_flag", "f3_flag",
     ]
     for c in bool_cols:
         out[c] = out[c].astype("boolean").fillna(False).astype(bool)
@@ -337,7 +372,7 @@ def chip_templates() -> list[Template]:
         Template("C1", "chip", "big_holder_wk_up", "flag", {}),
         Template("C2", "chip", "retail_cnt_chg", "q_hi", {"q": q_grid}),
         Template("C3", "chip", "conc_diff_chg", "q_hi", {"q": q_grid}),
-        Template("C4", "chip", "mid_holder_up", "flag", {}),
+        Template("C4", "chip", "sub_big_holder_up", "flag", {}),
         Template("C5", "chip", "big_absorb_flag", "flag", {}),
         # D. 借券／當沖
         Template("D1_n5", "chip", "sbl_chg5", "q_hi", {"q": q_grid}),
@@ -349,10 +384,10 @@ def chip_templates() -> list[Template]:
         # E. 董監
         Template("E1", "chip", "insider_chg", "q_hi", {"q": q_grid}),
         Template("E2", "chip", "insider_buyback_flag", "flag", {}),
-        # F. 複合型態（跨表；F1~F3 因 DB 無對應細分級距，以既有最接近的複合旗標近似，
-        # 已於 chip.py 模組註解／task-3-report 標明此簡化）
-        Template("F1", "chip", "absorb_flag", "flag", {}),
-        Template("F2", "chip", "big_absorb_flag", "flag", {}),
-        Template("F3", "chip", "squeeze_flag", "flag", {}),
+        # F. 複合型態（跨表；各自為 chip_feature_frame 內組裝的真複合 AND 欄，
+        # 定義見 chip.py 對應段落註解／task-3-report）
+        Template("F1", "chip", "f1_flag", "flag", {}),
+        Template("F2", "chip", "f2_flag", "flag", {}),
+        Template("F3", "chip", "f3_flag", "flag", {}),
         Template("F4", "chip", "distribute_warn_flag", "flag", {}),
     ]
