@@ -1,0 +1,103 @@
+{
+  "_note": "鏈成員為可證偽假設；格子系統性失效時先檢討成員，見 spec §4",
+  "_source": "手工建置，以 IndustryChainMember（TPEX 快照）與公開常識校對；代號已核對 stocks 表存在",
+  "_updated": "2026-08-21",
+  "chains": [
+    {
+      "chain_id": "SEMI",
+      "chain_name": "半導體",
+      "members": [
+        {"stock_id": "3661", "name": "世芯-KY", "role": "上游"},
+        {"stock_id": "3443", "name": "創意", "role": "上游"},
+        {"stock_id": "6415", "name": "矽力*-KY", "role": "上游"},
+        {"stock_id": "2330", "name": "台積電", "role": "中游"},
+        {"stock_id": "2303", "name": "聯電", "role": "中游"},
+        {"stock_id": "5347", "name": "世界", "role": "中游"},
+        {"stock_id": "2311", "name": "日月光", "role": "下游"},
+        {"stock_id": "3711", "name": "日月光投控", "role": "下游"},
+        {"stock_id": "6239", "name": "力成", "role": "下游"}
+      ]
+    },
+    {
+      "chain_id": "AISRV",
+      "chain_name": "AI伺服器",
+      "members": [
+        {"stock_id": "3017", "name": "奇鋐", "role": "上游"},
+        {"stock_id": "3324", "name": "雙鴻", "role": "上游"},
+        {"stock_id": "2308", "name": "台達電", "role": "上游"},
+        {"stock_id": "2317", "name": "鴻海", "role": "中游"},
+        {"stock_id": "2382", "name": "廣達", "role": "中游"},
+        {"stock_id": "3231", "name": "緯創", "role": "中游"},
+        {"stock_id": "6669", "name": "緯穎", "role": "中游"},
+        {"stock_id": "2376", "name": "技嘉", "role": "中游"},
+        {"stock_id": "6188", "name": "廣明", "role": "下游"},
+        {"stock_id": "2312", "name": "金寶", "role": "下游"}
+      ]
+    },
+    {
+      "chain_id": "APPLE",
+      "chain_name": "蘋概",
+      "members": [
+        {"stock_id": "3673", "name": "TPK-KY", "role": "上游"},
+        {"stock_id": "6269", "name": "台郡", "role": "上游"},
+        {"stock_id": "2327", "name": "國巨*", "role": "上游"},
+        {"stock_id": "8046", "name": "南電", "role": "上游"},
+        {"stock_id": "2317", "name": "鴻海", "role": "中游"},
+        {"stock_id": "2354", "name": "鴻準", "role": "中游"},
+        {"stock_id": "4938", "name": "和碩", "role": "中游"},
+        {"stock_id": "3311", "name": "閎暉", "role": "中游"},
+        {"stock_id": "3008", "name": "大立光", "role": "下游"},
+        {"stock_id": "2474", "name": "可成", "role": "下游"}
+      ]
+    },
+    {
+      "chain_id": "SHIP",
+      "chain_name": "航運",
+      "members": [
+        {"stock_id": "2606", "name": "裕民", "role": "上游"},
+        {"stock_id": "5608", "name": "四維航", "role": "上游"},
+        {"stock_id": "2605", "name": "新興", "role": "上游"},
+        {"stock_id": "2637", "name": "慧洋-KY", "role": "上游"},
+        {"stock_id": "2603", "name": "長榮", "role": "中游"},
+        {"stock_id": "2609", "name": "陽明", "role": "中游"},
+        {"stock_id": "2615", "name": "萬海", "role": "中游"},
+        {"stock_id": "2617", "name": "台航", "role": "下游"},
+        {"stock_id": "2611", "name": "志信", "role": "下游"},
+        {"stock_id": "2607", "name": "榮運", "role": "下游"}
+      ]
+    },
+    {
+      "chain_id": "POWER",
+      "chain_name": "重電/綠能",
+      "members": [
+        {"stock_id": "1503", "name": "士電", "role": "上游"},
+        {"stock_id": "1504", "name": "東元", "role": "上游"},
+        {"stock_id": "1513", "name": "中興電", "role": "上游"},
+        {"stock_id": "1519", "name": "華城", "role": "上游"},
+        {"stock_id": "1611", "name": "中電", "role": "上游"},
+        {"stock_id": "6806", "name": "森崴能源", "role": "中游"},
+        {"stock_id": "2308", "name": "台達電", "role": "中游"},
+        {"stock_id": "3576", "name": "聯合再生", "role": "下游"},
+        {"stock_id": "6412", "name": "群電", "role": "下游"}
+      ]
+    },
+    {
+      "chain_id": "FIN",
+      "chain_name": "金控",
+      "members": [
+        {"stock_id": "2881", "name": "富邦金", "role": "上游"},
+        {"stock_id": "2882", "name": "國泰金", "role": "上游"},
+        {"stock_id": "2884", "name": "玉山金", "role": "中游"},
+        {"stock_id": "2886", "name": "兆豐金", "role": "中游"},
+        {"stock_id": "2891", "name": "中信金", "role": "中游"},
+        {"stock_id": "2880", "name": "華南金", "role": "下游"},
+        {"stock_id": "2883", "name": "凱基金", "role": "下游"},
+        {"stock_id": "2885", "name": "元大金", "role": "下游"},
+        {"stock_id": "2887", "name": "台新新光金", "role": "下游"},
+        {"stock_id": "2890", "name": "永豐金", "role": "下游"},
+        {"stock_id": "5880", "name": "合庫金", "role": "下游"},
+        {"stock_id": "2892", "name": "第一金", "role": "下游"}
+      ]
+    }
+  ]
+}
