@@ -45,3 +45,43 @@ def test_too_few_days_returns_none():
 
 def test_routing_delta():
     assert routing_delta({"ctrl": 5.0}, {"ctrl": 2.0}) == 3.0
+
+
+def test_holdout_rows_excluded_from_in_sample_computation():
+    """holdout 列即使 fold 值與 in-sample 重疊，也不能污染主 ctrl/fold_ctrl；
+    holdout_hit 應獨立反映 holdout 列自己的極端值。"""
+    n_days = 80
+    df = _frame(n_days=n_days)
+    hot = np.zeros(len(df), bool)
+    hot[::7] = True
+    df.loc[hot, "exc_hit20"] = 1
+
+    # 對照組：純 in-sample，無 holdout 污染
+    ev_control = CellEvaluator(df)
+    res_control = ev_control.run(hot, scope=np.ones(len(df), bool))
+    assert res_control is not None
+
+    # 混摻組：額外附加 holdout 列，涵蓋同樣 80 個交易日、fold 值與 in-sample 重疊，
+    # exc_hit20 全設為 1（極端值），且遮罩也選中這些列
+    dates = pd.date_range("2023-01-02", periods=n_days, freq="B")
+    n_extra_stocks = 3
+    extra = pd.DataFrame({
+        "date": np.repeat(dates, n_extra_stocks),
+        "stock_id": np.tile([f"h{i}" for i in range(n_extra_stocks)], n_days),
+        "exc_hit20": 1,
+        "atr_bucket": np.tile(np.arange(n_extra_stocks) % 3, n_days),
+        "fold": np.resize(np.arange(3), n_days * n_extra_stocks),
+        "is_holdout": True,
+    })
+    df_mixed = pd.concat([df, extra], ignore_index=True)
+    mask_mixed = np.concatenate([hot, np.ones(len(extra), bool)])
+
+    ev_mixed = CellEvaluator(df_mixed)
+    res_mixed = ev_mixed.run(mask_mixed, scope=np.ones(len(df_mixed), bool))
+
+    assert res_mixed is not None
+    # 主計算不受污染：ctrl / fold_ctrl 應與對照組一致
+    assert res_mixed["ctrl"] == res_control["ctrl"]
+    assert res_mixed["fold_ctrl"] == res_control["fold_ctrl"]
+    # holdout 反映極端值：holdout 列 exc_hit20 全為 1
+    assert res_mixed["holdout_hit"] == 100.0

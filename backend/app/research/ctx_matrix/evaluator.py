@@ -47,8 +47,7 @@ class CellEvaluator:
         """
         scope = scope.astype(bool)
         eligible = mask.astype(bool) & scope
-        n_picks = int(eligible.sum())
-        if n_picks == 0:
+        if not eligible.any():
             return None
 
         scope_idx = np.flatnonzero(scope)
@@ -111,15 +110,16 @@ class CellEvaluator:
     def run(self, mask: np.ndarray, scope: np.ndarray) -> dict | None:
         mask = np.asarray(mask, dtype=bool)
         scope = np.asarray(scope, dtype=bool)
+        in_sample = ~self.is_holdout
 
-        base = self._run_within(mask, scope)
+        base = self._run_within(mask, scope & in_sample)
         if base is None:
             return None
 
         fold_ctrl = []
         if self.fold is not None:
             for fi in range(3):
-                fold_mask = self.fold == fi
+                fold_mask = (self.fold == fi) & in_sample
                 fr = self._run_within(mask & fold_mask, scope & fold_mask)
                 fold_ctrl.append(fr["ctrl"] if fr is not None else None)
 
