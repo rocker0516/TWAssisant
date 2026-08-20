@@ -44,6 +44,7 @@ class ExitStatus:
     reaudit_count: int | None = None
     target_price: float | None = None
     stop_price: float | None = None
+    horizon_days: int | None = None
 
 
 def _reaudit_max(session: Session) -> int:
@@ -234,6 +235,7 @@ class ExitEngine(BaseEngine):
             reaudit_count=ev.reaudit_count,
             target_price=ev.target_price,
             stop_price=ev.stop_price,
+            horizon_days=int(thesis["horizon_days"]) if thesis.get("horizon_days") is not None else None,
         )
 
     def run(self, session: Session, trading_date: date) -> dict:

@@ -796,6 +796,12 @@ class HoldingItem(BaseModel):
     highest: float | None
     drawdown_pct: float | None
     trail_active: bool
+    thesis_state: str | None = None
+    days_left: int | None = None
+    reaudit_count: int | None = None
+    target_price: float | None = None
+    stop_price: float | None = None
+    horizon_days: int | None = None
     stop_loss_override: float | None
     trail_trigger_override: float | None
     trail_pullback_override: float | None

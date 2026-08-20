@@ -123,6 +123,8 @@ def build_item(session: Session, h: models.Holding, td: date | None) -> HoldingI
         realized_pnl=round((h.realized_pnl if h.realized_pnl is not None else pos.realized_pnl) * LOT),
         light=st.light, level=st.level, signals=st.signals, hard_stop=st.hard_stop,
         highest=st.highest, drawdown_pct=st.drawdown_pct, trail_active=st.trail_active,
+        thesis_state=st.thesis_state, days_left=st.days_left, reaudit_count=st.reaudit_count,
+        target_price=st.target_price, stop_price=st.stop_price, horizon_days=st.horizon_days,
         stop_loss_override=h.stop_loss_override, trail_trigger_override=h.trail_trigger_override,
         trail_pullback_override=h.trail_pullback_override,
         entry_snapshot=h.entry_snapshot,
