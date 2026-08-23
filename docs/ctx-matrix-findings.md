@@ -174,6 +174,11 @@ lift」。但核心鏈 pass 格的 median n_picks（1,840）僅為 TPEX 鏈 pass
 **資料回補優先序**（依污染稽核覆蓋率由低到高）：
 1. `retail_cnt_chg`（散戶人數變化，cover 0%）、`insider_chg`（董監持股變化，cover 0%）——
    完全沒有可用資料，若要交付 C/E 家族，這是第一順位。
+   （2026-08-21 回補可行性查證：`insider_chg` 可經 MOPS `ajax_stapap1` 單檔單月回溯全歷史，
+   `scripts/backfill_insider_history.py` 已補挖掘窗；`retail_cnt_chg` 的 TDCC 智慧網歷史
+   **官方只保存一年**、FinMind `TaiwanStockHoldingSharesPer` 為贊助等級、Wayback 快照零星，
+   挖掘窗 2021~2024 的散戶人數**免費管道不存在**——`scripts/backfill_holders_history.py`
+   只能補近 52 週（holdout/前瞻期），C 家族要進挖掘矩陣得等窗口滾動或付費補史。）
 2. `conc_diff_chg`（集中度差額，cover 0.1%）、`daytrade_pct`（當沖比，cover 1.9%）——
    幾乎沒有資料，第二順位。
 3. `sbl_chg5/10/20`（借券餘額變化，cover 2.1%~3.1%）——D 家族的核心欄位，缺口略小於前兩組。
