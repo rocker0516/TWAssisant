@@ -1,56 +1,67 @@
 {
- "generated_at": "2026-08-17",
+ "generated_at": "2026-08-24",
  "window": {
   "from": "2021-01-04",
   "to": "2026-07-01"
  },
  "holdout_from": "2025-07-01",
- "note": "五年實證：同標籤組合隔日高錨、10交易日內摸+10%比率；pop=預設前20%口徑(無遲滯)",
+ "note": "五年實證：同標籤組合隔日高錨、10 交易日內摸 +10% 比率（**無停損**，與波段軌定版口徑一致）；pop=預設前20%口徑(無遲滯)；ep_* 為段級離散度——崩勢型標籤的有效樣本數是段數不是筆數，單看 hit 會被最大的一段綁架。",
  "stats": {
+  "crash": {
+   "n": 514,
+   "hit": 76.1,
+   "avg_mae": -8.7,
+   "n_tr": 514,
+   "hit_tr": 76.1,
+   "n_ho": 0,
+   "hit_ho": null,
+   "ep_n": 9,
+   "ep_median": 67.7,
+   "ep_min": 18.2,
+   "ep_max": 85.0,
+   "ep_ge70": 4
+  },
   "explosive": {
-   "n": 7992,
+   "n": 7987,
    "hit": 40.7,
    "avg_mae": -14.4,
-   "n_tr": 4666,
+   "n_tr": 4661,
    "hit_tr": 34.1,
    "n_ho": 3326,
-   "hit_ho": 50.1
+   "hit_ho": 50.1,
+   "ep_n": 4,
+   "ep_median": 38.8,
+   "ep_min": 32.4,
+   "ep_max": 50.3,
+   "ep_ge70": 0
   },
   "explosive+story": {
-   "n": 1397,
-   "hit": 54.4,
+   "n": 1449,
+   "hit": 53.8,
    "avg_mae": -13.8,
-   "n_tr": 334,
-   "hit_tr": 39.2,
+   "n_tr": 386,
+   "hit_tr": 38.9,
    "n_ho": 1063,
-   "hit_ho": 59.2
-  },
-  "explosive+story+crash": {
-   "n": 52,
-   "hit": 36.5,
-   "avg_mae": -14.1,
-   "n_tr": 52,
-   "hit_tr": 36.5,
-   "n_ho": 0,
-   "hit_ho": null
+   "hit_ho": 59.2,
+   "ep_n": 12,
+   "ep_median": 60.7,
+   "ep_min": 12.5,
+   "ep_max": 100.0,
+   "ep_ge70": 3
   },
   "explosive+strong": {
-   "n": 439,
-   "hit": 46.9,
-   "avg_mae": -16.1,
-   "n_tr": 213,
-   "hit_tr": 36.6,
+   "n": 497,
+   "hit": 45.5,
+   "avg_mae": -16.0,
+   "n_tr": 271,
+   "hit_tr": 36.2,
    "n_ho": 226,
-   "hit_ho": 56.6
-  },
-  "explosive+strong+crash": {
-   "n": 58,
-   "hit": 34.5,
-   "avg_mae": -15.7,
-   "n_tr": 58,
-   "hit_tr": 34.5,
-   "n_ho": 0,
-   "hit_ho": null
+   "hit_ho": 56.6,
+   "ep_n": 7,
+   "ep_median": 41.4,
+   "ep_min": 9.1,
+   "ep_max": 56.7,
+   "ep_ge70": 0
   },
   "explosive+strong+story": {
    "n": 95,
@@ -59,7 +70,8 @@
    "n_tr": 15,
    "hit_tr": null,
    "n_ho": 80,
-   "hit_ho": 61.3
+   "hit_ho": 61.3,
+   "ep_n": 1
   },
   "pop": {
    "n": 93708,
@@ -68,88 +80,102 @@
    "n_tr": 79668,
    "hit_tr": 22.0,
    "n_ho": 14040,
-   "hit_ho": 33.4
+   "hit_ho": 33.4,
+   "ep_n": 1
   },
   "pop+explosive": {
-   "n": 1242,
+   "n": 1241,
    "hit": 38.4,
    "avg_mae": -10.9,
-   "n_tr": 800,
-   "hit_tr": 34.6,
+   "n_tr": 799,
+   "hit_tr": 34.5,
    "n_ho": 442,
-   "hit_ho": 45.2
+   "hit_ho": 45.2,
+   "ep_n": 14,
+   "ep_median": 36.9,
+   "ep_min": 10.0,
+   "ep_max": 57.9,
+   "ep_ge70": 0
   },
   "pop+explosive+story": {
-   "n": 107,
-   "hit": 32.7,
-   "avg_mae": -14.6,
-   "n_tr": 26,
-   "hit_tr": null,
+   "n": 118,
+   "hit": 35.6,
+   "avg_mae": -14.1,
+   "n_tr": 37,
+   "hit_tr": 51.4,
    "n_ho": 81,
-   "hit_ho": 28.4
+   "hit_ho": 28.4,
+   "ep_n": 2,
+   "ep_median": 54.4,
+   "ep_min": 26.9,
+   "ep_max": 81.8,
+   "ep_ge70": 1
   },
   "pop+story": {
-   "n": 1902,
-   "hit": 34.5,
-   "avg_mae": -9.9,
-   "n_tr": 1318,
-   "hit_tr": 27.1,
+   "n": 1975,
+   "hit": 35.0,
+   "avg_mae": -10.0,
+   "n_tr": 1391,
+   "hit_tr": 28.2,
    "n_ho": 584,
-   "hit_ho": 51.2
-  },
-  "pop+story+crash": {
-   "n": 73,
-   "hit": 47.9,
-   "avg_mae": -11.1,
-   "n_tr": 73,
-   "hit_tr": 47.9,
-   "n_ho": 0,
-   "hit_ho": null
+   "hit_ho": 51.2,
+   "ep_n": 8,
+   "ep_median": 30.8,
+   "ep_min": 17.4,
+   "ep_max": 59.5,
+   "ep_ge70": 0
   },
   "story": {
-   "n": 13573,
-   "hit": 35.7,
-   "avg_mae": -11.6,
-   "n_tr": 7966,
-   "hit_tr": 28.0,
+   "n": 15019,
+   "hit": 36.6,
+   "avg_mae": -11.5,
+   "n_tr": 9412,
+   "hit_tr": 30.7,
    "n_ho": 5607,
-   "hit_ho": 46.5
+   "hit_ho": 46.5,
+   "ep_n": 1
   },
   "story+crash": {
-   "n": 1500,
-   "hit": 46.6,
-   "avg_mae": -10.5,
-   "n_tr": 1500,
-   "hit_tr": 46.6,
+   "n": 54,
+   "hit": 70.4,
+   "avg_mae": -8.9,
+   "n_tr": 54,
+   "hit_tr": 70.4,
    "n_ho": 0,
-   "hit_ho": null
+   "hit_ho": null,
+   "ep_n": 2,
+   "ep_median": 70.9,
+   "ep_min": 57.9,
+   "ep_max": 84.0,
+   "ep_ge70": 1
   },
   "strong": {
-   "n": 15978,
-   "hit": 42.4,
+   "n": 16190,
+   "hit": 42.3,
    "avg_mae": -14.4,
-   "n_tr": 10760,
-   "hit_tr": 40.0,
+   "n_tr": 10972,
+   "hit_tr": 39.9,
    "n_ho": 5218,
-   "hit_ho": 47.3
-  },
-  "strong+crash": {
-   "n": 212,
-   "hit": 36.3,
-   "avg_mae": -17.2,
-   "n_tr": 212,
-   "hit_tr": 36.3,
-   "n_ho": 0,
-   "hit_ho": null
+   "hit_ho": 47.3,
+   "ep_n": 2,
+   "ep_median": 42.5,
+   "ep_min": 42.2,
+   "ep_max": 42.9,
+   "ep_ge70": 0
   },
   "strong+story": {
-   "n": 1470,
-   "hit": 52.6,
+   "n": 1471,
+   "hit": 52.5,
    "avg_mae": -15.0,
-   "n_tr": 431,
-   "hit_tr": 42.5,
+   "n_tr": 432,
+   "hit_tr": 42.4,
    "n_ho": 1039,
-   "hit_ho": 56.8
+   "hit_ho": 56.8,
+   "ep_n": 16,
+   "ep_median": 48.4,
+   "ep_min": 0.0,
+   "ep_max": 90.9,
+   "ep_ge70": 1
   },
   "any:pop": {
    "n": 97049,
@@ -158,7 +184,8 @@
    "n_tr": 81902,
    "hit_tr": 22.2,
    "n_ho": 15147,
-   "hit_ho": 34.4
+   "hit_ho": 34.4,
+   "ep_n": 1
   },
   "any:explosive": {
    "n": 11393,
@@ -167,7 +194,12 @@
    "n_tr": 6175,
    "hit_tr": 34.7,
    "n_ho": 5218,
-   "hit_ho": 51.6
+   "hit_ho": 51.6,
+   "ep_n": 3,
+   "ep_median": 35.9,
+   "ep_min": 32.9,
+   "ep_max": 51.7,
+   "ep_ge70": 0
   },
   "any:strong": {
    "n": 18259,
@@ -176,7 +208,12 @@
    "n_tr": 11696,
    "hit_tr": 39.9,
    "n_ho": 6563,
-   "hit_ho": 49.3
+   "hit_ho": 49.3,
+   "ep_n": 2,
+   "ep_median": 43.2,
+   "ep_min": 42.9,
+   "ep_max": 43.4,
+   "ep_ge70": 0
   },
   "any:story": {
    "n": 20182,
@@ -185,16 +222,22 @@
    "n_tr": 11728,
    "hit_tr": 31.4,
    "n_ho": 8454,
-   "hit_ho": 49.7
+   "hit_ho": 49.7,
+   "ep_n": 1
   },
   "any:crash": {
-   "n": 1907,
-   "hit": 44.9,
-   "avg_mae": -11.5,
-   "n_tr": 1907,
-   "hit_tr": 44.9,
+   "n": 574,
+   "hit": 75.4,
+   "avg_mae": -8.8,
+   "n_tr": 574,
+   "hit_tr": 75.4,
    "n_ho": 0,
-   "hit_ho": null
+   "hit_ho": null,
+   "ep_n": 9,
+   "ep_median": 67.1,
+   "ep_min": 18.2,
+   "ep_max": 84.8,
+   "ep_ge70": 3
   },
   "lift:pop|volup": {
    "n": 28544,
@@ -203,7 +246,8 @@
    "n_tr": 23881,
    "hit_tr": 22.0,
    "n_ho": 4663,
-   "hit_ho": 35.1
+   "hit_ho": 35.1,
+   "ep_n": 1
   },
   "lift:pop|voldn": {
    "n": 24740,
@@ -212,7 +256,8 @@
    "n_tr": 21133,
    "hit_tr": 21.6,
    "n_ho": 3607,
-   "hit_ho": 33.2
+   "hit_ho": 33.2,
+   "ep_n": 1
   },
   "lift:explosive|volup": {
    "n": 2707,
@@ -221,7 +266,12 @@
    "n_tr": 1620,
    "hit_tr": 34.5,
    "n_ho": 1087,
-   "hit_ho": 52.8
+   "hit_ho": 52.8,
+   "ep_n": 11,
+   "ep_median": 38.3,
+   "ep_min": 27.3,
+   "ep_max": 53.3,
+   "ep_ge70": 0
   },
   "lift:explosive|voldn": {
    "n": 3126,
@@ -230,7 +280,12 @@
    "n_tr": 1580,
    "hit_tr": 36.2,
    "n_ho": 1546,
-   "hit_ho": 58.2
+   "hit_ho": 58.2,
+   "ep_n": 11,
+   "ep_median": 36.4,
+   "ep_min": 21.4,
+   "ep_max": 58.6,
+   "ep_ge70": 0
   },
   "lift:strong|volup": {
    "n": 11060,
@@ -239,7 +294,12 @@
    "n_tr": 7796,
    "hit_tr": 39.0,
    "n_ho": 3264,
-   "hit_ho": 46.1
+   "hit_ho": 46.1,
+   "ep_n": 2,
+   "ep_median": 41.6,
+   "ep_min": 40.7,
+   "ep_max": 42.5,
+   "ep_ge70": 0
   },
   "lift:strong|voldn": {
    "n": 2262,
@@ -248,7 +308,12 @@
    "n_tr": 1186,
    "hit_tr": 46.2,
    "n_ho": 1076,
-   "hit_ho": 62.2
+   "hit_ho": 62.2,
+   "ep_n": 11,
+   "ep_median": 49.0,
+   "ep_min": 11.8,
+   "ep_max": 62.2,
+   "ep_ge70": 0
   },
   "lift:story|volup": {
    "n": 2725,
@@ -257,7 +322,12 @@
    "n_tr": 1601,
    "hit_tr": 29.9,
    "n_ho": 1124,
-   "hit_ho": 50.4
+   "hit_ho": 50.4,
+   "ep_n": 9,
+   "ep_median": 40.9,
+   "ep_min": 23.3,
+   "ep_max": 60.0,
+   "ep_ge70": 0
   },
   "lift:story|voldn": {
    "n": 7509,
@@ -266,25 +336,40 @@
    "n_tr": 4451,
    "hit_tr": 31.6,
    "n_ho": 3058,
-   "hit_ho": 53.2
+   "hit_ho": 53.2,
+   "ep_n": 2,
+   "ep_median": 36.0,
+   "ep_min": 28.0,
+   "ep_max": 44.0,
+   "ep_ge70": 0
   },
   "lift:crash|volup": {
-   "n": 342,
-   "hit": 41.8,
-   "avg_mae": -14.0,
-   "n_tr": 342,
-   "hit_tr": 41.8,
+   "n": 44,
+   "hit": 81.8,
+   "avg_mae": -9.5,
+   "n_tr": 44,
+   "hit_tr": 81.8,
    "n_ho": 0,
-   "hit_ho": null
+   "hit_ho": null,
+   "ep_n": 2,
+   "ep_median": 77.3,
+   "ep_min": 54.5,
+   "ep_max": 100.0,
+   "ep_ge70": 1
   },
   "lift:crash|voldn": {
-   "n": 598,
-   "hit": 43.1,
-   "avg_mae": -10.5,
-   "n_tr": 598,
-   "hit_tr": 43.1,
+   "n": 223,
+   "hit": 75.3,
+   "avg_mae": -8.9,
+   "n_tr": 223,
+   "hit_tr": 75.3,
    "n_ho": 0,
-   "hit_ho": null
+   "hit_ho": null,
+   "ep_n": 5,
+   "ep_median": 80.0,
+   "ep_min": 62.5,
+   "ep_max": 88.9,
+   "ep_ge70": 3
   }
  }
 }

@@ -1254,6 +1254,10 @@ export interface paths {
          *
          *     規則：訊號日隔一交易日以最高價進場（保守）→ 逐日檢查 觸停損（低點先看，保守）
          *     → 觸停利 → 逾期收盤出。每筆等權 1 單位；權益曲線＝已實現報酬按出場日累加。
+         *
+         *     stop_pct 預設 None＝**不設停損**，與波段軌 2026-08-24 定版一致：這條軌選的是
+         *     ATR>9% 的高波動標的，−8% 停損實測把命中率打掉 25pp，而期間浮虧 >10% 的部位仍有
+         *     47% 最後照樣達標。想看停損版就明確傳 stop_pct（實驗室本來就是拿來比的）。
          */
         get: operations["paper_simulate_api_paper_simulate_get"];
         put?: never;
@@ -1369,6 +1373,30 @@ export interface paths {
          *     同一份樣本算所有門檻（機率單調遞減篩選），一次回整條曲線。
          */
         get: operations["lookback_sensitivity_api_recommendations_lookback_sensitivity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/recommendations/wave-challenge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Wave Challenge
+         * @description 「波段軌命中率能不能更高／能不能有更多 ≥70% 的案例」的完整挑戰紀錄。
+         *
+         *     直讀 data/wave_challenge.json（scripts/wave_hit_challenge.py --json 凍結產出）：
+         *     整份要跑 4~6 分鐘且吃研究快取，不可能即時算。檔案不存在時回 available=False，
+         *     前端顯示「尚未產生」而不是假資料。以檔案 mtime 當快取鍵，重跑腳本後自動失效。
+         */
+        get: operations["wave_challenge_api_recommendations_wave_challenge_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1568,6 +1596,27 @@ export interface components {
             /** Max Dd Pct */
             max_dd_pct: number;
         };
+        /**
+         * BacktestEpisode
+         * @description 一「段」行情（訊號日相隔 >15 個日曆日就切段）。
+         *
+         *     段級才是條件型策略的有效樣本數：同一段裡每天選到的多半是同一批股票，
+         *     以「筆」算信賴區間會嚴重低估不確定性（docs/wave-hit-challenge.md §5）。
+         */
+        BacktestEpisode: {
+            /** Start */
+            start: string;
+            /** End */
+            end: string;
+            /** Days */
+            days: number;
+            /** Samples */
+            samples: number;
+            /** Hits */
+            hits: number;
+            /** Hit Rate */
+            hit_rate: number;
+        };
         /** BacktestMonthly */
         BacktestMonthly: {
             /** Month */
@@ -1606,6 +1655,15 @@ export interface components {
             avg_max_drawdown: number | null;
             /** Monthly */
             monthly: components["schemas"]["BacktestMonthly"][];
+            /**
+             * Episodes
+             * @default []
+             */
+            episodes: components["schemas"]["BacktestEpisode"][];
+            /** Episode Median */
+            episode_median?: number | null;
+            /** Episode Worst */
+            episode_worst?: number | null;
             /** Recent */
             recent: components["schemas"]["BacktestDetail"][];
             /** Warn Loose */
@@ -3108,7 +3166,7 @@ export interface components {
             /** Entry Price */
             entry_price: number;
             /** Stop Price */
-            stop_price: number;
+            stop_price: number | null;
             /** Target Price */
             target_price: number;
             /** Status */
@@ -3146,7 +3204,7 @@ export interface components {
             /** Hold Days */
             hold_days: number;
             /** Stop Pct */
-            stop_pct: number;
+            stop_pct: number | null;
             /** Target Pct */
             target_pct: number;
             stats: components["schemas"]["PaperSimStats"];
@@ -3307,6 +3365,8 @@ export interface components {
             prob_cond?: string | null;
             /** Prob Mae */
             prob_mae?: number | null;
+            /** Prob Style */
+            prob_style?: string | null;
             /** Vol Ratio */
             vol_ratio?: number | null;
             /** Attention */
@@ -4227,6 +4287,348 @@ export interface components {
         WatchlistsResponse: {
             /** Watchlists */
             watchlists: components["schemas"]["WatchlistDTO"][];
+        };
+        /** WaveAdopted */
+        WaveAdopted: {
+            /** Rule */
+            rule: string;
+            /** Changes */
+            changes: string[];
+            /** Episodes */
+            episodes: components["schemas"]["WaveEpisode"][];
+        };
+        /** WaveAttribution */
+        WaveAttribution: {
+            /** Axis */
+            axis: string;
+            mine?: components["schemas"]["WaveAxisPart"] | null;
+            holdout?: components["schemas"]["WaveAxisPart"] | null;
+            /**
+             * Adopted
+             * @default false
+             */
+            adopted: boolean;
+            /**
+             * Verdict
+             * @default
+             */
+            verdict: string;
+        };
+        /** WaveAxisPart */
+        WaveAxisPart: {
+            /** N */
+            n: number;
+            /** Pp */
+            pp: number;
+            /** T */
+            t: number | null;
+        };
+        /** WaveCandidate */
+        WaveCandidate: {
+            /** Id */
+            id: string;
+            /** Rule */
+            rule: string;
+            mine: components["schemas"]["WaveWinStat"];
+            holdout: components["schemas"]["WaveWinStat"];
+            /** Cases */
+            cases: number;
+            /** Per Month */
+            per_month: number;
+            ep: components["schemas"]["WaveEpStats"];
+        };
+        /** WaveChallengeResponse */
+        WaveChallengeResponse: {
+            /** Available */
+            available: boolean;
+            /** Generated At */
+            generated_at?: string | null;
+            /** Target Label */
+            target_label?: string | null;
+            /**
+             * Windows
+             * @default {}
+             */
+            windows: {
+                [key: string]: unknown;
+            };
+            /**
+             * Base Rate
+             * @default {}
+             */
+            base_rate: {
+                [key: string]: unknown;
+            };
+            /** Deep Days */
+            deep_days?: number | null;
+            /**
+             * Ladder
+             * @default []
+             */
+            ladder: components["schemas"]["WaveLadderRow"][];
+            /**
+             * Attribution
+             * @default []
+             */
+            attribution: components["schemas"]["WaveAttribution"][];
+            /**
+             * Candidates
+             * @default []
+             */
+            candidates: components["schemas"]["WaveCandidate"][];
+            frontier?: components["schemas"]["WaveFrontier"] | null;
+            /**
+             * Regime Gates
+             * @default []
+             */
+            regime_gates: components["schemas"]["WaveRegimeGate"][];
+            /**
+             * Pool Discipline
+             * @default []
+             */
+            pool_discipline: components["schemas"]["WavePoolRow"][];
+            oos?: components["schemas"]["WaveOos"] | null;
+            stop_sensitivity?: components["schemas"]["WaveStopSensitivity"] | null;
+            adopted?: components["schemas"]["WaveAdopted"] | null;
+            /**
+             * Caveats
+             * @default []
+             */
+            caveats: string[];
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+        };
+        /** WaveEpStats */
+        WaveEpStats: {
+            /**
+             * Episodes
+             * @default []
+             */
+            episodes: components["schemas"]["WaveEpisode"][];
+            /**
+             * N Eff
+             * @default 0
+             */
+            n_eff: number;
+            /** Median */
+            median?: number | null;
+            /** Mean */
+            mean?: number | null;
+            /** Min */
+            min?: number | null;
+            /** Max */
+            max?: number | null;
+            /** Ge70 */
+            ge70?: number | null;
+            /** Ge60 */
+            ge60?: number | null;
+        };
+        /** WaveEpisode */
+        WaveEpisode: {
+            /** Start */
+            start: string;
+            /** Days */
+            days: number;
+            /** N */
+            n: number;
+            /** Hit */
+            hit: number;
+            /** Mae */
+            mae: number;
+        };
+        /** WaveFrontier */
+        WaveFrontier: {
+            /** Tested */
+            tested: number;
+            /** Evaluable */
+            evaluable: number;
+            /**
+             * Over70
+             * @default []
+             */
+            over70: components["schemas"]["WaveOver70"][];
+            /**
+             * Top
+             * @default []
+             */
+            top: components["schemas"]["WaveOver70"][];
+            null: components["schemas"]["WaveNullCalib"];
+        };
+        /**
+         * WaveLadderRow
+         * @description ATR 門檻階梯的一格：命中率–案例數前緣。
+         */
+        WaveLadderRow: {
+            /** Atr */
+            atr: number;
+            mine: components["schemas"]["WaveWinStat"];
+            holdout: components["schemas"]["WaveWinStat"];
+            /** Day Cover */
+            day_cover: number;
+            /** Ep Median */
+            ep_median?: number | null;
+            /** Ep Min */
+            ep_min?: number | null;
+            /** Ep N */
+            ep_n?: number | null;
+            /** Ep Ge70 */
+            ep_ge70?: number | null;
+            /** Per Month */
+            per_month: number;
+        };
+        /** WaveNullCalib */
+        WaveNullCalib: {
+            /** Runs */
+            runs: number;
+            /** Draws */
+            draws: number;
+            /** Ge65 */
+            ge65: number;
+            /** Ge70 */
+            ge70: number;
+        };
+        /**
+         * WaveOos
+         * @description 真 out-of-sample：forward_labels 之外（>2026-07-01）的崩段實測。
+         */
+        WaveOos: {
+            /**
+             * N
+             * @default 0
+             */
+            n: number;
+            /** Hit */
+            hit?: number | null;
+            /** Mae */
+            mae?: number | null;
+            /**
+             * Days
+             * @default []
+             */
+            days: components["schemas"]["WaveOosDay"][];
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+        };
+        /** WaveOosDay */
+        WaveOosDay: {
+            /** Date */
+            date: string;
+            /** N */
+            n: number;
+            /** Hit */
+            hit: number;
+            /** Mae */
+            mae: number;
+        };
+        /** WaveOver70 */
+        WaveOver70: {
+            /** Rule */
+            rule: string;
+            /** M Hit */
+            m_hit: number;
+            /** M N */
+            m_n: number;
+            /** M Days */
+            m_days: number;
+            /** M Ex */
+            m_ex: number;
+            /** H Hit */
+            h_hit: number;
+            /** H N */
+            h_n: number;
+            /** H Days */
+            h_days: number;
+            /** H Ex */
+            h_ex: number;
+            /** Worst */
+            worst: number;
+            /** Cases */
+            cases: number;
+            /** Per Month */
+            per_month: number;
+        };
+        /**
+         * WavePoolRow
+         * @description 池紀律對照：研究一律用乾淨池，線上若不排注意/處置就會系統性高估。
+         */
+        WavePoolRow: {
+            /** Pool */
+            pool: string;
+            mine?: components["schemas"]["WaveWinStat"] | null;
+            holdout?: components["schemas"]["WaveWinStat"] | null;
+        };
+        /** WaveRegimeGate */
+        WaveRegimeGate: {
+            /** Gate */
+            gate: string;
+            /** Verdict */
+            verdict: string;
+            /** Why */
+            why: string;
+            mine?: components["schemas"]["WaveWinStat"] | null;
+            holdout?: components["schemas"]["WaveWinStat"] | null;
+        };
+        /** WaveStopRow */
+        WaveStopRow: {
+            /** Stop */
+            stop: number | null;
+            /** Mine */
+            mine: number;
+            /** Holdout */
+            holdout: number;
+            /** D Mine */
+            d_mine: number;
+            /** D Holdout */
+            d_holdout: number;
+        };
+        /**
+         * WaveStopSensitivity
+         * @description 波段軌為什麼不設停損：逐根走路徑（同日雙碰保守記停損）量出來的代價。
+         */
+        WaveStopSensitivity: {
+            /**
+             * N
+             * @default 0
+             */
+            n: number;
+            /**
+             * Table
+             * @default []
+             */
+            table: components["schemas"]["WaveStopRow"][];
+            /**
+             * Tail
+             * @default {}
+             */
+            tail: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * WaveWinStat
+         * @description 單一時窗（挖掘窗 / holdout）的規則成績。
+         */
+        WaveWinStat: {
+            /** N */
+            n: number;
+            /** Days */
+            days: number;
+            /** Per Day */
+            per_day: number;
+            /** Hit */
+            hit: number;
+            /** Ex */
+            ex: number;
+            /** T */
+            t: number | null;
+            /** Mae */
+            mae: number;
         };
     };
     responses: never;
@@ -6353,8 +6755,8 @@ export interface operations {
                 top_n?: number;
                 /** @description 最長持有交易日數，逾期收盤出場 */
                 hold_days?: number;
-                /** @description 停損%（Score 無停損價時用） */
-                stop_pct?: number;
+                /** @description 停損%；**預設不設停損**（波段軌定版口徑） */
+                stop_pct?: number | null;
                 /** @description 停利%；預設=會噴目標 +10% */
                 target_pct?: number | null;
             };
@@ -6535,6 +6937,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    wave_challenge_api_recommendations_wave_challenge_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaveChallengeResponse"];
                 };
             };
         };

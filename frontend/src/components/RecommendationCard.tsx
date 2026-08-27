@@ -20,7 +20,8 @@ const STYLE_TAGS: Record<string, { label: string; cls: string; title: string }> 
   story: { label: "故事股", cls: "bg-violet-500/15 text-violet-300",
     title: "高PB＋高PE＋高波動（回測命中~68%）" },
   crash: { label: "深跌反攻", cls: "bg-red-500/15 text-red-300",
-    title: "大盤崩跌日限定：逆勢強勢/故事股＋波幅>6%（回測命中~68%）" },
+    title: "大盤距季線≤-2.3%的崩跌日限定：日均波幅>9%＋股價≥20元＋成交值≥1億＋非注意/處置"
+      + "（10日摸+10%：挖掘77%/holdout67%；但段間離散大——11個崩段的中位67%、最差18%）" },
 };
 
 // 長線畢業條件配色：回測毒性單調 → 黃/紅為「重新審視」訊號（非停損）
@@ -62,7 +63,7 @@ export function RecommendationCard({
   item: RecommendationItem;
   sparkDays?: number; // 走勢取近幾個交易日（由推薦頁切換；不傳＝全部）
   popQualified?: boolean; // 會噴標籤（過硬篩且分數達橫桿；由推薦頁依橫桿算）
-  tagStats?: TagComboStats["stats"]; // 量能共振徽章的雙段實證來源（機率本身走達標機率查表）
+  tagStats?: TagComboStats["stats"]; // 量能共振徽章＋風格段級離散度的來源（機率本身走查表）
 }) {
   const tags = TAG_ORDER.filter(
     (t) => (t === "pop" ? popQualified : item.passed_styles?.includes(t)),
@@ -72,6 +73,10 @@ export function RecommendationCard({
     const badge = lift ? LIFT_BADGE[lift.cond] : undefined;
     return lift && badge && badge.ok(item.vol_ratio!) ? [{ tag, lift, badge }] : [];
   });
+  // 機率若來自風格分層格子，附上該風格的段級離散度（tagStats 已在推薦頁載入，不另開 API）
+  const epStat = item.prob_style ? tagStats?.[`any:${item.prob_style}`] : undefined;
+  // 至少 3 段才談離散度：2 段的「中位/最差」本身就是雜訊（story 只有 1 段、strong 2 段）
+  const epSpread = epStat?.ep_median != null && (epStat.ep_n ?? 0) >= 3 ? epStat : null;
   const [open, setOpen] = useState(false);
   const hasDetails = (item.details?.length ?? 0) > 0;
   const segments = marketSegments(item);
@@ -136,7 +141,18 @@ export function RecommendationCard({
       {item.prob_hit != null ? (
         <div
           className="flex items-baseline gap-3"
-          title={`同條件（${item.prob_cond ?? ""}）2021 起歷史：隔日最高價進場、10 交易日內碰到 +10% 的比率，n=${(item.prob_n ?? 0).toLocaleString()}。歷史條件機率，非保證`}
+          title={
+            `同條件（${item.prob_cond ?? ""}）2021 起歷史：隔日最高價進場、10 交易日內碰到 +10% 的比率`
+            + `（**無停損**，與波段軌口徑一致），n=${(item.prob_n ?? 0).toLocaleString()}。`
+            + (item.prob_style
+              ? "這檔有風格標籤，所以查的是「該風格×波動×大盤」的歷史——全市場同格看不到風格多出來的條件。"
+              : "")
+            + (epSpread
+              ? `　段級離散 ${epSpread.ep_min}%~${epSpread.ep_max}%：同一段行情裡選到的多半是同一批股票，`
+                + "有效樣本數是段數不是筆數，請以段中位與最差段一起看。"
+              : "")
+            + "　歷史條件機率，非保證。"
+          }
         >
           <span
             className={`text-3xl font-bold tabular-nums leading-none ${
@@ -155,6 +171,15 @@ export function RecommendationCard({
                 </>
               )}
             </div>
+            {/* 段級離散：崩勢型標籤的有效樣本是「段數」不是筆數，只給單一數字必然誤導。
+                機率來自風格分層格子時才顯示（prob_style 由後端指名）。 */}
+            {epSpread && (
+              <div className="text-muted">
+                段級 中位 <b className="text-gray-300">{epSpread.ep_median}%</b>
+                　·　最差段 <b className="text-down">{epSpread.ep_min}%</b>
+                　·　{epSpread.ep_ge70}/{epSpread.ep_n} 段 ≥70%
+              </div>
+            )}
           </div>
         </div>
       ) : item.target_zone ? (
@@ -325,13 +350,20 @@ export function RecommendationCard({
                 : "—"}
             </div>
           </div>
-        ) : (
+        ) : item.stop_loss != null ? (
           <div>
             <div className="text-xs text-muted">參考停損</div>
             <div className="tabular-nums">
               {fmtNum(item.stop_loss)}{" "}
               <span className="text-down">({fmtPct(item.loss_pct)})</span>
             </div>
+          </div>
+        ) : (
+          // 波段軌 2026-08-24 定版：不設停損。這條軌挑的是 ATR>9% 的高波動標的，
+          // −8% 停損實測把命中率打掉 25pp；風控改由「10 日到期」承擔。
+          <div title="波段軌不設停損：選的是高波動標的，停損線會切在它自己的呼吸幅度上（實測 −8% 停損讓命中率掉 25pp，而期間浮虧>10% 的部位仍有 47% 最後照樣達標）。風控是時間——10 個交易日內沒摸到目標就重審或出場。">
+            <div className="text-xs text-muted">風控方式</div>
+            <div className="tabular-nums">不設停損 · <span className="text-muted">10 日到期</span></div>
           </div>
         )}
       </div>

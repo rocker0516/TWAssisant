@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import pandas as pd
-from sqlalchemy import distinct, func, select
+from sqlalchemy import and_, distinct, func, or_, select
 from sqlalchemy.orm import Session
 
 from ..storage import models
@@ -391,10 +391,18 @@ class ScoringEngine(BaseEngine):
                 r["passed_filter"] = not (h["hard_break"] or soft_break)
 
     def _apply_crash_style(self, session: Session, td: date, rows: list[dict]) -> None:
-        """深跌反攻風格的市場端閘（wave.CRASH_MKT_BIAS60）：
+        """深跌反攻風格的市場端閘（wave.CRASH_MKT_BIAS60）＋乾淨池。
 
         大盤收盤距 MA60 ≤ −2.3% 時，crash_cand（個股端已過）轉正式 crash 風格；
         其餘日子拔掉 crash_cand（不落 DB、清單為空=誠實）。
+
+        乾淨池（2026-08-24 加）：近 5 個交易日被列「注意」、近 10 個交易日被列「處置」者
+        不掛 crash。兩個理由：
+        1) 口徑一致——crash 對外掛的命中率（挖掘 76.6% / holdout 67.1%）是在排除注意/處置的
+           池子上量的；不排就會系統性高估，holdout 實測掉到 57.1%（挖掘窗幾乎不變 75.8%）。
+        2) 不重複計價——注意/處置本身在策略室是**獨立**的事件策略（處置後 10 日 holdout 命中
+           71%），混進 crash 會把兩條邊際疊在同一個標籤上，事後無法歸因；處置股又是人工撮合
+           /預收款，實際上也不是同一種可交易性。
         """
         from .rules.wave import CRASH_MKT_BIAS60
         closes = session.execute(
@@ -407,13 +415,32 @@ class ScoringEngine(BaseEngine):
         if len(closes) == 60:
             ma60 = sum(float(c) for c in closes) / 60.0
             deep = ma60 > 0 and (float(closes[0]) / ma60 - 1.0) * 100.0 <= CRASH_MKT_BIAS60
+        dirty: set[str] = set()
+        if deep:
+            # 用交易日而非日曆日回推窗頭（研究口徑就是交易日）；史料不足時退成「有資料的最早日」
+            recent = session.execute(
+                select(models.MarketIndex.date).where(models.MarketIndex.date <= td)
+                .order_by(models.MarketIndex.date.desc()).limit(10)
+            ).scalars().all()
+            if recent:
+                notice_from = recent[min(4, len(recent) - 1)]
+                punish_from = recent[-1]
+                dirty = set(session.execute(
+                    select(models.AttentionListing.stock_id).where(
+                        models.AttentionListing.date <= td,
+                        or_(and_(models.AttentionListing.kind == "notice",
+                                 models.AttentionListing.date >= notice_from),
+                            and_(models.AttentionListing.kind == "punish",
+                                 models.AttentionListing.date >= punish_from)),
+                    )
+                ).scalars().all())
         for r in rows:
             if r.get("track") != "wave":
                 continue
             styles = r.get("passed_styles") or []
             if "crash_cand" in styles:
                 styles = [st for st in styles if st != "crash_cand"]
-                if deep:
+                if deep and r["stock_id"] not in dirty:
                     styles.append("crash")
                 r["passed_styles"] = styles
 

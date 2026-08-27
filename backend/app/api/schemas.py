@@ -102,6 +102,7 @@ class RecommendationItem(BaseModel):
     prob_n: int | None = None       # 該條件格歷史樣本數
     prob_cond: str | None = None    # 條件描述（例：分數90-95×波動5-8%×大盤正常）
     prob_mae: float | None = None   # 同條件歷史平均最深回撤%（風險行顯示用）
+    prob_style: str | None = None   # 機率若來自風格分層格子，這裡放風格 key（前端據此附上段級離散）
     vol_ratio: float | None = None  # 量增比＝vol_ma5/vol_ma20（標籤共振徽章用：爆發×量增>1.5 實證加成）
     # 注意/處置動能徽章（2026-08 判官驗證：處置後10日 控波動+16pp、holdout命中71%；注意×上升 +5~7pp）
     attention: str | None = None    # "punish"（處置公告10日內/執行中）/ "notice"（近5日列注意）/ None
@@ -1191,7 +1192,7 @@ class PaperPositionDTO(BaseModel):
     signal_date: date          # 推薦日（Score 日）
     entry_date: date           # 進場日＝隔一交易日
     entry_price: float         # 進場價＝隔日最高（保守錨，與回看口徑一致）
-    stop_price: float
+    stop_price: float | None   # None＝這次模擬不設停損（波段軌定版口徑）
     target_price: float
     status: str                # open / closed
     exit_date: date | None = None
@@ -1228,7 +1229,7 @@ class PaperSimResponse(BaseModel):
     prob_min: float
     top_n: int
     hold_days: int
-    stop_pct: float
+    stop_pct: float | None     # None＝不設停損
     target_pct: float
     stats: PaperSimStats
     equity: list[PaperEquityPoint]
@@ -1381,6 +1382,21 @@ class BacktestDetail(BaseModel):
     max_dd_pct: float
 
 
+class BacktestEpisode(BaseModel):
+    """一「段」行情（訊號日相隔 >15 個日曆日就切段）。
+
+    段級才是條件型策略的有效樣本數：同一段裡每天選到的多半是同一批股票，
+    以「筆」算信賴區間會嚴重低估不確定性（docs/wave-hit-challenge.md §5）。
+    """
+
+    start: str
+    end: str
+    days: int
+    samples: int
+    hits: int
+    hit_rate: float
+
+
 class BacktestResponse(BaseModel):
     samples: int
     hits: int
@@ -1389,6 +1405,9 @@ class BacktestResponse(BaseModel):
     lift: float | None
     avg_max_drawdown: float | None
     monthly: list[BacktestMonthly]
+    episodes: list[BacktestEpisode] = []
+    episode_median: float | None = None   # 段級中位（只算 samples≥10 的段）
+    episode_worst: float | None = None
     recent: list[BacktestDetail]
     warn_loose: bool
     signal_days: int
@@ -1405,3 +1424,182 @@ class StrategyDailyResponse(BaseModel):
     strategy: StrategyDTO | None
     date: str | None
     items: list[StrategyDailyItem]
+
+
+# ─────────────── 波段命中挑戰（data/wave_challenge.json 凍結產物）───────────────
+# 由 scripts/wave_hit_challenge.py --json 產出；端點只做直讀＋型別把關，不做計算
+# （整份要跑 4~6 分鐘、且吃研究快取，不可能放在 request 路徑上）。
+
+
+class WaveWinStat(BaseModel):
+    """單一時窗（挖掘窗 / holdout）的規則成績。"""
+
+    n: int
+    days: int
+    per_day: float
+    hit: float          # 命中率 %
+    ex: float           # 同日全市場配對超額 pp
+    t: float | None     # 以「日」為觀測的 t
+    mae: float          # 平均最大不利偏移 %
+
+
+class WaveEpisode(BaseModel):
+    start: str          # 該崩段起始年月
+    days: int
+    n: int
+    hit: float
+    mae: float
+
+
+class WaveEpStats(BaseModel):
+    episodes: list[WaveEpisode] = []
+    n_eff: int = 0      # 納入離散度統計的段數（n≥10 的段）
+    median: float | None = None
+    mean: float | None = None
+    min: float | None = None
+    max: float | None = None
+    ge70: int | None = None
+    ge60: int | None = None
+
+
+class WaveLadderRow(BaseModel):
+    """ATR 門檻階梯的一格：命中率–案例數前緣。"""
+
+    atr: float
+    mine: WaveWinStat
+    holdout: WaveWinStat
+    day_cover: float    # 有名單的崩日 / 全部崩日 %
+    ep_median: float | None = None
+    ep_min: float | None = None
+    ep_n: int | None = None
+    ep_ge70: int | None = None
+    per_month: float
+
+
+class WaveAxisPart(BaseModel):
+    n: int
+    pp: float           # 同日同 ATR 桶內配對增量 pp
+    t: float | None
+
+
+class WaveAttribution(BaseModel):
+    axis: str
+    mine: WaveAxisPart | None = None
+    holdout: WaveAxisPart | None = None
+    adopted: bool = False   # 判定寫在產物裡（門檻事前定好），前端不再自己推
+    verdict: str = ""
+
+
+class WaveCandidate(BaseModel):
+    id: str
+    rule: str
+    mine: WaveWinStat
+    holdout: WaveWinStat
+    cases: int
+    per_month: float
+    ep: WaveEpStats
+
+
+class WaveOver70(BaseModel):
+    rule: str
+    m_hit: float
+    m_n: int
+    m_days: int
+    m_ex: float
+    h_hit: float
+    h_n: int
+    h_days: int
+    h_ex: float
+    worst: float
+    cases: int
+    per_month: float
+
+
+class WaveNullCalib(BaseModel):
+    runs: int
+    draws: int          # 虛無下的總抽樣次數
+    ge65: int
+    ge70: int
+
+
+class WaveFrontier(BaseModel):
+    tested: int
+    evaluable: int
+    over70: list[WaveOver70] = []
+    top: list[WaveOver70] = []
+    null: WaveNullCalib
+
+
+class WaveRegimeGate(BaseModel):
+    gate: str
+    verdict: str
+    why: str
+    mine: WaveWinStat | None = None
+    holdout: WaveWinStat | None = None
+
+
+class WavePoolRow(BaseModel):
+    """池紀律對照：研究一律用乾淨池，線上若不排注意/處置就會系統性高估。"""
+
+    pool: str
+    mine: WaveWinStat | None = None
+    holdout: WaveWinStat | None = None
+
+
+class WaveOosDay(BaseModel):
+    date: str
+    n: int
+    hit: float
+    mae: float
+
+
+class WaveOos(BaseModel):
+    """真 out-of-sample：forward_labels 之外（>2026-07-01）的崩段實測。"""
+
+    n: int = 0
+    hit: float | None = None
+    mae: float | None = None
+    days: list[WaveOosDay] = []
+    note: str = ""
+
+
+class WaveStopRow(BaseModel):
+    stop: float | None       # None＝無停損
+    mine: float
+    holdout: float
+    d_mine: float           # 相對無停損的 pp 差
+    d_holdout: float
+
+
+class WaveStopSensitivity(BaseModel):
+    """波段軌為什麼不設停損：逐根走路徑（同日雙碰保守記停損）量出來的代價。"""
+
+    n: int = 0
+    table: list[WaveStopRow] = []
+    tail: dict = {}         # 無停損要承受的尾巴（浮虧分位、未命中到期報酬…）
+
+
+class WaveAdopted(BaseModel):
+    rule: str
+    changes: list[str]
+    episodes: list[WaveEpisode]
+
+
+class WaveChallengeResponse(BaseModel):
+    available: bool                       # 產物不存在時 False（其餘欄位為空）
+    generated_at: str | None = None
+    target_label: str | None = None
+    windows: dict = {}
+    base_rate: dict = {}
+    deep_days: int | None = None
+    ladder: list[WaveLadderRow] = []
+    attribution: list[WaveAttribution] = []
+    candidates: list[WaveCandidate] = []
+    frontier: WaveFrontier | None = None
+    regime_gates: list[WaveRegimeGate] = []
+    pool_discipline: list[WavePoolRow] = []
+    oos: WaveOos | None = None
+    stop_sensitivity: WaveStopSensitivity | None = None
+    adopted: WaveAdopted | None = None
+    caveats: list[str] = []
+    note: str = ""

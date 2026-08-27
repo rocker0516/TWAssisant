@@ -1,0 +1,154 @@
+{
+ "generated_at": "2026-08-25 19:47",
+ "groups": {
+  "base": [
+   "atr_pct",
+   "ma_align",
+   "vol_ratio",
+   "vol_trend",
+   "c_over_ma20",
+   "pos_52w",
+   "ret5",
+   "ret20",
+   "bias_20",
+   "bias_60",
+   "kd_k",
+   "kd_d",
+   "macd_hist",
+   "pe",
+   "pb",
+   "inst_f5",
+   "inst_t5",
+   "inst_tot10",
+   "inst_streak",
+   "sq_ratio",
+   "short_chg5",
+   "margin_chg5",
+   "mkt_bias60",
+   "mkt_ret20",
+   "sec_rel5",
+   "sec_rel10",
+   "sec_rel20",
+   "sec_breadth_rel",
+   "peer_surge5",
+   "peer_surge5_rel",
+   "rel_ret20",
+   "sec_att5",
+   "sec_att_chg",
+   "node_att5",
+   "node_att_chg",
+   "node_surge5",
+   "att_times",
+   "att_notice5",
+   "att_punish10",
+   "inst_f5_chg",
+   "inst_t5_chg",
+   "atr_pct_chg",
+   "bias20_chg",
+   "pos52_chg20",
+   "pe_chg20",
+   "fg",
+   "fg_chg5"
+  ],
+  "fund": [
+   "rev_yoy",
+   "rev_mom",
+   "rev_yoy_chg",
+   "rev_yoy3",
+   "rev_hi12",
+   "rev_pub5",
+   "eps_qoq",
+   "eps_yoy",
+   "gm_chg",
+   "fin_pub10"
+  ],
+  "etf": [
+   "etf_add_eff",
+   "etf_add_sweet",
+   "etf_add_ann",
+   "etf_del_eff",
+   "etf_del_sweet",
+   "etf_add_cnt20"
+  ],
+  "chip": [
+   "foreign_net",
+   "trust_net",
+   "dual_net_flag",
+   "netbuy_turnover_pct",
+   "netbuy_accel",
+   "trust_adopt_flag",
+   "sell_exhaust_flag",
+   "absorb_flag",
+   "receive_flag",
+   "margin_chg10",
+   "margin_chg20",
+   "margin_down_price_up",
+   "short_margin_ratio_pct",
+   "squeeze_flag",
+   "washout_flag",
+   "big_holder_wk_up",
+   "sub_big_holder_up",
+   "big_absorb_flag",
+   "short_cover_flag",
+   "daytrade_drop_flag",
+   "insider_buyback_flag",
+   "distribute_warn_flag",
+   "f1_flag",
+   "f2_flag",
+   "f3_flag",
+   "break20_flag",
+   "vol_ratio5",
+   "turnover_pct",
+   "rev_yoy_accel",
+   "attn_flag",
+   "attn_cnt20",
+   "news_cnt5_pct",
+   "etf_add_win_flag",
+   "etf_del_win_flag"
+  ],
+  "regime": [
+   "regime"
+  ]
+ },
+ "dropped": {
+  "roe_v": [
+   0.0,
+   0.0
+  ],
+  "retail_cnt_chg": [
+   0.0,
+   0.0001
+  ],
+  "conc_diff_chg": [
+   0.0,
+   0.0012
+  ],
+  "sbl_chg5": [
+   0.0,
+   0.0215
+  ],
+  "sbl_chg10": [
+   0.0,
+   0.018
+  ],
+  "sbl_chg20": [
+   0.0,
+   0.0111
+  ],
+  "daytrade_pct": [
+   0.0,
+   0.014
+  ],
+  "insider_chg": [
+   0.0,
+   0.0
+  ],
+  "resonance": [
+   0.0311,
+   0.0305
+  ]
+ },
+ "n_rows": 2474777,
+ "train_end": "2024-12-31",
+ "min_cover_train": 0.05
+}

@@ -20,7 +20,9 @@ from .context import StockContext
 from ..storage import models
 
 DEFAULTS = {
-    "wave": {"stop_cap": 0.08, "trail_trigger": 0.10, "trail_pullback": 0.10, "break_ma_exit": True},
+    # 波段 stop_cap=None＝不設停損（2026-08-24；見 engines/stoploss.py docstring）。
+    # 波段持股正常走 thesis 論點機，這組只在「還沒補到論點快照的舊倉」用得到。
+    "wave": {"stop_cap": None, "trail_trigger": 0.10, "trail_pullback": 0.10, "break_ma_exit": True},
     "long": {"stop_cap": 0.15, "trail_trigger": 0.20, "trail_pullback": 0.20, "break_ma_exit": True,
               "score_slip_warn": 15.0},
 }
@@ -80,7 +82,7 @@ class Position:
         return (self.highest - self.close) / self.highest if self.highest else 0.0
 
 
-def _cfg(holding: models.Holding, key: str) -> float:
+def _cfg(holding: models.Holding, key: str) -> float | None:
     return _ACTIVE.get(holding.track, _ACTIVE["wave"])[key]
 
 
@@ -100,12 +102,15 @@ class StopLossSignal(ExitSignal):
     def check(self, holding, pos, ctx):
         hits: list[Hit] = []
         cap = _cfg(holding, "stop_cap")
-        hard_stop = holding.stop_loss_override or pos.avg_cost * (1 - cap)
-        if pos.close <= hard_stop:
-            hits.append(Hit("stop_loss", Sev.CRITICAL, f"跌破停損價 {hard_stop:.2f}"))
-        elif pos.close <= hard_stop * 1.02:
-            dist = (pos.close / hard_stop - 1) * 100
-            hits.append(Hit("near_stop", Sev.WARN, f"接近停損價（距 {dist:.1f}%）"))
+        # cap=None（波段軌）＝這條軌沒有停損線，只有手動覆寫才會有
+        hard_stop = holding.stop_loss_override or (
+            pos.avg_cost * (1 - cap) if cap is not None else None)
+        if hard_stop is not None:
+            if pos.close <= hard_stop:
+                hits.append(Hit("stop_loss", Sev.CRITICAL, f"跌破停損價 {hard_stop:.2f}"))
+            elif pos.close <= hard_stop * 1.02:
+                dist = (pos.close / hard_stop - 1) * 100
+                hits.append(Hit("near_stop", Sev.WARN, f"接近停損價（距 {dist:.1f}%）"))
 
         ind = ctx.ind
         ma_key = "ma20" if holding.track == "wave" else "ma60"

@@ -115,6 +115,10 @@ export type TagStatEntry = {
   n: number; hit: number; avg_mae: number;
   n_tr?: number; hit_tr?: number | null;   // 挖掘窗（< 2025-07-01）
   n_ho?: number; hit_ho?: number | null;   // holdout（≥ 2025-07-01）
+  // 段級離散（訊號日相隔>15天算換一段，只計 n≥10 的段）：崩勢型標籤的有效樣本數是段數，
+  // 單看 hit 會被最大的一段綁架。ep_n<2 時後端不吐這些欄。
+  ep_n?: number; ep_median?: number | null; ep_min?: number | null;
+  ep_max?: number | null; ep_ge70?: number | null;
 };
 export type TagComboStats = {
   generated_at?: string;
@@ -689,10 +693,15 @@ export type Strategy = {
   target_pct: number; horizon_days: number; stop_pct: number | null; is_active: boolean;
 };
 export type FieldMeta = { key: string; label: string; group: string; unit: string };
+export type BacktestEpisode = {
+  start: string; end: string; days: number; samples: number; hits: number; hit_rate: number;
+};
 export type BacktestResult = {
   samples: number; hits: number; hit_rate: number | null; base_rate: number | null;
   lift: number | null; avg_max_drawdown: number | null;
   monthly: { month: string; samples: number; hits: number }[];
+  // 段級＝條件型策略的真有效樣本數（同段每天選到同一批股票）；只算 samples≥10 的段
+  episodes: BacktestEpisode[]; episode_median: number | null; episode_worst: number | null;
   recent: { date: string; stock_id: string; name: string; entry: number; hit: boolean;
             stopped: boolean; max_gain_pct: number; max_dd_pct: number }[];
   warn_loose: boolean; signal_days: number;
@@ -982,7 +991,7 @@ export function useCornerReview(enabled: boolean) {
 export type PaperPosition = {
   stock_id: string; name: string;
   signal_date: string; entry_date: string; entry_price: number;
-  stop_price: number; target_price: number;
+  stop_price: number | null; target_price: number;   // stop_price=null＝這次模擬不設停損
   status: "open" | "closed";
   exit_date: string | null; exit_price: number | null;
   exit_reason: "stop" | "target" | "timeout" | null;
@@ -998,7 +1007,7 @@ export type PaperSimStats = {
 export type PaperSimResponse = {
   since: string | null; today_date: string | null;
   style: LabStyle; prob_min: number; top_n: number;
-  hold_days: number; stop_pct: number; target_pct: number;
+  hold_days: number; stop_pct: number | null; target_pct: number;
   stats: PaperSimStats;
   equity: { date: string; cum_return_pct: number }[];
   positions: PaperPosition[];
@@ -1134,6 +1143,77 @@ export function useSignalDecay() {
     queryKey: ["signal-decay"],
     queryFn: () => getJson<SignalDecayResponse>("/recommendations/signal-decay"),
     staleTime: 60 * 60_000,
+  });
+}
+
+// ─────────── 波段命中挑戰（凍結研究產物 data/wave_challenge.json）───────────
+// 產出：scripts/wave_hit_challenge.py --json。端點只直讀，不即時算（要跑 4~6 分鐘）。
+
+export type WaveWinStat = {
+  n: number; days: number; per_day: number;
+  hit: number; ex: number; t: number | null; mae: number;
+};
+export type WaveEpisode = { start: string; days: number; n: number; hit: number; mae: number };
+export type WaveEpStats = {
+  episodes: WaveEpisode[]; n_eff: number;
+  median?: number | null; mean?: number | null; min?: number | null; max?: number | null;
+  ge70?: number | null; ge60?: number | null;
+};
+export type WaveLadderRow = {
+  atr: number; mine: WaveWinStat; holdout: WaveWinStat; day_cover: number;
+  ep_median: number | null; ep_min: number | null; ep_n: number | null;
+  ep_ge70: number | null; per_month: number;
+};
+export type WaveAttribution = {
+  axis: string;
+  mine: { n: number; pp: number; t: number | null } | null;
+  holdout: { n: number; pp: number; t: number | null } | null;
+  adopted: boolean; verdict: string;   // 判定由產物直帶（門檻事前定好）
+};
+export type WaveCandidate = {
+  id: string; rule: string; mine: WaveWinStat; holdout: WaveWinStat;
+  cases: number; per_month: number; ep: WaveEpStats;
+};
+export type WaveOver70 = {
+  rule: string; m_hit: number; m_n: number; m_days: number; m_ex: number;
+  h_hit: number; h_n: number; h_days: number; h_ex: number;
+  worst: number; cases: number; per_month: number;
+};
+export type WaveChallenge = {
+  available: boolean;
+  generated_at?: string | null;
+  target_label?: string | null;
+  windows: { mine?: string; holdout?: string };
+  base_rate: { mine?: number; holdout?: number };
+  deep_days?: number | null;
+  ladder: WaveLadderRow[];
+  attribution: WaveAttribution[];
+  candidates: WaveCandidate[];
+  frontier: {
+    tested: number; evaluable: number; over70: WaveOver70[]; top: WaveOver70[];
+    null: { runs: number; draws: number; ge65: number; ge70: number };
+  } | null;
+  regime_gates: { gate: string; verdict: string; why: string;
+                  mine: WaveWinStat | null; holdout: WaveWinStat | null }[];
+  pool_discipline: { pool: string; mine: WaveWinStat | null; holdout: WaveWinStat | null }[];
+  oos: { n: number; hit: number | null; mae: number | null; note: string;
+         days: { date: string; n: number; hit: number; mae: number }[] } | null;
+  stop_sensitivity: {
+    n: number;
+    table: { stop: number | null; mine: number; holdout: number;
+             d_mine: number; d_holdout: number }[];
+    tail: Record<string, number>;
+  } | null;
+  adopted: { rule: string; changes: string[]; episodes: WaveEpisode[] } | null;
+  caveats: string[];
+  note: string;
+};
+
+export function useWaveChallenge() {
+  return useQuery({
+    queryKey: ["wave-challenge"],
+    queryFn: () => getJson<WaveChallenge>("/recommendations/wave-challenge"),
+    staleTime: Infinity, // 凍結產物，重跑腳本才會變
   });
 }
 

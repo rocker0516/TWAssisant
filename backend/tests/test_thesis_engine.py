@@ -47,3 +47,33 @@ def test_terminal_state_passthrough():
     r = evaluate_thesis({**T, "state": "fulfilled"}, avg_cost=100.0,
                         hi_since_clock=120.0, lo_today=80.0, days_elapsed=12)
     assert (r.state, r.level) == ("fulfilled", "red")
+
+
+# ── 2026-08-24：波段軌預設無停損（stop_pct=None）──
+
+
+NO_STOP = {"target_pct": 10.0, "horizon_days": 10, "stop_pct": None,
+           "reaudit_count": 0, "state": "active"}
+
+
+def test_no_stop_thesis_ignores_deep_drawdown():
+    """沒有停損出口時，跌多深都不算反證——風控是時間不是價格。"""
+    r = evaluate_thesis(NO_STOP, avg_cost=100, hi_since_clock=101, lo_today=55,
+                        days_elapsed=3)
+    assert r.state == "active" and r.level == "green" and r.stop_price is None
+
+
+def test_no_stop_thesis_still_fulfills_and_expires():
+    hit = evaluate_thesis(NO_STOP, avg_cost=100, hi_since_clock=110, lo_today=55,
+                          days_elapsed=3)
+    assert hit.state == "fulfilled"
+    old = evaluate_thesis(NO_STOP, avg_cost=100, hi_since_clock=101, lo_today=55,
+                          days_elapsed=10)
+    assert old.state == "awaiting_reaudit"
+
+
+def test_explicit_strategy_stop_still_applies():
+    """使用者在實驗室策略上明示的 stop_pct 仍然有效（明示優先於軌別預設）。"""
+    r = evaluate_thesis({**NO_STOP, "stop_pct": 6.0}, avg_cost=100, hi_since_clock=101,
+                        lo_today=93, days_elapsed=3)
+    assert r.state == "refuted" and r.stop_price == 94.0

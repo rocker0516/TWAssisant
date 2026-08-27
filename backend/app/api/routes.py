@@ -202,17 +202,28 @@ def _bin_label(v: float, edges: list[float], labels: list[str]) -> str | None:
     return None
 
 
-def _prob_lookup(score: float | None, atr_pct: float | None,
-                 mkt_bias60: float | None) -> tuple[float | None, int | None, str | None, float | None]:
+_STYLE_LABEL = {"explosive": "爆發", "strong": "強勢延伸", "story": "故事股", "crash": "深跌反攻"}
+_STYLE_MIN_N = 100  # 風格格子的樣本下限（比 _PROB_MIN_N 鬆：風格本身已是很強的條件）
+
+
+def _prob_lookup(score: float | None, atr_pct: float | None, mkt_bias60: float | None,
+                 styles: list[str] | None = None,
+                 ) -> tuple[float | None, int | None, str | None, float | None, str | None]:
     """回 (同條件歷史命中%, n, 條件描述, 平均最深回撤%)。樣本薄逐層回退。
 
     命中率取 Wilson 95% **下界**(hit_lb)：裸命中率在高機率端 walk-forward 實測系統性
     高估 +5.9pp（薄格子最嚴重），改下界後收斂到 −1.5pp 而鑑別度不變。舊版 prob_table.json
     沒有 hit_lb 欄，退回裸值以免整站沒機率。
+
+    styles（2026-08-24）：這檔當日通過的純門檻風格。有標籤時**優先查該風格自己的
+    「風格×波動×大盤」格子**——全市場同格看不到風格多出來的條件（以 crash 為例，
+    查表格子 58.5% vs 規則自己的歷史 72.7%，差 14pp 全是條件差異）。
+    實測 70,288 筆清單列回算：加權|誤差| 4.3pp→2.9pp，四個風格全改善。
+    多標籤取**最高**：多通過一道篩子不應該讓估計變低（交集的真值無從得知，取單篩上界）。
     """
     t = _prob_table()
     if t is None or score is None:
-        return None, None, None, None
+        return None, None, None, None, None
     b = t["bins"]
     s = _bin_label(score, b["score"], b["score_labels"])
     a = _bin_label(atr_pct * 100, b["atr"], b["atr_labels"]) if atr_pct is not None else None
@@ -222,20 +233,39 @@ def _prob_lookup(score: float | None, atr_pct: float | None,
         v = c.get("hit_lb")
         return c["hit"] if v is None else v
 
+    best: tuple[float, int, str, float | None, str] | None = None
+    for st in (styles or ()):
+        c = t.get("style", {}).get(f"{st}|{a}|{mk}") if a and mk else None
+        cond = f"{_STYLE_LABEL.get(st, st)}×波動{a}%×大盤{mk}"
+        if not c or c["n"] < _STYLE_MIN_N:
+            c = t.get("style_all", {}).get(st)
+            cond = f"{_STYLE_LABEL.get(st, st)}（全期）"
+        if c and c["n"] >= _STYLE_MIN_N and (best is None or _p(c) > best[0]):
+            best = (_p(c), c["n"], cond, c.get("mae"), st)
+    if best is not None:
+        return best
+
     if s and a and mk:
         c = t["full"].get(f"{s}|{a}|{mk}")
         if c and c["n"] >= _PROB_MIN_N:
-            return _p(c), c["n"], f"分數{s}×波動{a}%×大盤{mk}", c.get("mae")
+            return _p(c), c["n"], f"分數{s}×波動{a}%×大盤{mk}", c.get("mae"), None
+    # 回退1：**先丟分數、保留大盤**（2026-08-24）。分數是池內排序，實測增量上限 +3pp；
+    # ATR×大盤才是機制軸。舊版第一步丟大盤，高波動薄格子會被「正常盤」稀釋——實測 crash
+    # 卡片因此低估 ~7pp（顯示 55.8% vs 換順序後 62.6%），而整體校準完全沒退步。
+    if a and mk and t.get("am"):
+        c = t["am"].get(f"{a}|{mk}")
+        if c and c["n"] >= _PROB_MIN_N:
+            return _p(c), c["n"], f"波動{a}%×大盤{mk}", c.get("mae"), None
     if s and a:
         c = t["sa"].get(f"{s}|{a}")
         if c and c["n"] >= _PROB_MIN_N:
-            return _p(c), c["n"], f"分數{s}×波動{a}%", c.get("mae")
+            return _p(c), c["n"], f"分數{s}×波動{a}%", c.get("mae"), None
     if s:
         c = t["s"].get(s)
         if c:
-            return _p(c), c["n"], f"分數{s}", c.get("mae")
+            return _p(c), c["n"], f"分數{s}", c.get("mae"), None
     gl = t.get("global")
-    return (_p(gl), gl["n"], "全市場", gl.get("mae")) if gl else (None, None, None, None)
+    return (_p(gl), gl["n"], "全市場", gl.get("mae"), None) if gl else (None, None, None, None, None)
 
 
 _ml_consensus_cache: dict = {}
@@ -301,11 +331,14 @@ def _attach_probabilities(session: Session, items: list[RecommendationItem], d: 
             att_map.setdefault(r.stock_id, set()).add("notice")
 
     for it in items:
-        hit, n, cond, mae = _prob_lookup(it.total_score, atr_map.get(it.stock_id), mkt_bias)
+        # 帶入當日通過的純門檻風格：查表優先用該風格自己的歷史（見 _prob_lookup docstring）
+        hit, n, cond, mae, pstyle = _prob_lookup(
+            it.total_score, atr_map.get(it.stock_id), mkt_bias, it.passed_styles)
         it.prob_hit = hit
         it.prob_n = n
         it.prob_cond = cond
         it.prob_mae = mae
+        it.prob_style = pstyle
         it.vol_ratio = volr_map.get(it.stock_id)
         flags = att_map.get(it.stock_id, set())
         it.attention = "punish" if "punish" in flags else ("notice" if "notice" in flags else None)
@@ -610,7 +643,10 @@ def _mark_segments(
 def _mark_status(
     hit_pop: bool, days_to_pop: int | None, days_elapsed: int, horizon: int = _MARK_HORIZON
 ) -> str:
-    """段落起始日的達標狀態：30 交易日內噴=hit；窗走完沒噴=miss；窗未走完=pending。"""
+    """段落起始日的達標狀態：_MARK_HORIZON 交易日內噴=hit；窗走完沒噴=miss；窗未走完=pending。
+
+    窗長跟著 _MARK_HORIZON 走（2026-08 定版 10 日），不要在文件或測試裡寫死天數。
+    """
     if hit_pop and days_to_pop is not None and days_to_pop <= horizon:
         return "hit"
     if days_elapsed >= horizon:
@@ -825,7 +861,7 @@ def recommendations_lookback_calendar(
             bias_map[mkt_dates[i]] = (mkt_closes[i] / ma - 1.0) * 100
         for d_, sid, score_, atr14, close_ in rows:
             atrp = (atr14 / close_) if atr14 is not None and close_ else None
-            hitp, _, _, _ = _prob_lookup(score_, atrp, bias_map.get(d_))
+            hitp, *_ = _prob_lookup(score_, atrp, bias_map.get(d_))
             if hitp is not None and hitp >= prob_min:
                 prob_members.setdefault(d_, []).append(sid)
 

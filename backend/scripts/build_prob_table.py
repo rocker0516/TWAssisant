@@ -3,7 +3,8 @@
 格子 = 波動帶(絕對 ATR%) × 會噴分數帶(全市場百分位) × 大盤狀態(乖離季線)。
 量尺依挖掘定論：ATR/大盤=絕對（機制軸）、分數本身已是相對排名。
 對 forward_labels 全期（2021-01~最新）統計每格「隔日高錨 10 交易日內碰到 +10%」
-命中率；serve 時 n<150 的格子逐層回退（去大盤 → 去波動 → 全域）。
+命中率（**無停損**，與波段軌定版口徑一致）；serve 時 n<150 的格子逐層回退
+（去分數 → 去大盤 → 只看分數 → 全域）。
 描述性統計非新回測；歷史條件機率≠保證。
 用法：.venv/bin/python scripts/build_prob_table.py
 """
@@ -18,6 +19,7 @@ import pandas as pd
 sys.path.insert(0, __file__.replace("\\", "/").rsplit("/scripts/", 1)[0])
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 from pop_condition_judge import _CACHE, _build_cache  # noqa: E402
+from build_tag_combo_stats import style_masks  # noqa: E402  （風格定義只有那一份）
 
 _OUT = __file__.replace("\\", "/").rsplit("/scripts/", 1)[0] + "/data/prob_table.json"
 _MIN_VOL = 500 * 1000
@@ -25,8 +27,11 @@ _MIN_VOL = 500 * 1000
 # 帶界定義（serve 端 routes.py 用同一份，存進 json）
 SCORE_BINS = [0, 60, 70, 80, 90, 95, 101]
 SCORE_LABELS = ["<60", "60-70", "70-80", "80-90", "90-95", "95+"]
-ATR_BINS = [0, 3, 5, 8, 999]          # %
-ATR_LABELS = ["<3", "3-5", "5-8", "8+"]
+# 2026-08-24：8+ 再切一刀。crash 風格改版後門檻是 ATR>9%，100% 的 crash 推薦都擠在舊的
+# 「8+」一格裡（實際中位 10.2%、59% 在 10% 以上），而「深崩×8-10」與「深崩×10-12」的
+# 歷史命中差 19pp（60.8% vs 79.7%）——不切開就等於把兩件事平均掉。
+ATR_BINS = [0, 3, 5, 8, 10, 999]      # %
+ATR_LABELS = ["<3", "3-5", "5-8", "8-10", "10+"]
 MKT_BINS = [-999, -6, 0, 999]         # 大盤乖離季線 %
 MKT_LABELS = ["深崩", "偏弱", "正常"]
 
@@ -78,6 +83,25 @@ def main() -> None:
                         "n": n, "mae": round(float(gsel["mae30"].mean()), 1)}
         return out
 
+    # 風格分層格子（2026-08-24）：卡片有風格標籤時，用「該風格 × 波動 × 大盤」的歷史，
+    # 而不是全市場同格。實測（70,288 筆清單列回算）加權|誤差| 4.3pp→2.9pp，四個風格全改善：
+    # explosive +9.3→+5.3、strong +14.0→+4.4、story +9.7→+7.0、crash +18.0→+13.9pp。
+    # 對照組「用風格的歷史命中當常數」反而更差（4.9pp）——因為丟掉了每檔不同的 ATR/大盤條件。
+    style_cells: dict = {}
+    style_all: dict = {}
+    for _tag, _mask in style_masks(m).items():
+        sm = m[_mask].dropna(subset=["a_bin", "m_bin"])
+        if sm.empty:
+            continue
+        for k, gsel in sm.groupby(["a_bin", "m_bin"], observed=True):
+            p_, n_ = float(gsel["hit"].mean()), int(len(gsel))
+            style_cells[f"{_tag}|{k[0]}|{k[1]}"] = {
+                "hit": round(p_ * 100, 1), "hit_lb": round(_wilson_lb(p_, n_) * 100, 1),
+                "n": n_, "mae": round(float(gsel["mae30"].mean()), 1)}
+        p_, n_ = float(sm["hit"].mean()), int(len(sm))
+        style_all[_tag] = {"hit": round(p_ * 100, 1), "hit_lb": round(_wilson_lb(p_, n_) * 100, 1),
+                           "n": n_, "mae": round(float(sm["mae30"].mean()), 1)}
+
     table = {
         "window": {"from": str(m["date"].min())[:10], "to": str(m["date"].max())[:10]},
         "note": ("同條件歷史命中率（隔日高錨、10交易日摸+10%）；serve 用 hit_lb"
@@ -86,8 +110,14 @@ def main() -> None:
                  "atr": ATR_BINS, "atr_labels": ATR_LABELS,
                  "mkt": MKT_BINS, "mkt_labels": MKT_LABELS},
         "full": cells(["s_bin", "a_bin", "m_bin"]),   # 分數×波動×大盤
-        "sa": cells(["s_bin", "a_bin"]),              # 回退1：去大盤
-        "s": cells(["s_bin"]),                        # 回退2：只看分數
+        # 回退1（2026-08-24 新增）：**先丟分數、保留大盤**。分數＝池內排序，研究實測增量
+        # 上限僅 +3pp（docs/wave-hit-challenge.md §6-b GBM 零移轉）；ATR 與大盤才是機制軸。
+        # 舊版第一步就丟大盤，高波動格子一薄就被「正常盤」稀釋 → crash 卡片系統性低估。
+        "am": cells(["a_bin", "m_bin"]),
+        "sa": cells(["s_bin", "a_bin"]),              # 回退2：去大盤
+        "s": cells(["s_bin"]),                        # 回退3：只看分數
+        "style": style_cells,                         # 風格×波動×大盤（有標籤時優先）
+        "style_all": style_all,                       # 風格整體（風格格子太薄時回退）
         "global": {"hit": round(float(m["hit"].mean()) * 100, 1),
                    "hit_lb": round(_wilson_lb(float(m["hit"].mean()), int(len(m))) * 100, 1),
                    "n": int(len(m)), "mae": round(float(m["mae30"].mean()), 1)},
