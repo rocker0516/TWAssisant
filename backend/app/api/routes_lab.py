@@ -11,6 +11,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 from bisect import bisect_right
 from datetime import date
 
@@ -38,6 +40,7 @@ from .schemas import (
     PaperSimStats,
     SensitivityPoint,
     SensitivityResponse,
+    WaveChallengeResponse,
 )
 
 router = APIRouter(tags=["lab"])
@@ -79,7 +82,7 @@ def _candidates(
 
     rows = session.execute(
         select(models.Score.date, models.Score.stock_id, models.Score.total_score,
-               models.Indicator.atr14, models.DailyPrice.close)
+               models.Indicator.atr14, models.DailyPrice.close, models.Score.passed_styles)
         .join(models.Indicator,
               (models.Indicator.stock_id == models.Score.stock_id)
               & (models.Indicator.date == models.Score.date), isouter=True)
@@ -100,9 +103,10 @@ def _candidates(
         ma = sum(mkt_closes[i - 59:i + 1]) / 60
         bias_map[mkt[i][0]] = (mkt_closes[i] / ma - 1.0) * 100
     out: list[tuple[date, str, float | None, float | None]] = []
-    for d_, sid, score_, atr14, close_ in rows:
+    for d_, sid, score_, atr14, close_, styles_ in rows:
         atrp = (atr14 / close_) if atr14 is not None and close_ else None
-        hitp, _, _, _ = _prob_lookup(score_, atrp, bias_map.get(d_))
+        # 帶風格：卡片與實驗室必須用同一個機率，否則同一檔在兩邊被當成不同東西
+        hitp, *_ = _prob_lookup(score_, atrp, bias_map.get(d_), styles_ or [])
         if hitp is not None and hitp >= prob_min:
             out.append((d_, sid, score_, hitp))
     return out
@@ -142,7 +146,8 @@ def paper_simulate(
     prob_min: float = Query(50.0, ge=0.0, le=95.0, description="PIT 達標機率門檻%（pop 風格）"),
     top_n: int = Query(3, ge=1, le=20, description="每日最多開倉檔數（依分數取前 N）"),
     hold_days: int = Query(20, ge=1, le=120, description="最長持有交易日數，逾期收盤出場"),
-    stop_pct: float = Query(8.0, ge=1.0, le=30.0, description="停損%（Score 無停損價時用）"),
+    stop_pct: float | None = Query(None, ge=1.0, le=30.0,
+                                   description="停損%；**預設不設停損**（波段軌定版口徑）"),
     target_pct: float | None = Query(None, ge=1.0, le=100.0, description="停利%；預設=會噴目標 +10%"),
     session: Session = Depends(get_session),
 ) -> PaperSimResponse:
@@ -150,6 +155,10 @@ def paper_simulate(
 
     規則：訊號日隔一交易日以最高價進場（保守）→ 逐日檢查 觸停損（低點先看，保守）
     → 觸停利 → 逾期收盤出。每筆等權 1 單位；權益曲線＝已實現報酬按出場日累加。
+
+    stop_pct 預設 None＝**不設停損**，與波段軌 2026-08-24 定版一致：這條軌選的是
+    ATR>9% 的高波動標的，−8% 停損實測把命中率打掉 25pp，而期間浮虧 >10% 的部位仍有
+    47% 最後照樣達標。想看停損版就明確傳 stop_pct（實驗室本來就是拿來比的）。
     """
     tgt = (target_pct / 100.0) if target_pct is not None else _POP_TARGET
     today_d = _latest_score_date(session)
@@ -176,9 +185,9 @@ def paper_simulate(
 
     sids = {c[1] for c in picked}
     px = _load_prices(session, sids, since)
-    # 停損價優先用當日 Score 落庫的 stop_loss（PIT）
+    # 停損價優先用當日 Score 落庫的 stop_loss（PIT）；沒要停損就整段不查
     stop_map: dict[tuple[date, str], float] = {}
-    if picked:
+    if picked and stop_pct is not None:
         srows = session.execute(
             select(models.Score.date, models.Score.stock_id, models.Score.stop_loss)
             .where(models.Score.track == "wave",
@@ -199,8 +208,12 @@ def paper_simulate(
         if i0 >= len(dates) or bars[i0][0] is None or bars[i0][0] <= 0:
             continue  # 尚無隔日資料（最近的訊號）
         entry = float(bars[i0][0])
-        sl = stop_map.get((sig_d, sid))
-        stop = float(sl) if sl is not None and sl < entry else round(entry * (1 - stop_pct / 100), 2)
+        if stop_pct is None:
+            stop = None
+        else:
+            sl = stop_map.get((sig_d, sid))
+            stop = (float(sl) if sl is not None and sl < entry
+                    else round(entry * (1 - stop_pct / 100), 2))
         target = round(entry * (1 + tgt), 2)
 
         status, exit_d, exit_px, reason = "open", None, None, None
@@ -208,7 +221,7 @@ def paper_simulate(
         for j in range(i0 + 1, len(dates)):
             hi, lo, cl = bars[j][:3]
             held = j - i0
-            if lo is not None and lo <= stop:
+            if stop is not None and lo is not None and lo <= stop:
                 status, exit_d, exit_px, reason = "closed", dates[j], stop, "stop"
                 break
             if hi is not None and hi >= target:
@@ -811,3 +824,41 @@ def lookback_sensitivity(
             "誤差為負＝機率高估。非投資建議。"
         ),
     )
+
+
+# ─────────────────────────── 波段命中挑戰（凍結研究產物直讀）───────────────────────────
+
+_WAVE_CHALLENGE_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "..", "data", "wave_challenge.json")
+_wave_challenge_cache: dict = {}
+
+
+@router.get("/recommendations/wave-challenge", response_model=WaveChallengeResponse)
+def wave_challenge() -> WaveChallengeResponse:
+    """「波段軌命中率能不能更高／能不能有更多 ≥70% 的案例」的完整挑戰紀錄。
+
+    直讀 data/wave_challenge.json（scripts/wave_hit_challenge.py --json 凍結產出）：
+    整份要跑 4~6 分鐘且吃研究快取，不可能即時算。檔案不存在時回 available=False，
+    前端顯示「尚未產生」而不是假資料。以檔案 mtime 當快取鍵，重跑腳本後自動失效。
+    """
+    if not os.path.exists(_WAVE_CHALLENGE_PATH):
+        return WaveChallengeResponse(
+            available=False,
+            note="尚未產生：在 backend/ 執行 "
+                 "`PYTHONUTF8=1 .venv/Scripts/python scripts/wave_hit_challenge.py --json`。")
+    key = os.path.getmtime(_WAVE_CHALLENGE_PATH)
+    if _wave_challenge_cache.get("key") == key:
+        return _wave_challenge_cache["value"]
+    with open(_WAVE_CHALLENGE_PATH, encoding="utf-8") as fh:
+        raw = json.load(fh)
+    resp = WaveChallengeResponse(
+        available=True, **{k: v for k, v in raw.items() if k not in ("target",)},
+        note=(
+            "口徑：訊號隔日最高價進場、之後 10 個交易日內曾摸 +10%（與推薦頁徽章同口徑）；"
+            "挖掘窗 2021-01~2024-12 定義、holdout 2025-01~2026-07 只驗一次。"
+            "**崩勢型規則的有效樣本數是「崩段數」不是「日數」**——同一段內每天選到的是同一批股票，"
+            "所以每條規則都同時給段級中位與最差段。歷史統計，非投資建議。"
+        ),
+    )
+    _wave_challenge_cache.update(key=key, value=resp)
+    return resp

@@ -69,7 +69,9 @@ function ThesisProgress({ h, compact = false }: { h: HoldingItem; compact?: bool
           {daysElapsed != null && horizon != null && `　第 ${daysElapsed}/${horizon} 天`}
           {(h.reaudit_count ?? 0) > 0 && `（已重審 ${h.reaudit_count}）`}
         </span>
-        <span>目標 {fmtNum(h.target_price)} ／ 停損 {fmtNum(h.stop_price)}</span>
+        {/* 波段軌預設無停損（風控＝到期），只有策略明示 stop_pct 的持股才有停損價 */}
+        <span>目標 {fmtNum(h.target_price)}
+          {h.stop_price != null ? ` ／ 停損 ${fmtNum(h.stop_price)}` : " ／ 無停損（到期出場）"}</span>
       </div>
       {pct != null && (
         <div className="h-1.5 w-full rounded bg-slate-700">
@@ -230,7 +232,10 @@ function RowGroup({ h, tab, expanded, onToggle, onAdd, onSell, onDelete }: {
               </div>
               <div>
                 <div className="mb-1 text-xs text-muted">出場參考</div>
-                <div className="text-sm">停損價 {fmtNum(h.hard_stop)}</div>
+                <div className="text-sm">
+                  {h.hard_stop != null ? `停損價 ${fmtNum(h.hard_stop)}`
+                    : "不設停損（風控＝持有天期上限）"}
+                </div>
                 <div className="text-sm">持有高點 {fmtNum(h.highest)} · 回落 {fmtPct(h.drawdown_pct)} {h.trail_active ? "（移動停利啟動）" : ""}</div>
               </div>
               <div>
@@ -274,8 +279,9 @@ function RowGroup({ h, tab, expanded, onToggle, onAdd, onSell, onDelete }: {
                   <div className="text-xs text-muted">無理由紀錄</div>
                 )}
                 <div className="mt-1.5 text-xs text-muted">
-                  當時買點 {fmtNum(h.entry_snapshot.buy_low)}–{fmtNum(h.entry_snapshot.buy_high)} ·
-                  停損 {fmtNum(h.entry_snapshot.stop_loss)} · 收盤 {fmtNum(h.entry_snapshot.close)}
+                  當時買點 {fmtNum(h.entry_snapshot.buy_low)}–{fmtNum(h.entry_snapshot.buy_high)}
+                  {h.entry_snapshot.stop_loss != null && ` · 停損 ${fmtNum(h.entry_snapshot.stop_loss)}`} ·
+                  收盤 {fmtNum(h.entry_snapshot.close)}
                 </div>
               </div>
             )}

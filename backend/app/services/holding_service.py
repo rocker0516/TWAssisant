@@ -79,7 +79,9 @@ def _capture_entry_snapshot(
     }
 
 
-WAVE_THESIS_DEFAULTS = {"target_pct": 10.0, "horizon_days": 10, "stop_pct": 8.0}
+# stop_pct=None＝波段軌不設停損（2026-08-24 定版，見 engines/stoploss.py docstring）：
+# −8% 停損實測把命中率打掉 25pp，風控改由 horizon_days 到期重審承擔。
+WAVE_THESIS_DEFAULTS = {"target_pct": 10.0, "horizon_days": 10, "stop_pct": None}
 
 
 def _capture_thesis(session: Session, *, user_id: int, track: str,
@@ -94,8 +96,8 @@ def _capture_thesis(session: Session, *, user_id: int, track: str,
             return {**base, "source": "strategy", "strategy_id": st.id,
                     "conditions": list(st.conditions or []),
                     "target_pct": st.target_pct, "horizon_days": st.horizon_days,
-                    "stop_pct": st.stop_pct if st.stop_pct is not None
-                    else WAVE_THESIS_DEFAULTS["stop_pct"]}
+                    # 策略明示的 stop_pct 照走（使用者在實驗室自己設的）；沒設就等於無停損
+                    "stop_pct": st.stop_pct}
     row = session.get(models.Setting, "exit")
     cfg = (row.value or {}).get("wave_defaults", {}) if row and isinstance(row.value, dict) else {}
     return {**base, "source": "manual", **{**WAVE_THESIS_DEFAULTS, **{k: v for k, v in cfg.items() if v is not None}}}

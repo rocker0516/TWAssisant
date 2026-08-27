@@ -126,7 +126,10 @@ def corner_signals(
         note += (f" 另有 {n_edge} 個標「超額」的角落試跑中：它們不追絕對地板——窮舉 24k "
                  "組合證實「挖掘窗與 holdout 都 ≥70%」是空集合，且地板最高那批在 holdout "
                  "的同日增量已轉負。這批改以「兩窗同日同錨增量皆為正」入選，賭的是超額穩定。"
-                 "注意其 holdout 樣本高度集中在 2026，跨 regime 證據仍薄。")
+                 "注意其 holdout 樣本高度集中在 2026，跨 regime 證據仍薄。"
+                 "（2026-08-24 補：換一組原子——ATR 門檻連續掃描＋大盤閘＋流動篩——是找得到 13 組"
+                 "兩窗皆 ≥70% 的，見策略室『波段命中挑戰』；但那些增量在同日同 ATR 桶內歸零、"
+                 "全由波動度買單，所以不牴觸這裡「靠地板取勝是空集合」的結論。）")
     return CornerSignalsResponse(
         date=d, evaluated=bool(rows) or bool(recent),
         total_corners=len(corners), fired=fired, recent=recent, note=note)

@@ -16,6 +16,7 @@ import {
 } from "../api/client";
 import { BacktestLabSection } from "../components/BacktestLab";
 import { CornerLabSection } from "../components/CornerSignalsPanel";
+import { WaveChallengeSection } from "../components/WaveChallengePanel";
 import { Modal } from "../components/Modal";
 import { changeColor, fmtNum, fmtPct } from "../lib/format";
 
@@ -63,6 +64,7 @@ export default function LabPage() {
         進場錨＝推薦隔日最高價（追高最壞情境，偏保守）。
       </p>
 
+      <WaveChallengeSection />
       <BacktestLabSection />
       <PaperSection since={since} />
       <StatsSection since={since} />
@@ -386,7 +388,13 @@ function PaperSection({ since }: { since?: string }) {
   const [probMin, setProbMin] = useState(50);
   const [topN, setTopN] = useState(3);
   const [holdDays, setHoldDays] = useState(20);
-  const { data, isLoading } = usePaperSimulate({ since, style, probMin, topN, holdDays });
+  const [stopPct, setStopPct] = useState(0);   // 0＝不設停損（波段軌定版）
+  // 波段軌 2026-08-24 定版：預設不設停損（−8% 停損實測讓命中率掉 25pp）。
+  // 實驗室保留切換，因為這裡本來就是拿來比的。
+  const { data, isLoading } = usePaperSimulate({
+    since, style, probMin, topN, holdDays,
+    stopPct: stopPct === 0 ? undefined : stopPct,
+  });
   const [showAll, setShowAll] = useState(false);
 
   const s = data?.stats;
@@ -423,8 +431,19 @@ function PaperSection({ since }: { since?: string }) {
           <input type="range" min={5} max={60} step={5} value={holdDays}
             onChange={(e) => setHoldDays(Number(e.target.value))} className="w-28" />
         </label>
+        <label className="flex flex-col gap-1 text-xs text-muted"
+          title="波段軌定版＝不設停損：這條軌挑的是高波動標的，停損線會切在它自己的呼吸幅度上（實測 −8% 讓命中率掉 25pp，而期間浮虧>10% 的部位仍有 47% 最後照樣達標）。想看停損版可以在這裡切換比較。">
+          停損
+          <select value={stopPct} onChange={(e) => setStopPct(Number(e.target.value))}
+            className="rounded-md border border-edge bg-panel2 px-2 py-1 text-sm text-gray-200">
+            <option value={0}>不設（定版）</option>
+            <option value={8}>−8%</option>
+            <option value={10}>−10%</option>
+            <option value={15}>−15%</option>
+          </select>
+        </label>
         <div className="ml-auto text-xs text-muted">
-          規則：隔日高進場 → 觸停損/停利(+{data?.target_pct ?? 10}%)/逾期收盤出，每筆等權
+          規則：隔日高進場 → {stopPct === 0 ? "" : "觸停損/"}停利(+{data?.target_pct ?? 10}%)/逾期收盤出，每筆等權
         </div>
       </div>
 
@@ -449,7 +468,7 @@ function PaperSection({ since }: { since?: string }) {
                     <th className="px-3 py-2 text-left">股票</th>
                     <th className="px-3 py-2 text-left">訊號日</th>
                     <th className="px-3 py-2 text-right">進場</th>
-                    <th className="px-3 py-2 text-right">停損/停利</th>
+                    <th className="px-3 py-2 text-right">{stopPct === 0 ? "停利" : "停損/停利"}</th>
                     <th className="px-3 py-2 text-left">出場</th>
                     <th className="px-3 py-2 text-right">報酬</th>
                     <th className="px-3 py-2 text-right">持有</th>
@@ -468,7 +487,7 @@ function PaperSection({ since }: { since?: string }) {
                       <td className="px-3 py-1.5 text-xs text-muted">{p.signal_date}</td>
                       <td className="px-3 py-1.5 text-right tabular-nums">{fmtNum(p.entry_price)}</td>
                       <td className="px-3 py-1.5 text-right text-xs tabular-nums text-muted">
-                        {fmtNum(p.stop_price)} / {fmtNum(p.target_price)}
+                        {p.stop_price != null && `${fmtNum(p.stop_price)} / `}{fmtNum(p.target_price)}
                       </td>
                       <td className="px-3 py-1.5 text-xs">
                         {p.status === "open"

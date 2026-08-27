@@ -31,11 +31,20 @@ export function EvidencePanel({ item }: { item: RecommendationItem }) {
       </div>
 
       <div className="leading-relaxed text-muted">
-        <span className="text-gray-400">風險</span>　跌破停損{" "}
-        <span className="tabular-nums text-down">
-          {fmtNum(item.stop_loss)}（{fmtPct(item.loss_pct)}）
-        </span>{" "}
-        即轉弱，宜減碼
+        <span className="text-gray-400">風險</span>{" "}
+        {item.stop_loss != null ? (
+          <>
+            跌破停損{" "}
+            <span className="tabular-nums text-down">
+              {fmtNum(item.stop_loss)}（{fmtPct(item.loss_pct)}）
+            </span>{" "}
+            即轉弱，宜減碼
+          </>
+        ) : (
+          // 波段軌不設停損：風控是持有時間上限，不是價格線
+          <>本軌不設停損（停損線會切在高波動標的自己的呼吸幅度上）；風控是持有時間——
+            10 個交易日內沒摸到 +10% 就重審或出場。期間浮虧 P50 −7%、P90 −17%，請據此決定部位大小。</>
+        )}
       </div>
     </div>
   );

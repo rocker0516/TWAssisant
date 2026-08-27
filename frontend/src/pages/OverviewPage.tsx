@@ -39,9 +39,10 @@ const WIDGETS: Record<string, { title: string; to: string; render: (d: OverviewR
     title: "🎯 進場推薦", to: "/recommendations",
     render: (d) => (
       <>
-        <div className="mb-2 text-sm text-muted">波段 <span className="font-semibold text-gray-200">{d.reco_wave_count}</span> 檔 · 長線 <span className="font-semibold text-gray-200">{d.reco_long_count}</span> 檔</div>
+        {/* 進場推薦單純化（2026-08-26）：入口只呈現波段軌，長線檔數與長線列就地隱藏（API 仍回雙軌） */}
+        <div className="mb-2 text-sm text-muted">波段 <span className="font-semibold text-gray-200">{d.reco_wave_count}</span> 檔</div>
         <ul className="flex flex-col gap-1">
-          {d.reco_top.map((r) => (
+          {d.reco_top.filter((r) => r.track === "wave").map((r) => (
             <li key={`${r.stock_id}-${r.track}`} className="flex items-center justify-between text-sm">
               <Link to={`/stocks/${r.stock_id}`} className="hover:underline">
                 <span className="mr-1 rounded bg-sky-900/60 px-1 text-xs text-sky-300">{TRACK_LABELS[r.track]}</span>{r.name}

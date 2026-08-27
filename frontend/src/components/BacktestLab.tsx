@@ -521,6 +521,38 @@ function ResultPanel({ result: r }: { result: BacktestResult }) {
         {cell("樣本數", `${r.hits}/${r.samples}`)}
       </div>
 
+      {r.episodes.length > 1 && (
+        <div className="rounded-lg border border-edge bg-panel2/30 p-3">
+          <div className="mb-1 flex flex-wrap items-baseline gap-2 text-xs">
+            <span className="text-muted">段級命中（訊號日相隔 &gt;15 天算換一段）</span>
+            <span className="tabular-nums">
+              中位 <b className={(r.episode_median ?? 0) >= 0.55 ? "text-up" : "text-down"}>
+                {r.episode_median != null ? fmtPct(r.episode_median * 100) : "—"}</b>
+              {"　"}最差 <b className="text-down">
+                {r.episode_worst != null ? fmtPct(r.episode_worst * 100) : "—"}</b>
+            </span>
+          </div>
+          <div className="mb-2 flex flex-wrap gap-1">
+            {r.episodes.map((e) => (
+              <span key={e.start}
+                title={`${e.start} ~ ${e.end}｜${e.days} 個訊號日、${e.samples} 筆｜命中 ${e.hits}/${e.samples}`}
+                className={`rounded px-1.5 py-0.5 text-[11px] tabular-nums ${
+                  e.samples < 10 ? "border border-dashed border-edge text-muted"
+                    : e.hit_rate >= 0.7 ? "bg-emerald-500/20 text-emerald-200"
+                    : e.hit_rate >= 0.5 ? "bg-sky-500/15 text-sky-200"
+                    : "bg-red-500/15 text-red-200"}`}>
+                {e.start.slice(0, 7)} {Math.round(e.hit_rate * 100)}%
+                <span className="opacity-60"> ({e.samples})</span>
+              </span>
+            ))}
+          </div>
+          <p className="text-[11px] text-muted">
+            同一段行情裡每天選到的多半是同一批股票，所以<b>有效樣本數是「段數」不是「筆數」</b>——
+            總命中率會被最大的那一段綁架。虛線框＝樣本 &lt; 10 筆，不列入中位／最差。
+          </p>
+        </div>
+      )}
+
       {r.monthly.length > 0 && (
         <div className="rounded-lg border border-edge bg-panel2/30 p-3">
           <div className="mb-2 text-xs text-muted">逐月樣本數與命中</div>

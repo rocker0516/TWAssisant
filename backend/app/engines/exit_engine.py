@@ -182,7 +182,9 @@ class ExitEngine(BaseEngine):
 
         level = _aggregate(hits)
         cap = exit_signals._ACTIVE.get(holding.track, exit_signals._ACTIVE["wave"])["stop_cap"]
-        hard_stop = holding.stop_loss_override or round(avg_cost * (1 - cap), 2)
+        # cap=None（波段軌）＝沒有硬停損線；使用者手動覆寫仍優先
+        hard_stop = holding.stop_loss_override or (
+            round(avg_cost * (1 - cap), 2) if cap is not None else None)
         return ExitStatus(
             level=level,
             light=_LIGHT[level],

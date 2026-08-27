@@ -27,7 +27,9 @@ DEFAULTS: dict = {
         # 波段軌＝論點式出場（Task 4）：目標/期限/停損由 wave_defaults 供新倉套用，
         # reaudit_max＝到期未達標可重審幾次。舊鍵 stop_cap/trail_trigger/trail_pullback
         # 不再出現在此 schema；存量 JSON 若還有這些鍵，讀取時單純忽略（set_config 只認列出的鍵）。
-        "wave_defaults": {"target_pct": 10.0, "horizon_days": 10, "stop_pct": 8.0},
+        # stop_pct=None＝波段軌預設**不設停損**（2026-08-24；見 engines/stoploss.py docstring）：
+        # −8% 停損實測讓命中率掉 25pp，風控改由 horizon_days 到期承擔。想要停損就在這裡填數字。
+        "wave_defaults": {"target_pct": 10.0, "horizon_days": 10, "stop_pct": None},
         "reaudit_max": 2,
         "long": {"stop_cap": 15, "trail_trigger": 20, "trail_pullback": 20, "break_ma_exit": True,
                  "score_slip_warn": 15.0},

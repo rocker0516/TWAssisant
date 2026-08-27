@@ -37,7 +37,7 @@ const EXIT_LABELS: Record<string, string> = {
 const WAVE_DEFAULTS_LABELS: Record<string, string> = {
   target_pct: "目標 %",
   horizon_days: "天期（日）",
-  stop_pct: "停損 %",
+  stop_pct: "停損 %（不建議，見說明）",
 };
 
 function NumGrid({ obj, labels, onChange }: { obj: Record<string, number>; labels: Record<string, string>; onChange: (k: string, v: number) => void }) {
@@ -155,8 +155,15 @@ export default function SettingsPage() {
             <div className="rounded-xl border border-edge bg-panel p-4">
               <div className="mb-3 font-semibold">波段軌（非策略持股預設）</div>
               <p className="mb-3 text-xs leading-relaxed text-muted">
-                波段軌採論點式出場：新增持股時套用下方目標／天期／停損預設（個股可個別覆寫）；
+                波段軌採論點式出場：新增持股時套用下方目標／天期預設（個股可個別覆寫）；
                 天期到期未達標可重審，重審上限見下。
+                <br />
+                <span className="text-amber-300">預設不設停損</span>
+                ——這條軌挑的是 ATR&gt;9% 的高波動標的，停損線會切在它自己的呼吸幅度上：
+                實測 −8% 停損讓 10 日命中率從 76.6%/67.1% 掉到 51.6%/41.4%（−25pp），
+                而期間浮虧超過 10% 的部位裡仍有 47% 最後照樣摸到目標。
+                <b> 風控是時間（到期重審），不是價格。</b>
+                期間最深浮虧 中位 −7%、P90 −17%，請據此決定部位大小而不是靠停損。
               </p>
               <NumGrid obj={draft.wave_defaults} labels={WAVE_DEFAULTS_LABELS}
                 onChange={(k, v) => setDraft({ ...draft, wave_defaults: { ...draft.wave_defaults, [k]: v } })} />

@@ -86,16 +86,38 @@ def explosive_ok(ctx: StockContext) -> bool:
 # 三個純門檻風格（控波動增量皆過 holdout 2025-01~2026-06）：
 #   strong 強勢延伸 = 52週位置>0.8 + 收盤>月線×1.23         holdout 命中 66.7% / +14.6pp
 #   story  故事股   = pb>5.5 + pe>56 + atr>4.9%              holdout 命中 68.0% / +13.8pp
-#   crash  深跌反攻 = (strong|story) + atr>6% + 大盤距季線≤−2.3%（市場端由
-#          ScoringEngine 判；本檔吐 crash_cand）             holdout 命中 68.2% / +10.3pp
+#   crash  深跌反攻 = 見下方 2026-08-24 改版（原定義 (strong|story)+atr>6% 已作廢）
 # strong/story 刻意不受 near60 乖離帽限制（乖離>28% 段落正是其增量來源）。
 STRONG_POS_MIN = 0.8
 STRONG_OVER_MA20 = 0.23
 STORY_PB_MIN = 5.5
 STORY_PE_MIN = 56.0
 STORY_ATR_MIN = 0.049
-CRASH_ATR_MIN = 0.06
-CRASH_MKT_BIAS60 = -2.3  # 大盤距季線 %（ScoringEngine 用）
+
+# ─────────────── crash 深跌反攻 2026-08-24 改版（scripts/wave_hit_challenge.py）───────────
+# 舊定義 = (strong|story) ∧ atr>6% ∧ 大盤≤−2.3，10 日口徑實測 挖掘 48.1% / holdout 40.9%。
+# 三個改動，各自的理由：
+#  1) 移除 (strong|story) 前置閘 —— **產品缺陷，非統計調參**。該閘（52週高檔延伸／高
+#     PB-PE 故事股）與「高 ATR」在資料上幾乎互斥：加上 atr>8% 後樣本從 291 塌到 46 筆，
+#     等於這條軌**結構性地選不到真正的高波動反彈標的**。去閘後 挖掘 64.3% / holdout 61.4%。
+#  2) CRASH_ATR_MIN 6% → 9% —— ATR 是唯一單調、雙窗同號的旋鈕（§9 階梯，流動篩後）：
+#       6%: 46.2/43.5   7%: 56.0/50.7   8%: 68.3/56.1   9%: 76.6/67.1   9.5%: 79.8/69.6(後 n=23)
+#     停在 9% 而非更高，是因為 9.5% 起 holdout n≤23、10% 起 n≤11 **已不可評估**；
+#     取「挖掘窗仍有 ~6 檔/日、崩日覆蓋 44%」當停手線，holdout 只用來驗、不用來挑。
+#  3) 新增流動篩（股價≥20 元 ∧ 成交值≥1 億）—— §2 雙窗同號為負的兩項反過來當排除項；
+#     它也是唯一在「同日同 ATR 桶」內仍有正增量的軸（挖 +2.4pp / 後 +12.3pp），
+#     亦即真正的選股邊際，其餘超賣/波動擴張軸桶內增量皆 ≈0（故意不寫進規則）。
+#  4) 乾淨池（在 ScoringEngine._apply_crash_style）：近 5 交易日被列注意、近 10 交易日被列處置者
+#     不掛 crash。上面那些命中率都是在這個池上量的，不排就系統性高估——holdout 67.1%→57.1%
+#     （挖掘窗幾乎不動 76.6%→75.8%）；且注意/處置在策略室已是獨立的事件策略，混進來無法歸因。
+# 定案成績：挖掘 76.6%（n=504/86 日）/ holdout 67.1%（n=70/18 日）、MAE −8.7/−9.8%（比舊版淺），
+#          段級中位 67.1%、11 段中 3 段 ≥70%、**最差段 18.2%**。
+# 話術紀律：holdout 只有一個崩段，段級離散 18%~85%；對外一律同時給「段中位」與「最差段」，
+#          不可只寫單一數字。逐段明細見 data/wave_challenge.json（策略室『波段命中挑戰』面板）。
+CRASH_ATR_MIN = 0.09
+CRASH_MKT_BIAS60 = -2.3   # 大盤距季線 %（ScoringEngine 用）
+CRASH_PX_MIN = 20.0       # 元；低價股在雙窗都是負軸
+CRASH_TURNOVER_MIN = 1e8  # 成交值 1 億（close×volume，與 daily_prices.turnover 誤差<1%）
 
 
 def pop_pos_52w(ctx: StockContext) -> float | None:
@@ -140,10 +162,19 @@ def story_ok(ctx: StockContext) -> bool:
 
 
 def crash_cand_ok(ctx: StockContext) -> bool:
-    """深跌反攻的個股端條件：(強勢延伸|故事股)+atr>6%。市場端由引擎判。"""
+    """深跌反攻的個股端條件：atr>9% ∧ 股價≥20 元 ∧ 成交值≥1 億。市場端（大盤距季線）由引擎判。
+
+    成交值用 close×volume 而非 daily_prices.turnover：ctx.prices 只載 OHLCV，兩者實測
+    差 <1%（volume 是股數），不值得為此多載一欄。缺量視同不合格（寧缺勿濫）。
+    """
     a = pop_atr_pct(ctx)
-    return (a is not None and a > CRASH_ATR_MIN
-            and (strong_ok(ctx) or story_ok(ctx)))
+    c = ctx.close
+    if a is None or c is None or a <= CRASH_ATR_MIN or c < CRASH_PX_MIN:
+        return False
+    if not ctx.n_bars:
+        return False
+    vol = ctx.prices["volume"].iloc[-1]
+    return vol is not None and vol == vol and c * float(vol) >= CRASH_TURNOVER_MIN
 
 # ─────────────── 遲滯（去抖動，scripts/pop_hysteresis_backtest.py 定版）───────────────
 # 硬篩是二元開關、切在雜訊最大處（月線附近震盪股天天翻面）→ 榜單日換血 40%。
