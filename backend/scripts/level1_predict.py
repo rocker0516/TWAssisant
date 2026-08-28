@@ -3,12 +3,16 @@
 流程：建 T 日 PIT Universe → 產 T 日特徵 → 以截至 T 的成熟標籤重訓 → Prediction
 → Cross-sectional Ranking → 全排名寫入 level1_predictions → 成熟列回填 actual_*。
 
-Model Version 凍結定義（l1_lgbm_v1）：
-- 模型：LightGBM(n_estimators=100, random_state=42)，超參不得調（凍結）
-- 特徵：v2_feat20 = 11 價量 + 5 PIT 基本面 + 4 市場 regime 交互（每日橫斷面 rank）
+Model Version 凍結定義（l1_lgbm_v2）：
+- Universe：U_t = Structural ∩ TradingEligibility（存在 ∧ ADV20 ≥ 5,000 萬 ∧ 非處置），
+  由 universe.build_tradable_universe() 單一入口產出，與研究端同一份程式碼。
+- 模型：LightGBM(n_estimators=100, random_state=42, n_jobs=1)，超參不得調（凍結）。
+  n_jobs=1 是 reproducibility control，不是 predictive-performance control。
+- 特徵：v2_feat20_u2 = 11 價量 + 5 PIT 基本面 + 4 市場 regime 交互（每日橫斷面 rank）。
+  公式同 v2_feat20，但橫斷面母體為新 U_t，故特徵值不同、版號另計。
 - Target：未來 N 日 Close-to-Close 報酬之 U_t 橫斷面百分位（N ∈ 1/5/10，5D 主軌）
-- 訓練協定：expanding，用全部「已成熟」標籤——label 需要 t+N 收盤才存在，
-  訓練集天然結束在預測日前 N 個交易日，與研究框架的 embargo 同語意。
+- 訓練協定：expanding，訓練窗由 walkforward.train_slice_for_date(pred_date, embargo=N)
+  決定——與 OOS 共用同一函式。不得依賴「最近 N 日 label 為 NaN」的巧合式 embargo。
 - 驗證紀錄：data/level1_results.json（walk-forward OOS）+ level1_diag.json（§16 健檢）
 
 用法（cwd=backend）：
@@ -42,8 +46,10 @@ from app.storage import models, repositories as repo  # noqa: E402
 from app.storage.database import SessionLocal, init_db  # noqa: E402
 
 _DB = Path(__file__).resolve().parents[1] / "data" / "twa.db"
-MODEL_VERSION = "l1_lgbm_v1"
-FEATURE_VERSION = "v2_feat20"
+MODEL_VERSION = "l1_lgbm_v2"
+# 特徵公式未改，但 rank_transform 是橫斷面操作：母體由 1801 縮至 ~564，
+# 同股同日的特徵值必然改變，故版號必須換（設計 §8）
+FEATURE_VERSION = "v2_feat20_u2"
 HORIZONS = (1, 5, 10)  # 5D 主軌，1D/10D 並行入帳（2026-08-28 使用者定案）
 
 
@@ -53,17 +59,14 @@ def _log(msg: str) -> None:
 
 def _build_all():
     con = sqlite3.connect(_DB)
-    stocks = uv.load_stocks(con)
-    elig = uv.eligible_ids(stocks)
-    prices = uv.load_close_prices(con, elig)
+    close, mask = uv.build_tradable_universe(con)   # 唯一入口（設計 §6）
+    elig = set(close.columns)
     volq = pd.read_sql_query(
         "SELECT stock_id, date, volume FROM daily_prices WHERE volume IS NOT NULL", con)
     mkt = pd.read_sql_query("SELECT date, close FROM market_index", con,
                             index_col="date")["close"]
     con.close()
 
-    close = uv.close_matrix(prices)
-    mask = uv.universe_mask(close)
     volume = (volq[volq.stock_id.isin(elig)]
               .pivot_table(index="date", columns="stock_id", values="volume",
                            aggfunc="last")
