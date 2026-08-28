@@ -89,6 +89,10 @@ def predict(close, mask, ranked, pred_date: str) -> None:
         pct = tg.cross_sectional_pct(tg.forward_returns(close, n), mask)
         # 訓練窗綁 pred_date 而非 DB 最新日——與 OOS 共用同一個 train_slice（設計 §6）
         train_dates = wf.train_slice_for_date(close.index, pred_date, embargo=n)
+        if len(train_dates) < wf.MIN_TRAIN_DAYS:
+            raise SystemExit(
+                f"{n}D：訓練窗僅 {len(train_dates)} 日（< {wf.MIN_TRAIN_DAYS}），"
+                f"拒絕寫入 ledger——pred_date 距研究起點過近")
         x_tr, y_tr, _ = ft.assemble_dataset(ranked, pct, train_dates)
         # n_jobs=1 是 reproducibility control，不是 predictive-performance control
         model = LGBMRegressor(n_estimators=100, random_state=42, n_jobs=1, verbose=-1)

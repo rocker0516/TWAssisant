@@ -19,6 +19,9 @@ from .features import assemble_dataset
 
 DEFAULT_FIRST_TEST = "2022-01-01"
 DEFAULT_STEP = 126
+# 訓練窗下限——OOS 與 Production 共用同一個常數（同 train_slice 的精神）：
+# 少於此列數的訓練集在統計上不可信，OOS 端直接跳過該區塊，Production 端須 fail-fast。
+MIN_TRAIN_DAYS = 250
 
 
 def test_blocks(dates: pd.Index, first_test: str, step: int) -> Iterator[tuple[int, int]]:
@@ -51,7 +54,7 @@ def walk_forward_scores(
     horizon: int,
     first_test: str = DEFAULT_FIRST_TEST,
     step: int = DEFAULT_STEP,
-    min_train_days: int = 250,
+    min_train_days: int = MIN_TRAIN_DAYS,
 ) -> pd.DataFrame:
     """walk-forward 產 OOS score 矩陣（只在測試區塊有值，其餘 NaN）。
 

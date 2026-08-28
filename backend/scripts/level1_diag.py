@@ -98,10 +98,11 @@ def main() -> None:
         fwd = targets[n]["fwd"].astype("float64")
         pct = targets[n]["pct"].astype("float64")
         t0 = time.time()
-        # n_jobs 降為 2：n_jobs=-1 在 Windows 偶發 native access violation（閃退）
+        # n_jobs=1：全域約束——所有 LGBMRegressor 單執行緒，reproducibility control
+        # （n_jobs=-1 在 Windows 亦偶發 native access violation，閃退）
         score = wf.walk_forward_scores(
             lambda: LGBMRegressor(n_estimators=100, random_state=42,
-                                  n_jobs=2, verbose=-1),
+                                  n_jobs=1, verbose=-1),
             ranked, pct, horizon=n)
         scores[n] = score.astype("float32")
         s_oos = score.loc[score.index >= FIRST_TEST]

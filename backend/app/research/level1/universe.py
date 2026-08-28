@@ -83,6 +83,11 @@ ADV20_FLOOR = 5e7        # 20 日均成交值下限（新台幣）。FRS 凍結�
 ADV_WINDOW = 20
 ADV_MIN_PERIODS = 10
 
+# ADV20 暖身期（rolling 20 / min_periods 10）與 rolling 特徵回看窗（如 pos240）
+# 需要的暖身期之後（設計 §4.2）。研究與生產必須共用同一個裁切點——這是
+# build_tradable_universe 的一部分，不得只在研究端裁切（見最終審查 I1）。
+RESEARCH_START = "2020-02-01"
+
 
 def adv20(turnover: pd.DataFrame) -> pd.DataFrame:
     """20 日均成交值矩陣。只回看；不足 ADV_MIN_PERIODS 日的暖身期為 NaN。"""
@@ -137,10 +142,16 @@ def build_tradable_universe(con) -> tuple[pd.DataFrame, pd.DataFrame]:
 
     設計 §6：本次改版的三個裂縫皆源於兩條路徑各自組裝。任何新的呼叫端都必須走這裡，
     不得自行拼裝 eligible_ids / close_matrix / tradable_mask。
+
+    RESEARCH_START 裁切也在這裡做（而非只在研究端）：兩端必須共用同一個訓練母體與
+    同一份 rolling 特徵暖身窗，否則生產端會多吃 2020 年初的暖身列、rolling 特徵
+    （如 pos240）的回看窗也會與研究端分歧（最終審查 I1）。
     """
     stocks = load_stocks(con)
     elig = eligible_ids(stocks)
     close = close_matrix(load_close_prices(con, elig))
     turnover = load_turnover(con, elig, close.index, close.columns)
     punish = punish_mask(load_punish_windows(con), close.index, close.columns)
-    return close, tradable_mask(close, turnover, punish)
+    mask = tradable_mask(close, turnover, punish)
+    keep = close.index >= RESEARCH_START
+    return close.loc[keep], mask.loc[keep]

@@ -174,6 +174,11 @@ def test_train_slice_for_date_rejects_unknown_date():
         wf.train_slice_for_date(dates, "2025-01-03", embargo=1)
 
 
+def test_min_train_days_constant_shared():
+    """250 日下限是共用常數——predict 的防線與 walk_forward_scores 同源。"""
+    assert wf.MIN_TRAIN_DAYS == 250
+
+
 # ── Production pipeline 接線測試（設計 §6：prevent train_slice_for_date 呼叫被改掉）──
 
 def test_predict_calls_train_slice_for_date_with_correct_embargo(monkeypatch):
@@ -198,6 +203,10 @@ def test_predict_calls_train_slice_for_date_with_correct_embargo(monkeypatch):
         "f2": pd.DataFrame(rng.random((len(dates), len(cols))),
                            index=dates, columns=cols),
     }
+
+    # 合成資料只有 40 日，遠低於生產端的 MIN_TRAIN_DAYS 防線（250）——
+    # 這條測試驗證的是接線（spy 呼叫），不是防線本身，故調低常數避免誤觸 SystemExit。
+    monkeypatch.setattr(lp.wf, "MIN_TRAIN_DAYS", 10)
 
     # Spy train_slice_for_date 的呼叫
     calls = []
