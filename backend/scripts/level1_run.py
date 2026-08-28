@@ -70,8 +70,20 @@ def _eval_all(score: pd.DataFrame, fwd: pd.DataFrame) -> dict:
     return out
 
 
+def _assert_snapshot_fresh(meta: dict) -> None:
+    """研究快取與 DB 不同步時 fail-fast——不得靜默沿用舊快照（設計 §9）。"""
+    con = sqlite3.connect(_DATA / "twa.db")
+    db_max = con.execute("SELECT max(date) FROM daily_prices").fetchone()[0]
+    con.close()
+    if meta.get("db_max_date") != db_max:
+        raise SystemExit(
+            f"level1_targets.pkl 建於 db_max_date={meta.get('db_max_date')}，"
+            f"DB 現況為 {db_max}。請先重跑 scripts.level1_targets。")
+
+
 def main() -> None:
     payload = pickle.load(open(_DATA / "level1_targets.pkl", "rb"))  # 自產快取
+    _assert_snapshot_fresh(payload["meta"])
     close, mask, targets = payload["close"], payload["universe"], payload["targets"]
     close = close.astype("float64")
     _log(f"targets 載入：{close.shape[0]} 日 × {close.shape[1]} 檔")
@@ -82,8 +94,9 @@ def main() -> None:
     from app.storage.database import SessionLocal
     with SessionLocal() as s:
         fund_feats = ft.build_fundamental_features(s, close.index, close.columns)
-    _log(f"基本面特徵覆蓋率：" + ", ".join(
-        f"{k} {float(v.where(mask).notna().stack().mean()):.0%}"
+    _n_u = int(mask.to_numpy().sum())
+    _log("基本面特徵覆蓋率：" + ", ".join(
+        f"{k} {float((v.notna() & mask).to_numpy().sum()) / _n_u:.0%}"
         for k, v in fund_feats.items()))
 
     ranked = ft.rank_transform({**price_feats, **fund_feats}, mask)
@@ -110,8 +123,10 @@ def main() -> None:
     models = {
         "ridge_v1": (ranked_v1, lambda: Ridge(alpha=1.0)),
         "ridge_v2": (ranked_v2, lambda: Ridge(alpha=1.0)),
+        # n_jobs=1 是 reproducibility control，不是 predictive-performance control：
+        # 多執行緒下直方圖累加順序不保證固定，score 無法逐位元重現（設計 §6）
         "lgbm": (ranked_v2, lambda: LGBMRegressor(
-            n_estimators=100, random_state=42, n_jobs=-1, verbose=-1)),
+            n_estimators=100, random_state=42, n_jobs=1, verbose=-1)),
     }
     results: dict = {"first_test": FIRST_TEST, "periods": PERIODS,
                      "features_v1": v1_keys, "features_v2": list(ranked_v2),
