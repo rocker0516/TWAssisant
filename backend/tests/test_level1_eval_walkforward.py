@@ -172,3 +172,83 @@ def test_train_slice_for_date_rejects_unknown_date():
     dates = pd.Index(["2025-01-01", "2025-01-02"])
     with pytest.raises(KeyError):
         wf.train_slice_for_date(dates, "2025-01-03", embargo=1)
+
+
+# ── Production pipeline 接線測試（設計 §6：prevent train_slice_for_date 呼叫被改掉）──
+
+def test_predict_calls_train_slice_for_date_with_correct_embargo(monkeypatch):
+    """生產端 predict() 必須以 pred_date 為準的訓練窗——spy 防止被改回 close.index。"""
+    import scripts.level1_predict as lp
+    from datetime import date
+    from contextlib import contextmanager
+
+    # 建構 40 日 × 3 檔合成資料，避免 LGBM 訓練列太少導致退化
+    dates = pd.date_range("2025-01-01", periods=40).astype(str)
+    cols = ["1001", "1002", "1003"]
+    rng = np.random.default_rng(42)
+
+    close = pd.DataFrame(rng.normal(100, 5, (len(dates), len(cols))),
+                         index=dates, columns=cols)
+    mask = pd.DataFrame(True, index=dates, columns=cols)
+
+    # 簡單特徵集（2 個特徵，足以訓練 LGBM）
+    ranked = {
+        "f1": pd.DataFrame(rng.random((len(dates), len(cols))),
+                           index=dates, columns=cols),
+        "f2": pd.DataFrame(rng.random((len(dates), len(cols))),
+                           index=dates, columns=cols),
+    }
+
+    # Spy train_slice_for_date 的呼叫
+    calls = []
+    orig_train_slice_for_date = wf.train_slice_for_date
+
+    def spy_train_slice_for_date(dates_arg, pred_date_arg, embargo=None):
+        calls.append({"pred_date": pred_date_arg, "embargo": embargo})
+        return orig_train_slice_for_date(dates_arg, pred_date_arg, embargo=embargo)
+
+    monkeypatch.setattr(lp.wf, "train_slice_for_date", spy_train_slice_for_date)
+
+    # Mock upsert_many 為 no-op，回傳列數
+    upsert_calls = []
+
+    def mock_upsert_many(self, s, rows):
+        upsert_calls.append(rows)
+        return len(rows)
+
+    monkeypatch.setattr(lp.repo.Level1PredictionRepository, "upsert_many", mock_upsert_many)
+
+    # Mock SessionLocal 為假 context manager
+    class FakeSession:
+        def commit(self):
+            pass
+
+    @contextmanager
+    def fake_session_local():
+        yield FakeSession()
+
+    monkeypatch.setattr(lp, "SessionLocal", fake_session_local)
+
+    # 呼叫 predict，用最後一個交易日為預測日
+    pred_date = dates[-1]
+    lp.predict(close, mask, ranked, pred_date)
+
+    # 驗證：spy 被呼叫 3 次（HORIZONS: 1, 5, 10）
+    assert len(calls) == 3, f"Expected 3 calls, got {len(calls)}"
+
+    # 驗證：每次的 embargo 等於該 horizon
+    expected_horizons = [1, 5, 10]
+    for call, expected_h in zip(calls, expected_horizons):
+        assert call["embargo"] == expected_h, \
+            f"Expected embargo={expected_h}, got {call['embargo']}"
+        assert call["pred_date"] == pred_date, \
+            f"Expected pred_date={pred_date}, got {call['pred_date']}"
+
+    # 驗證：upsert_many 的 rows 非空、prediction_date 全等於 pred_date
+    assert len(upsert_calls) == 3, f"Expected 3 upsert calls, got {len(upsert_calls)}"
+    pred_date_obj = date.fromisoformat(pred_date)
+    for i, rows in enumerate(upsert_calls):
+        assert len(rows) > 0, f"Upsert call {i} has empty rows"
+        for row in rows:
+            assert row["prediction_date"] == pred_date_obj, \
+                f"Row prediction_date {row['prediction_date']} != {pred_date_obj}"
