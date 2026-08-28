@@ -40,19 +40,33 @@ function QuantileBars({ title, block }: {
   title: string; block: Level1QuantileBlock;
 }) {
   const values = block.values;
-  const absMax = Math.max(...values.map(Math.abs), 0.1);
+  const posMax = Math.max(...values.map((v) => Math.max(v, 0)), 0.05);
+  const negMax = Math.max(...values.map((v) => Math.max(-v, 0)), 0);
+  const H = 88;                                   // 繪圖區高；下方另留分位標籤
+  const posH = (posMax / (posMax + negMax)) * H;  // 基準線位置∝正負幅度，兩側同尺度
+  const negH = H - posH;
   return (
     <div className="min-w-[260px] flex-1">
       <div className="mb-1 text-xs text-gray-400">{title}</div>
-      <div className="flex items-end gap-1" style={{ height: 96 }}>
+      <div className="flex gap-1">
         {values.map((v, i) => (
-          <div key={i} className="flex flex-1 flex-col items-center justify-end"
+          <div key={i} className="flex-1"
                title={`第 ${i + 1} 分位：${v.toFixed(3)}%`}>
-            <div
-              className={`w-full rounded-sm ${v >= 0 ? "bg-rose-400/70" : "bg-emerald-400/70"}`}
-              style={{ height: Math.max(2, (Math.abs(v) / absMax) * 88) }}
-            />
-            <div className="mt-0.5 text-[9px] text-gray-600">{i + 1}</div>
+            {/* 正值自基準線向上、負值向下（設計 §4.1 A2）；negMax=0 時退化為全上半 */}
+            <div className="flex flex-col justify-end" style={{ height: posH }}>
+              {v > 0 && (
+                <div className="w-full rounded-sm bg-rose-400/70"
+                     style={{ height: Math.max(2, (v / posMax) * posH) }} />
+              )}
+            </div>
+            <div className="border-t border-gray-700" />
+            <div style={{ height: negH }}>
+              {v < 0 && negMax > 0 && (
+                <div className="w-full rounded-sm bg-emerald-400/70"
+                     style={{ height: Math.max(2, (-v / negMax) * negH) }} />
+              )}
+            </div>
+            <div className="mt-0.5 text-center text-[9px] text-gray-600">{i + 1}</div>
           </div>
         ))}
       </div>

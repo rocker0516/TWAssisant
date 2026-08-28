@@ -73,22 +73,28 @@ def load_validation() -> dict | None:
     mtime = _RESULTS_PATH.stat().st_mtime
     if _validation_cache is not None and _validation_cache[0] == mtime:
         return _validation_cache[1]
-    raw = json.loads(_RESULTS_PATH.read_text(encoding="utf-8"))
-    out = {
-        "first_test": raw["first_test"], "periods": raw["periods"],
-        "model_version": CURRENT_MODEL_VERSION,
-        "generated_at": datetime.fromtimestamp(mtime).strftime("%Y-%m-%d"),
-        "horizons": {},
-    }
-    for hz in _SHOW_HORIZONS:
-        h = raw["horizons"][hz]
-        out["horizons"][hz] = {
-            "ladder": {m: {"dev_oos": _cell(h[m]["dev_oos"]),
-                           "holdout": _cell(h[m]["holdout"])}
-                       for m in _LADDER_MODELS},
-            "quantiles": {"dev_oos": _quantile_block(h["lgbm"]["dev_oos"]),
-                          "holdout": _quantile_block(h["lgbm"]["holdout"])},
+    try:
+        raw = json.loads(_RESULTS_PATH.read_text(encoding="utf-8"))
+        out = {
+            "first_test": raw["first_test"], "periods": raw["periods"],
+            "model_version": CURRENT_MODEL_VERSION,
+            "generated_at": datetime.fromtimestamp(mtime).strftime("%Y-%m-%d"),
+            "horizons": {},
         }
+        for hz in _SHOW_HORIZONS:
+            h = raw["horizons"][hz]
+            out["horizons"][hz] = {
+                "ladder": {m: {"dev_oos": _cell(h[m]["dev_oos"]),
+                               "holdout": _cell(h[m]["holdout"])}
+                           for m in _LADDER_MODELS},
+                "quantiles": {"dev_oos": _quantile_block(h["lgbm"]["dev_oos"]),
+                              "holdout": _quantile_block(h["lgbm"]["holdout"])},
+            }
+    except (KeyError, TypeError, json.JSONDecodeError) as e:
+        # 舊版 results.json 缺 topk/evaluation_n_mean 等新欄——裸 KeyError 會變不透明 500
+        raise HTTPException(
+            503, f"level1_results.json 與現行投影不相容（{e!r}）——請重跑 scripts.level1_run"
+        ) from e
     _validation_cache = (mtime, out)
     return out
 
@@ -100,7 +106,7 @@ class Level1Item(BaseModel):
     score: float
     pct_rank: float
     close: float | None = None
-    adv20: float | None = None   # 20 日均成交值（元）——交易日窗，同 universe.adv20 語意；顯示脈絡，非過濾
+    adv20: float | None = None   # 20 日均成交值（元）——近似 universe.adv20 的交易日窗，但無 min_periods 暖身門檻；顯示脈絡，非過濾
     actual_return: float | None = None   # 成熟後才有
     actual_pct: float | None = None
 

@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import json
 import secrets
 from datetime import date, datetime
 from pathlib import Path
@@ -152,3 +153,18 @@ def test_board_includes_adv20(client, monkeypatch):
     items = r.json()["items"]
     assert [it["stock_id"] for it in items] == ["9001"]   # 版本隔離下只有測試列
     assert items[0]["adv20"] == pytest.approx(2e8)
+
+
+def test_validation_endpoint_503_on_schema_drift(client, monkeypatch, tmp_path):
+    """舊版 artifact 缺新欄位時要明確 503，不是裸 KeyError 500。"""
+    stale = tmp_path / "level1_results.json"
+    stale.write_text(json.dumps({
+        "first_test": "2022-01-01", "periods": {},
+        "horizons": {"1": {}, "5": {}, "10": {}},   # 缺 ladder 模型與欄位
+    }), encoding="utf-8")
+    monkeypatch.setattr(routes_level1, "_RESULTS_PATH", stale)
+    monkeypatch.setattr(routes_level1, "_validation_cache", None)
+    _, tok = _mk_user(EMAIL)
+    client.cookies.set(auth.SESSION_COOKIE, tok)
+    r = client.get("/api/level1/validation")
+    assert r.status_code == 503
