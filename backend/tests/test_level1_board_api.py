@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import secrets
 from datetime import date, datetime
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -82,3 +83,42 @@ def test_current_model_version_matches_predict_script():
     """端點的版本常數必須與生產 pipeline 一致，否則畫面會永遠是空的。"""
     from scripts import level1_predict
     assert routes_level1.CURRENT_MODEL_VERSION == level1_predict.MODEL_VERSION
+
+
+# ── validation 端點（畫面設計 §5.1：凍結驗證的投影） ──
+
+_RESULTS = Path(__file__).resolve().parents[1] / "data" / "level1_results.json"
+
+
+@pytest.mark.skipif(not _RESULTS.exists(), reason="level1_results.json artifact 不存在")
+def test_validation_endpoint_shape(client):
+    _, tok = _mk_user(EMAIL)
+    client.cookies.set(auth.SESSION_COOKIE, tok)
+
+    r = client.get("/api/level1/validation")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["model_version"] == routes_level1.CURRENT_MODEL_VERSION
+    assert set(body["horizons"].keys()) == {"1", "5", "10"}
+    h5 = body["horizons"]["5"]
+    assert set(h5["ladder"].keys()) == {"random", "mom_ret20", "ridge_v2", "lgbm"}
+    cell = h5["ladder"]["lgbm"]["holdout"]
+    assert set(cell.keys()) == {"mean_ic", "icir", "monotonicity", "n_days",
+                                "evaluation_n_mean",
+                                "top20_excess_pct", "top20_day_win_rate"}
+    for seg in ("dev_oos", "holdout"):
+        q = h5["quantiles"][seg]
+        assert len(q["values"]) == 10
+        assert q["interpretation"]["shape"] in {"monotonic", "weak_top_end"}
+        assert q["interpretation"]["text"]
+    assert body["generated_at"]  # provenance——畫面數字可回答「我來自哪個 artifact」
+
+
+def test_validation_endpoint_404_when_artifact_missing(client, monkeypatch):
+    """load_validation() 回 None（檔缺）時須明確 404——不能被恆存在的本機 artifact
+    蓋過去而永遠沒被驗證到（同 test_ctx_api 慣例）。"""
+    monkeypatch.setattr(routes_level1, "load_validation", lambda: None)
+    _, tok = _mk_user(EMAIL)
+    client.cookies.set(auth.SESSION_COOKIE, tok)
+    r = client.get("/api/level1/validation")
+    assert r.status_code == 404

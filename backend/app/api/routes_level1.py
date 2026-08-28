@@ -6,9 +6,11 @@
 
 from __future__ import annotations
 
-from datetime import date
+import json
+from datetime import date, datetime
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -24,6 +26,71 @@ _HORIZONS = (1, 5, 10)
 # 支股票回傳多列、rank 重複，Top-K 直接失真（設計 §8.1）。
 # 此常數必須與 scripts/level1_predict.py 的 MODEL_VERSION 一致。
 CURRENT_MODEL_VERSION = "l1_lgbm_v2"
+
+
+# ── 凍結驗證投影（畫面設計 §5.1）──
+# level1_results.json 由 scripts.level1_run 產出（walk-forward OOS，母體=可交易 U_t）。
+# 只投影展示層需要的 1/5/10 三個 horizon 與四個階梯模型；20D/60D 與 ridge_v1 等
+# 研究內部變體不出。mtime 快取：研究重跑覆寫檔案即自動失效。
+_RESULTS_PATH = Path(__file__).resolve().parents[2] / "data" / "level1_results.json"
+_LADDER_MODELS = ("random", "mom_ret20", "ridge_v2", "lgbm")
+_SHOW_HORIZONS = ("1", "5", "10")
+_validation_cache: tuple[float, dict] | None = None
+
+
+# 「頂端弱化」的判讀門檻是研究判斷——活在後端具名常數、隨 artifact 版本走。
+# 放前端等於允許 UI 偷偷改寫研究敘事（畫面設計 §4.1 A2）。
+_MONO_WEAK_THRESHOLD = 0.5
+
+
+def _cell(seg: dict) -> dict:
+    return {
+        "mean_ic": seg["mean_ic"], "icir": seg["icir"],
+        "monotonicity": seg["monotonicity"], "n_days": seg["n_days"],
+        "evaluation_n_mean": seg["evaluation_n_mean"],
+        "top20_excess_pct": seg["topk"]["top20"]["excess_pct"],
+        "top20_day_win_rate": seg["topk"]["top20"]["day_win_rate"],
+    }
+
+
+def _quantile_block(seg: dict) -> dict:
+    mono = seg["monotonicity"]
+    weak = mono < _MONO_WEAK_THRESHOLD
+    return {
+        "values": seg["quantile_mean_pct"],
+        "interpretation": {
+            "shape": "weak_top_end" if weak else "monotonic",
+            "text": ("edge 主要來自避開最弱分位，頂部拉抬幅度有限" if weak
+                     else f"分數越高實際越強，單調性 {mono:.2f}"),
+        },
+    }
+
+
+def load_validation() -> dict | None:
+    global _validation_cache
+    if not _RESULTS_PATH.exists():
+        return None
+    mtime = _RESULTS_PATH.stat().st_mtime
+    if _validation_cache is not None and _validation_cache[0] == mtime:
+        return _validation_cache[1]
+    raw = json.loads(_RESULTS_PATH.read_text(encoding="utf-8"))
+    out = {
+        "first_test": raw["first_test"], "periods": raw["periods"],
+        "model_version": CURRENT_MODEL_VERSION,
+        "generated_at": datetime.fromtimestamp(mtime).strftime("%Y-%m-%d"),
+        "horizons": {},
+    }
+    for hz in _SHOW_HORIZONS:
+        h = raw["horizons"][hz]
+        out["horizons"][hz] = {
+            "ladder": {m: {"dev_oos": _cell(h[m]["dev_oos"]),
+                           "holdout": _cell(h[m]["holdout"])}
+                       for m in _LADDER_MODELS},
+            "quantiles": {"dev_oos": _quantile_block(h["lgbm"]["dev_oos"]),
+                          "holdout": _quantile_block(h["lgbm"]["holdout"])},
+        }
+    _validation_cache = (mtime, out)
+    return out
 
 
 class Level1Item(BaseModel):
@@ -155,3 +222,12 @@ def performance(
         mean_actual_pct=round(sum(x.topk_mean_actual_pct for x in days) / n, 4),
         days=days,
     )
+
+
+@router.get("/validation")
+def validation() -> dict:
+    """凍結驗證報告（walk-forward OOS 投影）。母體＝可交易 U_t，與 board 同池。"""
+    data = load_validation()
+    if data is None:
+        raise HTTPException(404, "level1_results.json 不存在——研究評估尚未產出")
+    return data
