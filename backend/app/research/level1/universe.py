@@ -72,3 +72,75 @@ def close_matrix(prices: pd.DataFrame) -> pd.DataFrame:
 def universe_mask(close: pd.DataFrame) -> pd.DataFrame:
     """U_t 布林矩陣：close 非 NaN。與 close_matrix 同形狀。"""
     return close.notna()
+
+
+# ── Trading Eligibility（FRS §3 v1.1）──
+#
+# 判準是「排除的理由」而非排除的後果：流動性與處置回答的是「這檔股票能不能買」，
+# 屬 Universe 天職；動能／估值那類回答「會不會漲」的條件才是被禁止的 Alpha 條件。
+
+ADV20_FLOOR = 5e7        # 20 日均成交值下限（新台幣）。FRS 凍結常數，不得因績效回調。
+ADV_WINDOW = 20
+ADV_MIN_PERIODS = 10
+
+
+def adv20(turnover: pd.DataFrame) -> pd.DataFrame:
+    """20 日均成交值矩陣。只回看；不足 ADV_MIN_PERIODS 日的暖身期為 NaN。"""
+    return turnover.rolling(ADV_WINDOW, min_periods=ADV_MIN_PERIODS).mean()
+
+
+def punish_mask(windows: pd.DataFrame, index: pd.Index,
+                columns: pd.Index) -> pd.DataFrame:
+    """處置期間布林矩陣：T ∈ [begin_date, end_date]（含兩端）為 True。
+
+    windows 欄位需含 stock_id / begin_date / end_date（YYYY-MM-DD 字串）。
+    只處理處置（punish）——注意股（notice）仍為正常競價撮合，不排除。
+    """
+    out = pd.DataFrame(False, index=index, columns=columns)
+    for row in windows.itertuples():
+        if row.stock_id not in out.columns:
+            continue
+        sel = (index >= str(row.begin_date)) & (index <= str(row.end_date))
+        if sel.any():
+            out.loc[index[sel], row.stock_id] = True
+    return out
+
+
+def tradable_mask(close: pd.DataFrame, turnover: pd.DataFrame,
+                  punish: pd.DataFrame, floor: float = ADV20_FLOOR) -> pd.DataFrame:
+    """U_t 布林矩陣＝存在性 ∧ 流動性 ∧ 非處置。三個矩陣需同形狀。"""
+    return universe_mask(close) & (adv20(turnover) >= floor) & ~punish
+
+
+def load_turnover(con, eligible: set[str], index: pd.Index,
+                  columns: pd.Index) -> pd.DataFrame:
+    """合格股票的成交值矩陣，對齊 close 矩陣形狀（缺格為 NaN）。"""
+    df = pd.read_sql_query(
+        "SELECT stock_id, date, turnover FROM daily_prices "
+        "WHERE turnover IS NOT NULL", con)
+    return (df[df["stock_id"].isin(eligible)]
+            .pivot_table(index="date", columns="stock_id", values="turnover",
+                         aggfunc="last")
+            .reindex(index=index, columns=columns))
+
+
+def load_punish_windows(con) -> pd.DataFrame:
+    """處置股區間長表（stock_id, begin_date, end_date）。notice 不在此列。"""
+    return pd.read_sql_query(
+        "SELECT stock_id, begin_date, end_date FROM attention_listings "
+        "WHERE kind = 'punish' AND begin_date IS NOT NULL "
+        "AND end_date IS NOT NULL", con)
+
+
+def build_tradable_universe(con) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """DB → (close 矩陣, U_t 布林矩陣)。**研究與 Production 的唯一入口。**
+
+    設計 §6：本次改版的三個裂縫皆源於兩條路徑各自組裝。任何新的呼叫端都必須走這裡，
+    不得自行拼裝 eligible_ids / close_matrix / tradable_mask。
+    """
+    stocks = load_stocks(con)
+    elig = eligible_ids(stocks)
+    close = close_matrix(load_close_prices(con, elig))
+    turnover = load_turnover(con, elig, close.index, close.columns)
+    punish = punish_mask(load_punish_windows(con), close.index, close.columns)
+    return close, tradable_mask(close, turnover, punish)
