@@ -37,6 +37,7 @@ from app.research.level1 import features as ft  # noqa: E402
 from app.research.level1 import ledger as lg  # noqa: E402
 from app.research.level1 import targets as tg  # noqa: E402
 from app.research.level1 import universe as uv  # noqa: E402
+from app.research.level1 import walkforward as wf  # noqa: E402
 from app.storage import models, repositories as repo  # noqa: E402
 from app.storage.database import SessionLocal, init_db  # noqa: E402
 
@@ -83,8 +84,11 @@ def predict(close, mask, ranked, pred_date: str) -> None:
     for n in HORIZONS:
         t0 = time.time()
         pct = tg.cross_sectional_pct(tg.forward_returns(close, n), mask)
-        x_tr, y_tr, _ = ft.assemble_dataset(ranked, pct, close.index)
-        model = LGBMRegressor(n_estimators=100, random_state=42, verbose=-1)
+        # 訓練窗綁 pred_date 而非 DB 最新日——與 OOS 共用同一個 train_slice（設計 §6）
+        train_dates = wf.train_slice_for_date(close.index, pred_date, embargo=n)
+        x_tr, y_tr, _ = ft.assemble_dataset(ranked, pct, train_dates)
+        # n_jobs=1 是 reproducibility control，不是 predictive-performance control
+        model = LGBMRegressor(n_estimators=100, random_state=42, n_jobs=1, verbose=-1)
         model.fit(x_tr, y_tr)
 
         x_te, meta = ft.assemble_for_dates(ranked, mask, pd.Index([pred_date]))
@@ -105,7 +109,7 @@ def predict(close, mask, ranked, pred_date: str) -> None:
             ledger_repo.upsert_many(s, rows)
             s.commit()
         top5 = board.sort_values("rank").head(5).index.tolist()
-        _log(f"{n}D：訓練 {len(y_tr):,} 列、寫入 {len(rows)} 檔 "
+        _log(f"{n}D：訓練 {len(y_tr):,} 列（迄 {train_dates[-1]}）、寫入 {len(rows)} 檔 "
              f"Top5={top5}（{time.time()-t0:.0f}s）")
 
 

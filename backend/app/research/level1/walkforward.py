@@ -33,6 +33,16 @@ def train_slice(dates: pd.Index, test_start: int, embargo: int) -> pd.Index:
     return dates[: max(0, test_start - embargo)]
 
 
+def train_slice_for_date(dates: pd.Index, pred_date: str, embargo: int) -> pd.Index:
+    """預測日的訓練窗——Production 端入口，與 OOS 的 test_blocks 同一 embargo 規則。
+
+    Production 不得以「最近 N 日 label 為 NaN 會被 dropna 掉」當作 embargo：那只在
+    pred_date == 最新交易日時成立，跑任何歷史日期都會用到 pred_date 之後的資料
+    （確定性 temporal leakage，見設計 §2.1）。
+    """
+    return train_slice(dates, int(dates.get_loc(pred_date)), embargo)
+
+
 def walk_forward_scores(
     make_model: Callable[[], object],
     ranked: dict[str, pd.DataFrame],

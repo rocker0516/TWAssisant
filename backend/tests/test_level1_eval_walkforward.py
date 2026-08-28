@@ -148,3 +148,27 @@ def test_assemble_dataset_fills_feature_nan_with_half():
     x, y, meta = assemble_dataset(ranked, pct, dates)
     assert len(y) == 3            # pct 的 NaN 列被剔除
     assert x[1, 0] == pytest.approx(0.5)  # 特徵缺值補中性 0.5
+
+
+# ── Production 訓練窗（設計 §6：P0 leakage 防線）──
+
+def test_train_slice_for_date_excludes_pred_date_and_future():
+    dates = pd.Index([f"2025-01-{d:02d}" for d in range(1, 21)])
+    tr = wf.train_slice_for_date(dates, "2025-01-15", embargo=5)
+    assert tr[-1] == "2025-01-09"          # index 14 − embargo 5 → dates[:9]
+    assert "2025-01-15" not in tr
+    assert not any(d > "2025-01-09" for d in tr)
+
+
+def test_train_slice_for_date_matches_walk_forward_rule():
+    """Production 與 OOS 必須是同一規則的同一函式，不是兩份等價邏輯。"""
+    dates = pd.Index([f"2025-02-{d:02d}" for d in range(1, 29)])
+    i = 20
+    assert list(wf.train_slice_for_date(dates, dates[i], embargo=10)) == \
+           list(wf.train_slice(dates, i, embargo=10))
+
+
+def test_train_slice_for_date_rejects_unknown_date():
+    dates = pd.Index(["2025-01-01", "2025-01-02"])
+    with pytest.raises(KeyError):
+        wf.train_slice_for_date(dates, "2025-01-03", embargo=1)
