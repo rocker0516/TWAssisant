@@ -23,8 +23,10 @@ DEFAULTS = {
     # 波段 stop_cap=None＝不設停損（2026-08-24；見 engines/stoploss.py docstring）。
     # 波段持股正常走 thesis 論點機，這組只在「還沒補到論點快照的舊倉」用得到。
     "wave": {"stop_cap": None, "trail_trigger": 0.10, "trail_pullback": 0.10, "break_ma_exit": True},
-    "long": {"stop_cap": 0.15, "trail_trigger": 0.20, "trail_pullback": 0.20, "break_ma_exit": True,
-              "score_slip_warn": 15.0},
+    # long：長線「推薦/評分」已移除（2026-08-28），此組只服務**既有** track='long' 持倉的
+    # 出場照顧（-15% 停損、跌破季線、基本面轉弱）。ScoreSlipSignal 已刪——它依賴每日
+    # Score(track='long') 新列，停產後必然失效。
+    "long": {"stop_cap": 0.15, "trail_trigger": 0.20, "trail_pullback": 0.20, "break_ma_exit": True},
 }
 
 # 可由設定頁覆寫（即時生效）。ExitEngine 每次評估前以 set_config 注入（百分比→比例）。
@@ -45,8 +47,6 @@ def set_config(percent_cfg: dict) -> None:
                 _ACTIVE.setdefault(track, {})[k] = tc[k] / 100.0
         if tc.get("break_ma_exit") is not None:
             _ACTIVE.setdefault(track, {})["break_ma_exit"] = bool(tc["break_ma_exit"])
-        if track == "long" and tc.get("score_slip_warn") is not None:
-            _ACTIVE.setdefault(track, {})["score_slip_warn"] = tc["score_slip_warn"]
 
 
 class Sev(IntEnum):
@@ -167,29 +167,6 @@ class TechWeakSignal(ExitSignal):
         return hits
 
 
-class ScoreSlipSignal(ExitSignal):
-    """長線分數滑落（主基本面訊號）：近 5 日均值 vs 進場快照分數。"""
-
-    tracks = ("long",)
-
-    def check(self, holding, pos, ctx):
-        snap = holding.entry_snapshot or {}
-        baseline = snap.get("total_score")
-        scores = getattr(ctx, "long_scores", None) or []
-        if baseline is None or len(scores) < 5:
-            return []
-        cur = sum(scores[:5]) / 5
-        slip = float(baseline) - cur
-        warn_at = _ACTIVE["long"].get("score_slip_warn", 15.0)
-        if slip < warn_at:
-            return []
-        passed = getattr(ctx, "long_passed_filter", None)
-        if passed is False:
-            return [Hit("score_slip", Sev.CRITICAL,
-                        f"長線分數自 {baseline:.0f} 降至 {cur:.0f} 且跌破持有門檻")]
-        return [Hit("score_slip", Sev.WARN, f"長線分數自 {baseline:.0f} 降至 {cur:.0f}")]
-
-
 class FundamentalWeakSignal(ExitSignal):
     """基本面轉弱（長線）：月營收年增轉負 / 法人連續賣超。"""
 
@@ -235,7 +212,6 @@ ALL_SIGNALS: list[ExitSignal] = [
     StopLossSignal(),
     TrailingStopSignal(),
     TechWeakSignal(),
-    ScoreSlipSignal(),
     FundamentalWeakSignal(),
     NewsRiskSignal(),
 ]

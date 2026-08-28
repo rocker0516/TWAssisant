@@ -128,7 +128,7 @@ class StockHealthTranslator(BaseTranslator):
             "若為 ETF，則改以 ETF 角度解讀（追蹤標的、類型、規模、技術動能與法人籌碼），"
             "不要套用個股的月營收/本益比邏輯。")
 
-    def build_facts(self, *, name, wave_level, wave_passed, long_level, long_passed,
+    def build_facts(self, *, name, wave_level, wave_passed,
                     chip_net, revenue_trend, pe_level, sector_trend, has_risk,
                     is_etf=False, etf=None, levels=None) -> str:
         lv = _levels_facts(levels)

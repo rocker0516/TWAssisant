@@ -64,8 +64,8 @@ ASSISTANT_TOOLS: list[dict] = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "track": {"type": "string", "enum": ["wave", "long"],
-                          "description": "wave=波段軌、long=長線軌；不填則兩軌都列"}
+                "track": {"type": "string", "enum": ["wave"],
+                          "description": "wave=波段軌（長線軌已移除）"}
             },
         },
     },
@@ -131,15 +131,14 @@ def _financial_note(fq: models.FinancialQuarter | None) -> str:
 
 
 def _score_anchor(session: Session, stock_id: str, td: date) -> dict | None:
-    """波段軌（無則長線軌）的買區/停損/理由 chips。"""
-    for track in ("wave", "long"):
-        sc = session.get(models.Score, {"stock_id": stock_id, "date": td, "track": track})
-        if sc and (sc.buy_low or sc.reasons):
-            return {
-                "track": "波段軌" if track == "wave" else "長線軌",
-                "buy_low": sc.buy_low, "buy_high": sc.buy_high,
-                "stop_loss": sc.stop_loss, "reasons": sc.reasons or [],
-            }
+    """波段軌的買區/理由 chips（長線軌已移除）。"""
+    sc = session.get(models.Score, {"stock_id": stock_id, "date": td, "track": "wave"})
+    if sc and (sc.buy_low or sc.reasons):
+        return {
+            "track": "波段軌",
+            "buy_low": sc.buy_low, "buy_high": sc.buy_high,
+            "stop_loss": sc.stop_loss, "reasons": sc.reasons or [],
+        }
     return None
 
 
@@ -182,14 +181,13 @@ def _t_stock_detail(session: Session, stock_id: str) -> str:
         lines.append(
             f"類型：ETF；追蹤 {e.get('track_index') or '主動式/未對應指數'}；"
             f"規模 {e.get('scale_label', '未知')}；"
-            f"波段定位{hf['wave_level']}、長線定位{hf['long_level']}；法人{_net(hf['chip_net'])}；"
+            f"波段定位{hf['wave_level']}；法人{_net(hf['chip_net'])}；"
             f"所屬類股方向{hf['sector_trend']}；近期重大利空：{'有' if hf['has_risk'] else '無'}。"
             f"（ETF 無月營收/本益比）"
         )
     else:
         lines.append(
-            f"波段評分定位{hf['wave_level']}（{'達門檻' if hf['wave_passed'] else '未達門檻'}）、"
-            f"長線定位{hf['long_level']}（{'達門檻' if hf['long_passed'] else '未達門檻'}）。"
+            f"波段評分定位{hf['wave_level']}（{'達門檻' if hf['wave_passed'] else '未達門檻'}）。"
         )
         lines.append(
             f"法人籌碼{_net(hf['chip_net'])}；月營收趨勢{hf['revenue_trend']}；估值{hf['pe_level']}；"

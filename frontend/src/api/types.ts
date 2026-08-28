@@ -157,7 +157,6 @@ export interface paths {
          * Recommendations
          * @description 波段軌＝會噴：回傳全部過硬篩股(依會噴分數高→低)，前端橫桿就地切『前 N%』。
          *     style=explosive：爆發風格＝atr>7%+上揚月線(不看季線乖離)，純門檻篩全回、無前N%概念。
-         *     長線軌：沿用門檻切 items / near。
          */
         get: operations["recommendations_api_recommendations_get"];
         put?: never;
@@ -1397,6 +1396,46 @@ export interface paths {
          *     前端顯示「尚未產生」而不是假資料。以檔案 mtime 當快取鍵，重跑腳本後自動失效。
          */
         get: operations["wave_challenge_api_recommendations_wave_challenge_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/level1/board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Board
+         * @description 最新交易日的 Top-K 排名（含成熟後回填的實際表現）。
+         */
+        get: operations["board_api_level1_board_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/level1/performance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Performance
+         * @description 已成熟預測日的 Top-K 實績（Ledger 可驗證戰績，§15）。
+         */
+        get: operations["performance_api_level1_performance_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2788,6 +2827,73 @@ export interface components {
             /** Has Digest */
             has_digest: boolean;
         };
+        /** Level1Board */
+        Level1Board: {
+            /** Date */
+            date: string | null;
+            /** Horizon */
+            horizon: number;
+            /** K */
+            k: number;
+            /** Model Version */
+            model_version: string | null;
+            /** Universe Size */
+            universe_size: number | null;
+            /** Items */
+            items: components["schemas"]["Level1Item"][];
+        };
+        /** Level1Item */
+        Level1Item: {
+            /** Rank */
+            rank: number;
+            /** Stock Id */
+            stock_id: string;
+            /** Name */
+            name: string | null;
+            /** Score */
+            score: number;
+            /** Pct Rank */
+            pct_rank: number;
+            /** Close */
+            close?: number | null;
+            /** Actual Return */
+            actual_return?: number | null;
+            /** Actual Pct */
+            actual_pct?: number | null;
+        };
+        /** Level1MaturedDay */
+        Level1MaturedDay: {
+            /**
+             * Prediction Date
+             * Format: date
+             */
+            prediction_date: string;
+            /** Topk Mean Return */
+            topk_mean_return: number;
+            /** Universe Mean Return */
+            universe_mean_return: number;
+            /** Excess */
+            excess: number;
+            /** Topk Mean Actual Pct */
+            topk_mean_actual_pct: number;
+        };
+        /** Level1Performance */
+        Level1Performance: {
+            /** Horizon */
+            horizon: number;
+            /** K */
+            k: number;
+            /** N Days */
+            n_days: number;
+            /** Mean Excess */
+            mean_excess: number | null;
+            /** Day Win Rate */
+            day_win_rate: number | null;
+            /** Mean Actual Pct */
+            mean_actual_pct: number | null;
+            /** Days */
+            days: components["schemas"]["Level1MaturedDay"][];
+        };
         /** LevelDTO */
         LevelDTO: {
             /** Price */
@@ -2818,54 +2924,6 @@ export interface components {
             username: string;
             /** Password */
             password: string;
-        };
-        /**
-         * LongGraduation
-         * @description 長線軌畢業條件（重新審視訊號，非停損）：達標 / 魚齡老化 / 已暴漲。
-         */
-        LongGraduation: {
-            /**
-             * Hit Target
-             * @default false
-             */
-            hit_target: boolean;
-            /** Streak Months */
-            streak_months?: number | null;
-            /** Mom12 Pct */
-            mom12_pct?: number | null;
-        };
-        /**
-         * LongTargetZone
-         * @description 長線軌目標區間（參考期間 12 個月＝回測視窗）。
-         *
-         *     基準錨優先用法人目標價中位（FactSet），無法人報告退 PE 河流中位帶（估值推算）；
-         *     保守/樂觀恆為 PE 河流中位帶/上緣帶 × 隱含 EPS（長線硬篩②保證 EPS>0，缺的只會是 PE 史料）。
-         */
-        LongTargetZone: {
-            /**
-             * Basis
-             * @enum {string}
-             */
-            basis: "analyst" | "pe_river";
-            /** Base */
-            base: number;
-            /** Upside Pct */
-            upside_pct: number | null;
-            /** Low */
-            low: number | null;
-            /** High */
-            high: number | null;
-            /** Analyst Target */
-            analyst_target?: number | null;
-            /** Analyst Date */
-            analyst_date?: string | null;
-            /** Analyst Count */
-            analyst_count?: number | null;
-            /**
-             * Hit
-             * @default false
-             */
-            hit: boolean;
         };
         /**
          * LookbackCalendar
@@ -3125,8 +3183,6 @@ export interface components {
             holdings_alerts: components["schemas"]["AlertBrief"][];
             /** Reco Wave Count */
             reco_wave_count: number;
-            /** Reco Long Count */
-            reco_long_count: number;
             /** Reco Top */
             reco_top: components["schemas"]["RecoBrief"][];
             /** Sectors Top */
@@ -3378,8 +3434,6 @@ export interface components {
             attention_tags: string[];
             /** Ml Consensus */
             ml_consensus?: boolean | null;
-            target_zone?: components["schemas"]["LongTargetZone"] | null;
-            graduation?: components["schemas"]["LongGraduation"] | null;
         };
         /** RecommendationList */
         RecommendationList: {
@@ -3550,8 +3604,6 @@ export interface components {
             change_pct: number | null;
             /** Wave Score */
             wave_score: number | null;
-            /** Long Score */
-            long_score: number | null;
             /** Recommended */
             recommended: boolean;
             /**
@@ -4276,8 +4328,6 @@ export interface components {
             change_pct: number | null;
             /** Wave Score */
             wave_score: number | null;
-            /** Long Score */
-            long_score: number | null;
             /** Light */
             light: string;
             /** Reminders */
@@ -6957,6 +7007,73 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WaveChallengeResponse"];
+                };
+            };
+        };
+    };
+    board_api_level1_board_get: {
+        parameters: {
+            query?: {
+                /** @description 1/5/10；5D 為主軌 */
+                horizon?: number;
+                k?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Level1Board"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    performance_api_level1_performance_get: {
+        parameters: {
+            query?: {
+                horizon?: number;
+                k?: number;
+                /** @description 最近 N 個已成熟預測日 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Level1Performance"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

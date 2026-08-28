@@ -11,21 +11,8 @@ export const CATEGORY_LABELS: Record<string, string> = {
   volatility: "波動度",
   consolidation: "盤整",
   entry_timing: "進場時機",
-  // 長線軌（釣大魚＝持續成長+展望好，2026-07 重定錨）
-  persistence: "成長持續",
-  outlook: "展望",
-  freshness: "新鮮度",
-  strength: "成長強度",
-  accel: "成長加速",
-  quality_confirm: "品質確認",
-  valuation_sane: "估值合理",
-  // 長線軌舊類別（歷史 Score 列顯示用）
-  profit: "獲利",
-  growth: "營收成長",
-  valuation: "估值",
-  quality: "體質",
-  trend_aux: "趨勢輔助",
 };
+// （長線軌類別已隨長線軌移除 2026-08-28；TRACK_LABELS 的 long 保留給既有長線持倉顯示）
 
 export const TRACK_LABELS: Record<string, string> = { wave: "波段", long: "長線" };
 

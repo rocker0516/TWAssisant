@@ -168,7 +168,7 @@ function SectorBriefCard({ brief }: { brief: NonNullable<StockDetail["sector_bri
         <div>20日動能 <span className={changeColor(brief.momentum_20)}>{fmtPct(brief.momentum_20)}</span></div>
         <div className="col-span-2">法人5日 <span className={changeColor(brief.foreign_net)}>{fmtNum(brief.foreign_net, 0)} 張</span></div>
       </div>
-      <p className="mt-2 text-[11px] text-muted">類股強弱/輪動影響長線軌評分之類股修正。</p>
+      <p className="mt-2 text-[11px] text-muted">類股強弱/輪動供選股情境參考。</p>
     </Card>
   );
 }
@@ -1022,11 +1022,10 @@ export default function StockDetailPage() {
       ) : null,
     },
     {
-      id: "tracks", title: "波段／長線評分", cat: "評分與AI", col: "main",
+      id: "tracks", title: "波段評分", cat: "評分與AI", col: "main",
       node: (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4">
           <TrackPanel track="wave" score={d.scores["wave"] ?? null} />
-          <TrackPanel track="long" score={d.scores["long"] ?? null} />
         </div>
       ),
     },

@@ -46,11 +46,11 @@ def build_daily_message(session: Session, td: date) -> str | None:
     alerts = format_exit_lines(rows)
 
     rec = {
-        tk: session.execute(
+        "wave": session.execute(
             select(func.count()).select_from(models.Score)
-            .where(models.Score.track == tk, models.Score.date == td, models.Score.passed.is_(True))
+            .where(models.Score.track == "wave", models.Score.date == td,
+                   models.Score.passed.is_(True))
         ).scalar_one()
-        for tk in ("wave", "long")
     }
 
     # 籌碼異動（投信首買/借券暴增優先，最多 5 則；失敗不擋通知）
@@ -75,7 +75,7 @@ def build_daily_message(session: Session, td: date) -> str | None:
         lines.append("**籌碼異動**")
         lines.extend(chip_lines)
         lines.append("")
-    lines.append(f"**今日進場推薦**：波段 {rec['wave']} 檔、長線 {rec['long']} 檔")
+    lines.append(f"**今日進場推薦**：波段 {rec['wave']} 檔")
     return "\n".join(lines)
 
 

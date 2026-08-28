@@ -124,9 +124,9 @@ def _holdings_facts(session: Session, td: date) -> str | None:
 
 
 def _reco_facts(session: Session, td: date) -> str | None:
-    """進場推薦：波段／長線各取前幾名（名稱 + 質化定位）。"""
+    """進場推薦：波段軌前幾名（名稱 + 質化定位）。長線軌已移除。"""
     parts: list[str] = []
-    for track, label in (("wave", "波段軌"), ("long", "長線軌")):
+    for track, label in (("wave", "波段軌"),):
         rows = session.execute(
             select(models.Stock.name, models.Score.total_score)
             .join(models.Stock, models.Score.stock_id == models.Stock.id)
@@ -230,7 +230,6 @@ def health_facts(session: Session, stock_id: str, td: date) -> dict | None:
     if stock is None:
         return None
     w = session.get(models.Score, {"stock_id": stock_id, "date": td, "track": "wave"})
-    ll = session.get(models.Score, {"stock_id": stock_id, "date": td, "track": "long"})
     inst = session.execute(
         select(models.Institutional).where(models.Institutional.stock_id == stock_id)
         .order_by(models.Institutional.date.desc()).limit(1)
@@ -263,8 +262,6 @@ def health_facts(session: Session, stock_id: str, td: date) -> dict | None:
         "levels": levels_for_stock(session, stock_id),
         "wave_level": _level(w.total_score) if w else "未知",
         "wave_passed": bool(w and w.passed),
-        "long_level": _level(ll.total_score) if ll else "未知",
-        "long_passed": bool(ll and ll.passed),
         "chip_net": (inst.foreign_net or 0) + (inst.trust_net or 0) if inst else None,
         "revenue_trend": _mom(rev.yoy) if rev else "未知",
         "pe_level": _pe_level(val.pe if val else None),
@@ -293,7 +290,7 @@ def _focus_facts(session: Session, context: dict, td: date) -> list[str]:
             lv = _levels_phrase(hf.get("levels"))
             focus.append(
                 f"使用者正在看 ETF「{hf['name']}」：{ident}；"
-                f"波段定位{hf['wave_level']}、長線定位{hf['long_level']}；法人{_net(hf['chip_net'])}；"
+                f"波段定位{hf['wave_level']}；法人{_net(hf['chip_net'])}；"
                 f"所屬類股方向{hf['sector_trend']}；近期重大利空：{'有' if hf['has_risk'] else '無'}。"
                 + (f"{lv}。" if lv else "")
                 + "（ETF 無月營收/本益比，勿套個股基本面）"
@@ -302,8 +299,7 @@ def _focus_facts(session: Session, context: dict, td: date) -> list[str]:
             lv = _levels_phrase(hf.get("levels"))
             focus.append(
                 f"使用者正在看個股「{hf['name']}」：波段評分定位{hf['wave_level']}"
-                f"（{'達門檻' if hf['wave_passed'] else '未達門檻'}）、長線定位{hf['long_level']}"
-                f"（{'達門檻' if hf['long_passed'] else '未達門檻'}）；法人{_net(hf['chip_net'])}；"
+                f"（{'達門檻' if hf['wave_passed'] else '未達門檻'}）；法人{_net(hf['chip_net'])}；"
                 f"月營收趨勢{hf['revenue_trend']}；估值{hf['pe_level']}；所屬類股方向{hf['sector_trend']}；"
                 f"近期重大利空：{'有' if hf['has_risk'] else '無'}。"
                 + (f"{lv}（此為量價客觀計算，可引用解讀，勿自行更動數字）。" if lv else "")

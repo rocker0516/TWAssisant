@@ -72,7 +72,6 @@ export default function WatchlistsPage() {
                 <th className="px-3 py-2 text-right">現價</th>
                 <th className="px-3 py-2 text-right">目標價</th>
                 <th className="px-3 py-2 text-right">波段</th>
-                <th className="px-3 py-2 text-right">長線</th>
                 <th className="px-3 py-2 text-left">提醒</th>
                 <th className="px-3 py-2 text-right">動作</th>
               </tr>
@@ -91,7 +90,6 @@ export default function WatchlistsPage() {
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{fmtNum(it.target_price)}</td>
                   <td className={`px-3 py-2 text-right tabular-nums ${scoreColor(it.wave_score)}`}>{it.wave_score?.toFixed(0) ?? "—"}</td>
-                  <td className={`px-3 py-2 text-right tabular-nums ${scoreColor(it.long_score)}`}>{it.long_score?.toFixed(0) ?? "—"}</td>
                   <td className="px-3 py-2 text-xs text-sky-300">{it.reminders.join("、") || "—"}</td>
                   <td className="px-3 py-2 text-right">
                     <div className="flex justify-end gap-2 text-xs">
@@ -123,7 +121,7 @@ export default function WatchlistsPage() {
             <p className="mb-3 text-sm text-muted">{convert.name}</p>
             <Field label="軌道">
               <select className={inputCls} value={conv.track} onChange={(e) => setConv({ ...conv, track: e.target.value })}>
-                <option value="wave">波段</option><option value="long">長線</option>
+                <option value="wave">波段</option>
               </select>
             </Field>
             <div className="grid grid-cols-3 gap-2">

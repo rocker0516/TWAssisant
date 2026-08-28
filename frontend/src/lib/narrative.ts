@@ -4,7 +4,6 @@ import type { RecommendationItem } from "../api/client";
 // 依會噴邏輯的重要性串成人話，直接攤在卡片上。最多取數段、避免變成資料堆。
 //
 // 順序＝會噴三支柱優先：趨勢方向（地基）→ 買點高低 → 會噴體質（波動），再帶資金面/型態。
-// 長線軌（釣大魚）類別接在後面：兩軌類別不重疊，同一張優先序表可共用。
 const NARRATIVE_PRIORITY = [
   "trend", // 趨勢方向（站上哪條均線、是否多頭排列）
   "position", // 買點高低（區間位階、乖離、KD 過熱否）
@@ -16,14 +15,6 @@ const NARRATIVE_PRIORITY = [
   "pattern", // 突破前高與否
   "momentum", // MACD / KD 指標
   "margin", // 融資券
-  // ── 長線軌（大魚重要性：持續成長是定義本體 → 新鮮度（魚還沒被釣走）→ 強度/加速 → 展望 → 品質/估值）──
-  "persistence", // 連 N 月正成長、EPS 連季遞增、營收創高
-  "freshness", // 前 12 月漲幅（已暴漲=老魚警示，回測毒性最強的維度）
-  "strength", // 近 3 月均 YoY + 類股內百分位
-  "accel", // 成長加速/減速（循環股剎車）
-  "outlook", // 展望消息 + 投信動向
-  "quality_confirm", // 毛利趨勢、獲利跟上營收
-  "valuation_sane", // PE vs 類股中位
 ];
 const NARRATIVE_MAX = 4;
 
@@ -59,7 +50,7 @@ function toneOf(text: string): NarrativeTone {
   score -= dahuMinus;
   // 融資餘額增 = 散戶湧入（負面訊號），但避開「融資餘額增 0%」這類弱訊號
   if (/融資餘額.*?增\s*([1-9]\d{1,2}|\d{4,})/.test(s)) score -= 1;
-  // 長線軌：利空 N 則（N≥1）＝負面；展望消息 N 則（N≥1）＝正面
+  // 消息面：利空 N 則（N≥1）＝負面；展望消息 N 則（N≥1）＝正面
   if (/利空\s*[1-9]/.test(s)) score -= 1;
   if (/展望消息\s*[1-9]/.test(s)) score += 1;
   // 單詞表

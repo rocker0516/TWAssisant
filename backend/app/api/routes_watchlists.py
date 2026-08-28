@@ -42,11 +42,9 @@ def _build_item(session: Session, it: models.WatchlistItem, td: date | None, thr
     change_pct = round((rows[0] - rows[1]) / rows[1] * 100, 2) if len(rows) > 1 and rows[1] else None
 
     w = session.get(models.Score, {"stock_id": it.stock_id, "date": td, "track": "wave"}) if td else None
-    ll = session.get(models.Score, {"stock_id": it.stock_id, "date": td, "track": "long"}) if td else None
     wave_score = w.total_score if w else None
-    long_score = ll.total_score if ll else None
-    passed = bool((w and w.passed) or (ll and ll.passed))
-    best = max([s for s in (wave_score, long_score) if s is not None], default=None)
+    passed = bool(w and w.passed)
+    best = wave_score
     wave_th = thresholds.get("wave", 70)
 
     to_target = it.target_price is not None and close is not None and close >= it.target_price
@@ -75,7 +73,7 @@ def _build_item(session: Session, it: models.WatchlistItem, td: date | None, thr
         id=it.id, stock_id=it.stock_id, name=stock.name if stock else it.stock_id,
         added_price=it.added_price, target_price=it.target_price, added_date=it.added_date,
         reason=it.reason, note=it.note, close=close, change_pct=change_pct,
-        wave_score=wave_score, long_score=long_score, light=light, reminders=reminders,
+        wave_score=wave_score, light=light, reminders=reminders,
     )
 
 
@@ -83,11 +81,10 @@ _LIGHT_ORDER = {"green": 0, "yellow": 1, "white": 2}
 
 
 def _thresholds(session: Session) -> dict[str, float]:
-    # 波段軌改 top_pct 制後已無 threshold 鍵：門檻分數 = 100 − top_pct；長線軌仍為 threshold
+    # 波段軌 top_pct 制：門檻分數 = 100 − top_pct（長線軌已移除）
     scoring = _settings.get(session, "scoring")
     return {
         "wave": 100 - scoring.get("wave", {}).get("top_pct", 20),
-        "long": scoring.get("long", {}).get("threshold", 70),
     }
 
 
