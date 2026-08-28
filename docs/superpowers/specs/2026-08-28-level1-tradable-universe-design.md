@@ -1,8 +1,60 @@
-# Level 1 單一可交易 Universe 改版
+# Level 1 Tradable Universe Redefinition
 
 日期：2026-08-28
-狀態：設計定案，待實作
+狀態：設計定案（使用者核可，升格為 FRS v1.1 核心架構），待實作
 影響：FRS §3（Universe）、§5–7（Target）、§14（Daily Pipeline）、§15（Ledger）
+
+本改版的本質不是「加一個流動性 filter」，而是：
+
+```
+Research Universe  →  Product Universe
+```
+
+即研究問題與產品問題正式對齊。
+
+## 0. Level 1 正式定義（FRS v1.1）
+
+> **Level 1**：在 T 日可取得的資訊下，對「當日符合產品推薦資格的可交易股票 Universe」
+> 進行 Cross-sectional Prediction，穩定辨識未來 N 日相對強勢股票，並以 OOS 驗證其
+> Ranking Edge。
+
+```
+U_t^Tradable → X_t → ML → Score → Rank → Top-K
+```
+
+Target：
+
+```
+R(i,t,N) → Percentile( R | U_t^Tradable )
+```
+
+Validation：
+
+```
+OOS Prediction ≡ Production Recommendation
+```
+
+### 0.1 Alpha 的定義域
+
+**Level 1 的 Alpha 從一開始就定義在產品可交易 Universe 上。**
+
+不採「先研究 Alpha，再加交易限制」的兩階段哲學。理由：§12.1 已量測到流動性門檻使
+Top-K 超額由 +0.660pp 降至 +0.337pp——流動性不是工程細節，它實質改變 Alpha 的大小。
+既然如此，就不能先在一個無法執行的母體上宣稱 Alpha、再事後打折；Alpha 的定義域必須
+與產品的執行域相同。
+
+### 0.2 與 Level 2 的邊界
+
+| 層 | 負責回答 |
+|---|---|
+| Level 1 | 在真實可交易股票池中，模型是否真的有預測能力 |
+| Level 2 | 該能力在交易成本、資金、風控、成交限制下能不能變成錢 |
+
+```
+Level 2: Recommendation → Entry → Position → Exit → Execution → Net P&L
+```
+
+Level 1 不再追求「理論上最有 Alpha 的股票池」。
 
 ## 1. 起因
 
@@ -185,7 +237,7 @@ Y(i,t,N) = Percentile( R(i,t,N) | U_t^new )
 Prediction Universe 必須等於 Target Universe——兩者不一致是 §2 所述「OOS 數字與可交易
 榜單對不上」的來源之一。
 
-## 6. 訓練窗修正（前置必修）
+## 6. 訓練窗修正（P0 / Blocking）
 
 `level1_predict.predict()` 改為與 OOS 共用同一個 embargo 規則：
 
@@ -195,18 +247,65 @@ train_dates = wf.train_slice(close.index, i, embargo=n)
 x_tr, y_tr, _ = ft.assemble_dataset(ranked, pct, train_dates)
 ```
 
-此項獨立於 Universe 改版，且必須先做：重建 ledger 必然要跑歷史日期，未修則產出假戰績。
+這不是「可能有 leakage」，是**確定性的 temporal leakage**：以 T=2023-06-01 產生預測時，
+訓練集實際涵蓋 2020→2026。此項獨立於 Universe 改版，且必須最先做——重建 ledger 必然要
+跑歷史日期，未修則產出假戰績。
 
-同時將兩端的 `LGBMRegressor` 統一為 `n_jobs=1`。LightGBM 在多執行緒下的直方圖
-累加順序不保證固定，score 可能無法逐位元重現；§15 要求每次推薦可重現，故以
-單執行緒換取確定性。訓練規模約 90 萬列，成本可接受。
+**硬性要求**：OOS 與 Production 必須**呼叫同一個 `walkforward.train_slice()`**，
+不得各自複製相同邏輯。
 
-## 7. 母體記錄分離
+```
+              walkforward.py
+                    │
+                    └── train_slice()
+                           ↑
+                  ┌────────┴────────┐
+                  │                 │
+            level1_run        level1_predict
+```
 
-- ledger 的 `universe_size` 記 `|U_t|`（預測母體）
-- 評估結果的 `n` 記 fwd 非 NaN 數（評估母體）
+複製邏輯正是本次三個裂縫的共同成因；共用函式是唯一能防止再度分叉的機制。
 
-兩者皆須寫出，不再混用同一個數字。
+同時將兩端的 `LGBMRegressor` 統一為 `n_jobs=1`。LightGBM 在多執行緒下的直方圖累加順序
+不保證固定，score 可能無法逐位元重現；§15 要求每次推薦可重現，故以單執行緒換取確定性。
+訓練規模約 90 萬列，成本可接受。（既有 `level1_diag.py` 註記亦獨立觀察到「`n_jobs=-1`
+疑似不穩」。）
+
+**FRS 措辭要求**：`n_jobs=1` 是 **reproducibility control，不是 predictive-performance
+control**。未來換模型或版本時不得將其誤認為方法論的一部分。
+
+## 7. 母體記錄分離：`universe_size` 與 `evaluation_n`
+
+Target 的排名母體是 **T 日的 U_t**，不是 T+N 的 U_{t+N}。某股票若在 T 日符合推薦資格，
+它就是 U_t 的成員；即使 T+2 下市或 T+3 停牌，它仍屬 U_t，只是其 Future Return 為 NaN。
+
+正式命名（兩者皆須輸出，不得混用）：
+
+```
+universe_size = |U_t|
+evaluation_n  = |{ i ∈ U_t : R(i,t,N) 存在 }|
+```
+
+- ledger 的 `universe_size` 記前者（預測母體）
+- 評估結果的 `n` 記後者（評估母體）
+
+實作驗證：現行 `targets.cross_sectional_pct(fwd, in_universe)` 展開為
+`fwd.where(in_universe).rank(axis=1, pct=True)`——遮罩取第 t 列的 U_t、排名只在非 NaN
+者之間，已等於 `U_t ∩ ValidFutureReturn`。方向正確，本節只是將其正式命名。
+
+實測（horizon=5，新 U_t）：
+
+| 日期 | `universe_size` | `evaluation_n` | 差 |
+|---|---|---|---|
+| 2022-06-01 | 450 | 450 | 0 |
+| 2023-06-01 | 599 | 599 | 0 |
+| 2024-06-03 | 712 | 712 | 0 |
+| 2025-06-02 | 547 | 547 | 0 |
+| 2026-06-01 | 715 | 715 | 0 |
+
+全期抽樣 32 日：差值中位數 0、最大 2（舊 U_t 為 2–21）。流動性底線順帶幾乎消滅了此
+落差——日均成交值 5,000 萬以上的股票，5 日內下市或長停近乎不發生。此定義仍須明文寫出
+（它是定義而非巧合，且在更長 horizon 下差值會擴大）。
 
 ## 8. 版本策略
 
@@ -312,5 +411,8 @@ rows = select(...).where(P.horizon == horizon, P.prediction_date == d).order_by(
 
 - 不在展示層做過濾（那會使 Production 變成 Model + Rule Filter，重新製造 §2 的不一致）
 - 不將流動性門檻參數化或開放調整
+- **不因新 U_t 的 OOS 績效變差而回調 ADV20 門檻。** 5,000 萬既已宣告為 FRS 凍結常數，
+  就必須真正 freeze。否則會發生「5,000 萬 → IC 不夠漂亮 → 3,000 萬 → 更漂亮 → 1,000 萬」
+  的滑坡，那等同以 Universe 做 Target Mining，直接摧毀 holdout 的效力
 - 不刪除 v1 ledger 與 v1 results（留檔對照）
 - 不新增 SHAP／特徵貢獻（畫面決策為純排序展示）
