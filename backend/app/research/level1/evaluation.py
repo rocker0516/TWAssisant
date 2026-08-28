@@ -46,6 +46,15 @@ def ic_summary(ic: pd.Series) -> dict:
     }
 
 
+def daily_evaluation_n(score: pd.DataFrame, fwd: pd.DataFrame) -> pd.Series:
+    """每日評估母體檔數 = |{i ∈ U_t : score 與 R(i,t,N) 皆存在}|（設計 §7）。
+
+    與 ledger 的 universe_size（= |U_t|，預測母體）不是同一個數字：T 日在 U_t、
+    但 T+N 已下市或長停者，能被預測卻無法被評估。兩者必須分別輸出，不得混用。
+    """
+    return (score.notna() & fwd.notna()).sum(axis=1)
+
+
 def quantile_returns(score: pd.DataFrame, fwd: pd.DataFrame, n_q: int = 10) -> pd.DataFrame:
     """每日依 score 分位（1=最低, n_q=最高），回各分位的日均 fwd（index=date）。"""
     s = score.where(fwd.notna())
@@ -99,6 +108,9 @@ def evaluate(score: pd.DataFrame, fwd: pd.DataFrame, n_q: int = 10) -> dict:
     """單一 (score, horizon) 的完整評估包。"""
     ic = daily_rank_ic(score, fwd)
     out = ic_summary(ic)
+    n_eval = daily_evaluation_n(score, fwd)
+    out["evaluation_n_mean"] = round(float(n_eval.mean()), 1)
+    out["evaluation_n_min"] = int(n_eval.min())
     out.update(quantile_summary(score, fwd, n_q))
     out["topk"] = topk_summary(score, fwd)
     return out

@@ -252,3 +252,25 @@ def test_predict_calls_train_slice_for_date_with_correct_embargo(monkeypatch):
         for row in rows:
             assert row["prediction_date"] == pred_date_obj, \
                 f"Row prediction_date {row['prediction_date']} != {pred_date_obj}"
+
+
+# ── 評估母體規模（設計 §7：universe_size 與 evaluation_n 不得混用）──
+
+def test_daily_evaluation_n_counts_only_scored_and_realised():
+    dates = pd.Index(["2025-01-01", "2025-01-02"])
+    cols = pd.Index(["A", "B", "C"])
+    score = pd.DataFrame([[0.1, 0.2, 0.3], [0.1, 0.2, np.nan]],
+                         index=dates, columns=cols)
+    fwd = pd.DataFrame([[0.01, np.nan, 0.03], [0.01, 0.02, 0.03]],
+                       index=dates, columns=cols)
+    assert ev.daily_evaluation_n(score, fwd).tolist() == [2, 2]
+    # d1：B 無 fwd（T+N 已下市）；d2：C 無 score
+
+
+def test_evaluate_reports_evaluation_n():
+    _, _, fwd = _mats(n_days=40, n_stocks=50)
+    score = fwd.copy()
+    fwd.iloc[:, 0] = np.nan          # 一檔全期無實現報酬 → 評估母體 49
+    out = ev.evaluate(score, fwd)
+    assert out["evaluation_n_mean"] == pytest.approx(49.0)
+    assert out["evaluation_n_min"] == 49
