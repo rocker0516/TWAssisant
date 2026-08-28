@@ -102,7 +102,7 @@ horizon／K 狀態兩籤共用（切籤不重置 horizon）。
 
 **A2 分位單調圖**：lgbm `quantile_mean_pct` 十分位長條，dev/holdout 並排兩張。
 純 SVG／div bar（沿用 Sparkline 的無依賴慣例，不動 echarts）。負值向下。
-**不美化**：5D holdout 實際形狀是「d1 明顯最差（−0.157%）、頂部微幅、d8 有凹陷」，
+**不美化**：5D holdout 實際形狀是「d1 相對最弱（+0.157%，全分位皆正——holdout 期有正漂移）、頂部微幅、d8 有凹陷」，
 照畫。圖下一行 copy：「holdout 的 edge 主要來自避開最弱分位，頂部拉抬幅度有限」——
 這句依 horizon 由前端以規則生成（mono < 0.5 時顯示，否則顯示「分數越高實際越強，
 單調性 {mono}」）。
