@@ -184,7 +184,7 @@ U_t = { i | Structural(i) ∧ close(i,T) 存在 ∧ ADV20(i,T) ≥ 5e7 ∧ T ∉
 全數具備 `begin_date`／`end_date`，涵蓋整個研究期。禁止以今日名單回填歷史可交易性
 （與 §3 現有存活者偏差條款同一紀律）。
 
-### 4.4 實測影響
+### 4.4 實測影響（凍結量測，2026-08-28 artifact——非隨重跑變動的活數字）
 
 `|U_t|` 全期中位數：**1766 → 564**。逐年統計（已含 ADV 門檻與 punish 排除，
 起點 2020-02-01）：
@@ -228,14 +228,25 @@ U_t = { i | Structural(i) ∧ close(i,T) 存在 ∧ ADV20(i,T) ≥ 5e7 ∧ T ∉
 
 ## 5. Target 重定義
 
+R(i,t,N) 可能因下市、長停而不存在，target 的排名母體必須明確寫成其存在子集：
+
 ```
-Y(i,t,N) = Percentile( R(i,t,N) | U_t^new )
+E_{t,N} = { i ∈ U_t : R(i,t,N) 存在 }
+
+Y(i,t,N) = Percentile( R(i,t,N) | E_{t,N} )
 ```
 
-在新 U_t（~563 檔）內重新排名，**不是**舊 1801 檔排名後取子集。
+- **Prediction Universe = U_t**（模型對全體出分）
+- **Evaluation / Target Universe = E_{t,N}**（排名與評估只在有效未來報酬者之間）
 
-Prediction Universe 必須等於 Target Universe——兩者不一致是 §2 所述「OOS 數字與可交易
-榜單對不上」的來源之一。
+兩者的分離即 §7 的 `universe_size` 與 `evaluation_n`——此處只是把數學定義補完整。
+排名在新 U_t 的存在子集內重算，**不是**舊 1801 檔排名後取子集。
+
+Prediction Universe 與 Target Universe 的定義必須同源（同一個 U_t 出發）——兩者各自
+定義是 §2 所述「OOS 數字與可交易榜單對不上」的來源之一。
+
+實作對應：`cross_sectional_pct(fwd, in_universe)` = `fwd.where(U_t).rank(axis=1, pct=True)`
+——NaN 不參與排名，天然即 E_{t,N}。本節將此行為升格為規格而非巧合。
 
 ## 6. 訓練窗修正（P0 / Blocking）
 

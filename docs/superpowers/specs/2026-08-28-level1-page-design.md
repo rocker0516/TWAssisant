@@ -87,13 +87,16 @@ horizon／K 狀態兩籤共用（切籤不重置 horizon）。
 ### 4.1 區 A：凍結驗證（靜態，讀 §5 validation endpoint）
 
 區標題：「凍結驗證 — Walk-forward OOS（2022-01 起，dev 只准調參、holdout 只讀）」。
-副註明示母體：「驗證母體＝可交易 U_t（與左籤榜單同一池），預測母體約 599 檔／日」。
+副註明示母體（**數字由 artifact 動態帶出，不得手寫**）：
+「驗證母體＝E_{t,N}（U_t ∩ 有效未來報酬）；{segment} 平均 {evaluation_n_mean} 檔／日」。
+標題旁掛 provenance chip：「artifact：{model_version}・{generated_at}」——讓畫面上的每個
+數字都能回答「我來自哪個 artifact」，UI 不做證據鏈上最後一個沒有出處的環節。
 
 **A1 核心數字卡**：當前 horizon 的 lgbm，dev_oos 與 holdout 兩欄並排：
 
 | 指標 | 顯示 | tooltip |
 |---|---|---|
-| Rank IC | mean_ic（4 位） | 每日 Spearman(score, 實際 N 日報酬) 的平均；0.05 以上即具實用排序力 |
+| Rank IC | mean_ic（4 位） | 每日 Spearman(score, 實際 N 日報酬) 的平均，僅計入 E_{t,N}（U_t 中具有效未來報酬者）；0.05 以上即具實用排序力 |
 | ICIR | icir | IC 均值／IC 波動——穩定度 |
 | 分位單調性 | monotonicity | 十分位序與實際報酬的相關；1＝完美單調 |
 | Top-20 超額 | topk.top20.excess_pct（pp） | Top-20 日均報酬 − 池內全體日均 |
@@ -103,9 +106,9 @@ horizon／K 狀態兩籤共用（切籤不重置 horizon）。
 **A2 分位單調圖**：lgbm `quantile_mean_pct` 十分位長條，dev/holdout 並排兩張。
 純 SVG／div bar（沿用 Sparkline 的無依賴慣例，不動 echarts）。負值向下。
 **不美化**：5D holdout 實際形狀是「d1 相對最弱（+0.157%，全分位皆正——holdout 期有正漂移）、頂部微幅、d8 有凹陷」，
-照畫。圖下一行 copy：「holdout 的 edge 主要來自避開最弱分位，頂部拉抬幅度有限」——
-這句依 horizon 由前端以規則生成（mono < 0.5 時顯示，否則顯示「分數越高實際越強，
-單調性 {mono}」）。
+照畫。圖下一行解讀文案**由 validation endpoint 提供**（`interpretation: {shape, text}`），
+前端只 render——「mono < 0.5 算頂端弱化」是研究判斷，門檻活在後端具名常數、隨
+artifact 版本走；放前端等於允許 UI 偷偷改寫研究敘事。
 
 **A3 模型階梯表**：證明 §9 升級閘門是打贏出來的，不是宣稱的。
 
@@ -131,7 +134,8 @@ horizon／K 狀態兩籤共用（切籤不重置 horizon）。
   成熟，首批實績約 {date} 回填；在此之前請看上方凍結驗證。」前端由 board.date
   推算顯示，不寫死日期。
 - **區隔 copy**（B 區頂）：「凍結驗證是歷史模擬；這裡是上線後逐日寫入、成熟回填、
-  不可重寫的實際紀錄（§15）。兩者數字收斂是模型健康的訊號。」
+  不可重寫的實際紀錄（§15）。Ledger 不是用來替代 OOS——它的角色是觀察 Production
+  是否開始偏離凍結驗證；兩者收斂是健康訊號，持續偏離是重驗警訊。」
 
 ## 5. API 變更
 
@@ -145,20 +149,25 @@ horizon／K 狀態兩籤共用（切籤不重置 horizon）。
   "first_test": "2022-01-01",
   "periods": {"dev_oos": [...], "holdout": [...]},
   "model_version": "l1_lgbm_v2",
+  "generated_at": "2026-08-28",          // artifact 檔案時間——provenance
   "horizons": {
     "1": {
       "ladder": {
         "random":    {"dev_oos": {核心欄}, "holdout": {核心欄}},
         "mom_ret20": {...}, "ridge_v2": {...}, "lgbm": {...}
       },
-      "quantiles": {"dev_oos": [10 floats], "holdout": [10 floats]}
+      "quantiles": {
+        "dev_oos":  {"values": [10 floats],
+                     "interpretation": {"shape": "...", "text": "..."}},
+        "holdout":  {...}
+      }
     },
     "5": {...}, "10": {...}
   }
 }
 ```
 
-核心欄＝`mean_ic, icir, monotonicity, n_days, top20_excess_pct, top20_day_win_rate`
+核心欄＝`mean_ic, icir, monotonicity, n_days, evaluation_n_mean, top20_excess_pct, top20_day_win_rate`
 （自 `topk.top20` 攤平）。只投影 1/5/10 三個 horizon 與四個階梯模型；20D/60D 與
 ridge_v1/mom_ret20_ex5 不出（研究內部用）。`model_version` 由 routes 的
 `CURRENT_MODEL_VERSION` 帶出，前端據此顯示。
@@ -210,4 +219,7 @@ QuantileBars 與逐日超額條都是純 SVG/div，不引 echarts（小圖遵循
 5. A3 階梯表 random ≈ 0、動能為負、lgbm 高亮，數字與 `level1_results.json` 一致。
 6. B 區空狀態正確（5D 首批成熟前顯示說明而非空表）。
 7. `/api/level1/validation` 在 results.json 缺檔時回 404；有檔時三 horizon 齊。
-8. 後端測試全綠；前端 `tsc` + build 綠；瀏覽器實測零 console 錯誤。
+8. 凍結驗證區帶 provenance chip（model_version＋generated_at）；母體數字全部來自
+   artifact，畫面與 spec 皆無手寫母體數。
+9. A2 解讀文案來自 endpoint 的 interpretation，前端無單調性門檻邏輯。
+10. 後端測試全綠；前端 `tsc` + build 綠；瀏覽器實測零 console 錯誤。
