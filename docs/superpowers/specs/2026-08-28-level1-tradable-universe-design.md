@@ -407,6 +407,40 @@ rows = select(...).where(P.horizon == horizon, P.prediction_date == d).order_by(
 
 若第 6 步顯示 alpha 大部分來自不可交易區段，那是關於此模型的真實結論，不是失敗。
 
+### 12.3 重跑實績（新 U_t，2026-08-28）
+
+walk-forward 全歷史重跑完成（6 horizon × 6 模型，n_jobs=1）。核心對照（top20xs＝Top-20
+日均橫斷面超額、win＝日勝率）：
+
+| h | 模型 | 切段 | IC | ICIR | mono | top20xs | win |
+|---|---|---|---|---|---|---|---|
+| 1D | lgbm | dev_oos | 0.0782 | 0.71 | 0.99 | +0.428pp | 0.695 |
+| 1D | lgbm | holdout | 0.0800 | 0.63 | 0.77 | +0.522pp | **0.709** |
+| 5D | lgbm | dev_oos | 0.0642 | 0.55 | 0.98 | +0.230pp | 0.571 |
+| 5D | lgbm | holdout | 0.0705 | 0.52 | 0.32 | +0.221pp | **0.537** |
+| 10D | lgbm | dev_oos | 0.0686 | 0.60 | 0.99 | +0.406pp | 0.558 |
+| 10D | lgbm | holdout | 0.0627 | 0.53 | 0.30 | +0.488pp | **0.574** |
+
+baseline（新 U_t）：random IC ≈ 0（±0.003）；mom_ret20 IC 為負（−0.013~−0.031）。
+ridge_v2 holdout 頂端再度反單調（1D mono −0.88），lgbm 相對優勢在新母體上不變。
+
+**停損點判定：四項全過。**
+
+1. IC 未崩：lgbm 三 horizon dev/holdout 全部 > 0.03。
+2. 勝 baseline：dev_oos lgbm 0.064~0.078 vs random ≈ 0、動能為負。
+3. 5D 主軌：holdout 勝率 0.537 > 0.53——**險過**，其 edge 約為舊 U_t 數字的 1/3~1/2，
+   與 §12.1 先驗（+0.337pp／56.9%）同向且更保守。5D 主軌地位保留，但應以「窄 edge」
+   姿態呈現，不得沿用舊敘事。
+4. 10D：holdout 勝率 0.574——**§12.1 先驗（52.6%）預測錯誤**。先驗測的是「全 universe
+   訓練的模型」在可交易切片上的表現；在乾淨池上重訓後 10D 自行修復，無需降級。
+
+附帶發現：1D 成為最強 horizon（holdout win 0.709、+0.522pp）——殼股噪音移除後
+「漲停延續型」訊號在可交易池內仍然成立。
+
+已知量測瑕疵（deferred）：`evaluation_n_min` 把資料尾端未成熟交易日（fwd 全 NaN、
+evaluation_n=0）計入最小值，恆為 0。IC 端已由 min 30 檔規則自然排除，僅此摘要指標
+失真；交最終審查 triage。
+
 ## 13. 明確不做
 
 - 不在展示層做過濾（那會使 Production 變成 Model + Rule Filter，重新製造 §2 的不一致）
