@@ -1,0 +1,146 @@
+{
+ "1": {
+  "yearly_ic": {
+   "2022": 0.0901,
+   "2023": 0.0895,
+   "2024": 0.0977,
+   "2025": 0.098,
+   "2026": 0.0889
+  },
+  "top20": {
+   "distinct_stocks": 1623,
+   "top10_pick_share": 0.059,
+   "picked_char_median_rank": {
+    "vol20": 0.856,
+    "dollar_vol20": 0.266,
+    "ret5": 0.902
+   }
+  },
+  "liquid_only": {
+   "ic": {
+    "n_days": 1125,
+    "mean_ic": 0.0843,
+    "std_ic": 0.111,
+    "icir": 0.76,
+    "t_stat": 25.49,
+    "pct_positive": 0.778
+   },
+   "topk": {
+    "top20": {
+     "mean_ret_pct": 1.121,
+     "median_ret_pct": 0.375,
+     "excess_pct": 1.08,
+     "day_win_rate": 0.784
+    }
+   }
+  }
+ },
+ "5": {
+  "yearly_ic": {
+   "2022": 0.0862,
+   "2023": 0.0872,
+   "2024": 0.0908,
+   "2025": 0.0898,
+   "2026": 0.0937
+  },
+  "top20": {
+   "distinct_stocks": 1606,
+   "top10_pick_share": 0.048,
+   "picked_char_median_rank": {
+    "vol20": 0.354,
+    "dollar_vol20": 0.134,
+    "ret5": 0.292
+   }
+  },
+  "liquid_only": {
+   "ic": {
+    "n_days": 1121,
+    "mean_ic": 0.0779,
+    "std_ic": 0.1278,
+    "icir": 0.609,
+    "t_stat": 20.41,
+    "pct_positive": 0.742
+   },
+   "topk": {
+    "top20": {
+     "mean_ret_pct": 0.601,
+     "median_ret_pct": 0.159,
+     "excess_pct": 0.387,
+     "day_win_rate": 0.581
+    }
+   }
+  }
+ },
+ "10": {
+  "yearly_ic": {
+   "2022": 0.0993,
+   "2023": 0.0773,
+   "2024": 0.0924,
+   "2025": 0.0746,
+   "2026": 0.0936
+  },
+  "top20": {
+   "distinct_stocks": 1476,
+   "top10_pick_share": 0.047,
+   "picked_char_median_rank": {
+    "vol20": 0.291,
+    "dollar_vol20": 0.217,
+    "ret5": 0.418
+   }
+  },
+  "liquid_only": {
+   "ic": {
+    "n_days": 1116,
+    "mean_ic": 0.0777,
+    "std_ic": 0.1242,
+    "icir": 0.625,
+    "t_stat": 20.89,
+    "pct_positive": 0.729
+   },
+   "topk": {
+    "top20": {
+     "mean_ret_pct": 1.002,
+     "median_ret_pct": 0.243,
+     "excess_pct": 0.566,
+     "day_win_rate": 0.572
+    }
+   }
+  }
+ },
+ "20": {
+  "yearly_ic": {
+   "2022": 0.1053,
+   "2023": 0.0859,
+   "2024": 0.0977,
+   "2025": 0.0535,
+   "2026": 0.1
+  },
+  "top20": {
+   "distinct_stocks": 1257,
+   "top10_pick_share": 0.058,
+   "picked_char_median_rank": {
+    "vol20": 0.253,
+    "dollar_vol20": 0.176,
+    "ret5": 0.446
+   }
+  },
+  "liquid_only": {
+   "ic": {
+    "n_days": 1106,
+    "mean_ic": 0.0777,
+    "std_ic": 0.1229,
+    "icir": 0.632,
+    "t_stat": 21.02,
+    "pct_positive": 0.729
+   },
+   "topk": {
+    "top20": {
+     "mean_ret_pct": 1.017,
+     "median_ret_pct": 0.0,
+     "excess_pct": 0.131,
+     "day_win_rate": 0.51
+    }
+   }
+  }
+ }
+}

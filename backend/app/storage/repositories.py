@@ -167,6 +167,18 @@ class FinancialQuarterRepository(BaseRepository[models.FinancialQuarter]):
     model = models.FinancialQuarter
 
 
+class FundamentalFirstSeenRepository(BaseRepository[models.FundamentalFirstSeen]):
+    """append-only：只可 insert_ignore_many，不可 upsert（首次入庫日不得改寫）。"""
+
+    model = models.FundamentalFirstSeen
+
+
+class Level1PredictionRepository(BaseRepository[models.Level1Prediction]):
+    """Prediction Ledger：同 (日, 股, horizon, 版本) 重跑覆寫自己；換版本並存。"""
+
+    model = models.Level1Prediction
+
+
 class EtfIndexEventRepository(BaseRepository[models.EtfIndexEvent]):
     model = models.EtfIndexEvent
 

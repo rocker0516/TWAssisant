@@ -6,8 +6,6 @@ import type { components } from "./types";
 // 那份副本沒有任何機制保證它跟後端一致（本檔曾因此累積出三塊手補型別）。
 export type RecommendationList = components["schemas"]["RecommendationList"];
 export type RecommendationItem = components["schemas"]["RecommendationItem"];
-export type LongTargetZone = components["schemas"]["LongTargetZone"];
-export type LongGraduation = components["schemas"]["LongGraduation"];
 export type RecommendationDetail = components["schemas"]["RecommendationDetail"];
 export type RecommendationLookbackResponse = components["schemas"]["RecommendationLookbackResponse"];
 export type LookbackReview = components["schemas"]["LookbackReview"];
@@ -1243,5 +1241,43 @@ export function useLookbackSensitivity(since?: string) {
     queryKey: ["lookback-sensitivity", since ?? "all"],
     queryFn: () => getJson<SensitivityResponse>(`/recommendations/lookback/sensitivity${q}`),
     staleTime: 10 * 60_000,
+  });
+}
+
+// ── Level 1 ML 推薦軌（openapi 型別未重跑，手補；真相來源 backend/app/api/routes_level1.py） ──
+
+export type Level1Item = {
+  rank: number; stock_id: string; name: string | null;
+  score: number; pct_rank: number; close: number | null;
+  actual_return: number | null; actual_pct: number | null;
+};
+export type Level1Board = {
+  date: string | null; horizon: number; k: number;
+  model_version: string | null; universe_size: number | null;
+  items: Level1Item[];
+};
+export type Level1MaturedDay = {
+  prediction_date: string; topk_mean_return: number;
+  universe_mean_return: number; excess: number; topk_mean_actual_pct: number;
+};
+export type Level1Performance = {
+  horizon: number; k: number; n_days: number;
+  mean_excess: number | null; day_win_rate: number | null;
+  mean_actual_pct: number | null; days: Level1MaturedDay[];
+};
+
+export function useLevel1Board(horizon: number, k: number) {
+  return useQuery({
+    queryKey: ["level1-board", horizon, k],
+    queryFn: () => getJson<Level1Board>(`/level1/board?horizon=${horizon}&k=${k}`),
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useLevel1Performance(horizon: number, k: number) {
+  return useQuery({
+    queryKey: ["level1-performance", horizon, k],
+    queryFn: () => getJson<Level1Performance>(`/level1/performance?horizon=${horizon}&k=${k}`),
+    staleTime: 5 * 60_000,
   });
 }

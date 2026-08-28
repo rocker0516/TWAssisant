@@ -105,6 +105,10 @@ class FetchStep(PipelineStep):
                 incremental=False, lookback=lookback,
             )
 
+        # 3b) 基本面首次入庫日（append-only 側表；Level 1 PIT 可得性下界，
+        #     語意見 app/services/pit_fundamentals.py）
+        results["fundamental_first_seen"] = self._record_fundamental_first_seen(session)
+
         # 4) 市場級增量抓（無 stock_id，不過濾股號）
         for key, source_name, repo_cls, method, lookback in self._MARKET:
             results[key] = self._fetch_market_dataset(
@@ -148,6 +152,17 @@ class FetchStep(PipelineStep):
 
     def _known_ids(self, session) -> set[str]:
         return set(session.execute(select(models.Stock.id)).scalars().all())
+
+    def _record_fundamental_first_seen(self, session) -> dict:
+        """基本面新列補記首次入庫日（失敗不擋 pipeline，PIT 退回法定期限規則）。"""
+        try:
+            from app.services import pit_fundamentals
+
+            out = pit_fundamentals.record_first_seen(session)
+            session.flush()
+            return {"status": "ok", **out}
+        except Exception as exc:  # noqa: BLE001
+            return {"status": "error", "reason": str(exc)}
 
     # ── ETF 身分資料（TWSE 全快照，僅落已知股號）──
 
@@ -366,6 +381,38 @@ class MLConsensusStep(PipelineStep):
         if r.returncode != 0:
             return {"ok": False, "reason": (r.stderr or r.stdout)[-200:]}
         return {"ok": True}
+
+
+class Level1PredictStep(PipelineStep):
+    """Level 1 每日推薦（scripts/level1_predict.py，含 Ledger 成熟回填）。
+
+    子行程執行（同 MLConsensusStep 慣例：特徵重建吃記憶體，不進 uvicorn 行程；
+    lightgbm 另有 OpenMP DLL 載入順序坑，隔離在子行程最安全）。
+
+    子行程要寫同一顆 SQLite（level1_predictions），而 pipeline 的 session 從
+    run_row flush 起就持有寫鎖直到整條結束——不先放鎖子行程會卡 busy_timeout
+    30 秒後報 database is locked。pipeline 冪等（增量+upsert），中途 commit 無害，
+    故啟動子行程前先 commit 釋放寫鎖。失敗只記 reason 不擋盤後流程。
+    """
+
+    name = "level1_predict"
+    required = False
+
+    def run(self, ctx: PipelineContext) -> dict:
+        import subprocess
+        import sys as _sys
+        from pathlib import Path
+
+        ctx.session.commit()  # 釋放 SQLite 寫鎖，讓子行程能寫 ledger
+        base = Path(__file__).resolve().parents[2]
+        r = subprocess.run(
+            [_sys.executable, "-m", "scripts.level1_predict"],
+            cwd=base, capture_output=True, text=True, timeout=1800,
+        )
+        if r.returncode != 0:
+            return {"ok": False, "reason": (r.stderr or r.stdout)[-200:]}
+        tail = [ln for ln in r.stdout.strip().splitlines() if ln][-4:]
+        return {"ok": True, "log_tail": tail}
 
 
 class ScoringStep(PipelineStep):

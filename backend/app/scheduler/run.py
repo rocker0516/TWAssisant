@@ -18,6 +18,7 @@ from .steps import (
     ExitStep,
     FetchStep,
     IndicatorStep,
+    Level1PredictStep,
     MLConsensusStep,
     NewsStep,
     NotifyStep,
@@ -38,8 +39,8 @@ def build_pipeline() -> DailyPipeline:
         steps=[
             FetchStep(), IndicatorStep(), SectorStep(), NewsStep(), TargetPriceStep(),
             AttentionStep(),
-            ScoringStep(), MLConsensusStep(), CornerStep(), SignalLogStep(),
-            ExitStep(), NotifyStep(),
+            ScoringStep(), MLConsensusStep(), Level1PredictStep(), CornerStep(),
+            SignalLogStep(), ExitStep(), NotifyStep(),
             PoppableEfficacyStep(),
         ]
     )
@@ -54,6 +55,10 @@ def build_backfill_pipeline() -> DailyPipeline:
 
     SignalLogStep 有進來：補洞的那幾天也是真的發生過上榜/掉榜，漏掉會讓戰績與每日
     盤後在那段出現無聲的空窗。它不會發通知（那是 NotifyStep 的事），故無轟炸風險。
+
+    Level1PredictStep 刻意**不進來**：回補日的預測是用含事後資料的模型算的，寫進
+    Prediction Ledger 就是假戰績（FRS §15 可驗證性）。Level 1 的成熟回填由最新日
+    的那次 Level1PredictStep 一併處理，缺日就是缺日，不補。
     """
     return DailyPipeline(
         steps=[

@@ -233,6 +233,53 @@ class FinancialQuarter(Base):
     roe: Mapped[float | None] = mapped_column(Float)
 
 
+class FundamentalFirstSeen(Base):
+    """基本面列「首次入庫日」（append-only，Level 1 PIT 可得性側表）。
+
+    主表（revenue_monthly / financials_quarterly）只有所屬期間、沒有公告日，
+    且 upsert 全欄覆寫，首次入庫日放主表會被歷史回補洗掉，故獨立成側表。
+    寫入只走 insert-ignore，已寫下的日期永不改寫。
+    可得日語意見 `app/services/pit_fundamentals.py`：avail = min(法定期限, first_seen)。
+
+    PK = (kind, stock_id, year, period)；kind: rev=月營收(period=月) / fin=季報(period=季)。
+    """
+
+    __tablename__ = "fundamental_first_seen"
+
+    kind: Mapped[str] = mapped_column(String(4), primary_key=True)
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    year: Mapped[int] = mapped_column(Integer, primary_key=True)
+    period: Mapped[int] = mapped_column(Integer, primary_key=True)
+    first_seen: Mapped[date_] = mapped_column(Date)
+
+
+class Level1Prediction(Base):
+    """Level 1 Prediction Ledger（FRS §15）：每次推薦可追溯、可重現。
+
+    每日對 U_t 全體寫入分數與排名（K 不預先固定，Top-K 是展示層的視圖）。
+    actual_* 三欄於 t+N 成熟後由 scripts.level1_predict --mature 回填；
+    rank_error = |pct_rank − actual_pct|。
+    PK = (prediction_date, stock_id, horizon, model_version)——同日同版重跑覆寫
+    自己，換版本則並存，歷史版本不受影響。
+    """
+
+    __tablename__ = "level1_predictions"
+
+    prediction_date: Mapped[date_] = mapped_column(Date, primary_key=True)
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    horizon: Mapped[int] = mapped_column(Integer, primary_key=True)
+    model_version: Mapped[str] = mapped_column(String(40), primary_key=True)
+    score: Mapped[float] = mapped_column(Float)
+    rank: Mapped[int] = mapped_column(Integer)          # 1 = 最強
+    pct_rank: Mapped[float] = mapped_column(Float)      # (0,1]，1 = 最強
+    universe_size: Mapped[int] = mapped_column(Integer)
+    feature_version: Mapped[str] = mapped_column(String(40))
+    actual_return: Mapped[float | None] = mapped_column(Float)
+    actual_pct: Mapped[float | None] = mapped_column(Float)
+    rank_error: Mapped[float | None] = mapped_column(Float)
+    matured_at: Mapped[date_ | None] = mapped_column(Date)
+
+
 class AttentionListing(Base):
     """注意股（notice）／處置股（punish）名單（TWSE + TPEX 官方公告）。
 
