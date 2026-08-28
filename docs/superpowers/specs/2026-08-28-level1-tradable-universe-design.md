@@ -1,0 +1,285 @@
+# Level 1 單一可交易 Universe 改版
+
+日期：2026-08-28
+狀態：設計定案，待實作
+影響：FRS §3（Universe）、§5–7（Target）、§14（Daily Pipeline）、§15（Ledger）
+
+## 1. 起因
+
+規劃 `/app/level1` 畫面時，實測當日（2026-08-27, horizon=5）Top-30 的流動性，發現
+榜單由近乎不可交易的股票主導：
+
+| 排名 | 股票 | 20 日均成交值 | 日成交張數 |
+|---|---|---|---|
+| 1 | 8444 綠河-KY | 10 萬元 | 13 張 |
+| 3 | 2424 隴華 | 30 萬元 | 34 張 |
+| 17 | 2937 集雅社 | 50 萬元 | 10 張 |
+| 14 | 6187 萬潤 | 68 億 | 4,797 張 |
+| 對照 | 2330 台積電 | 465 億 | 19,214 張 |
+
+Top-30 中 28 檔日均成交值低於 5,000 萬。`daily_prices.turnover` 本身健康
+（2026-08-27 全市場 2,356/2,387 檔有值、均值 5.18 億），故非資料缺漏。
+
+現有 holdout 驗證（5D：IC 0.0913、ICIR 0.633、Top20 超額 +0.85pp、日勝率 66.2%、
+n=394）建立在同一個沒有流動性底線的 U_t 上，描述的是一個無法建立的組合。
+
+## 2. 一致性稽核結果（OOS 路徑 A vs Production 路徑 B）
+
+以逐項靜態比對加定點量測進行，非雙跑。
+
+| 環節 | A：`level1_run` + `walkforward` | B：`level1_predict` | 判定 |
+|---|---|---|---|
+| Universe 規則 | `uv.eligible_ids` + `uv.universe_mask` | 同一組函式 | 相同 |
+| close 來源 | `data/level1_targets.pkl` 研究快取 | 直接讀 `twa.db` | 快照漂移風險 |
+| 價量特徵 ×11 | `build_price_features` | 同 | 相同 |
+| PIT 基本面 ×5 | `build_fundamental_features` | 同 | 相同 |
+| 橫斷面 rank | `rank_transform(feats, mask)` | 同 | 相同 |
+| regime 交互 ×4 | `build_regime_interactions` | 同 | 相同 |
+| Target | `cross_sectional_pct(forward_returns(close,N), mask)` | 同一行 | 相同 |
+| 模型 | `LGBMRegressor(100, rs=42, n_jobs=-1)` | `LGBMRegressor(100, rs=42)` | `n_jobs` 未釘 |
+| 訓練窗 | `train_slice`：`index(t) + N < test_start` | `close.index` 全歷史 | **不同** |
+| 推論列母體 | `assemble_dataset`：target 非 NaN | `assemble_for_dates`：U_t 內全部 | **不同** |
+
+### 2.1 訓練窗（最嚴重）
+
+`level1_predict.predict()` 以 `ft.assemble_dataset(ranked, pct, close.index)` 建訓練集，
+`close.index` 為 DB 全歷史。訓練集實效終點是「DB 最新日 − N」而非「pred_date − N」。
+
+- 跑最新交易日：等價於正確 embargo（最近 N 日 target 為 NaN 被 dropna）。
+- 跑歷史日期：訓練集吃進 pred_date 之後的所有資料。
+
+`Level1PredictStep` 永遠不帶 `--date`，故現有 ledger（2026-08-26、08-27）乾淨。
+但任何歷史回填都會產生偷看未來的假戰績，違反 §15 可驗證性。
+
+A 端 embargo 是被測試釘死的規則；B 端 embargo 是「最近 N 天 label 為 NaN 所以被
+dropna」的巧合。巧合在參數改變時失效。
+
+### 2.2 推論列母體
+
+A 的評估列由「target 非 NaN」定義（T 日在且 T+N 日在），B 的預測列由「T 日在 U_t」
+定義。實測差距（horizon=5）：
+
+```
+2022-06-01  |U_t|=1734  A 評估母體=1719  差 15
+2023-06-01  |U_t|=1770  A 評估母體=1760  差 10
+2024-06-03  |U_t|=1816  A 評估母體=1814  差  2
+2025-06-02  |U_t|=1791  A 評估母體=1770  差 21
+2026-06-01  |U_t|=1814  A 評估母體=1801  差 13
+```
+
+差的是「T 日在、T+N 日下市或長停」者，0.1–1.2%。此差為本質差異（評估需要未來報酬、
+預測不需要），不可消滅，但必須分別記錄、不再混用。
+
+### 2.3 快照漂移
+
+A 讀 `level1_targets.pkl`（含 close 至 2026-08-26），B 讀即時 DB（至 2026-08-27）。
+目前僅差一日，無害。一旦有基本面回補，兩端會在同一天同一支股票看到不同特徵值，
+且無任何警告。
+
+## 3. FRS §3 條文修訂
+
+原條文：「Universe 只管能不能被選，不藏 Alpha 條件」。
+
+修訂為：
+
+> Universe 不得包含以未來績效為目的的選股條件；允許使用與產品交易資格、資料可用性
+> 及市場制度相關的 Eligibility Constraints。
+
+判準是**排除的理由**，不是排除的後果。允許與禁止的分類：
+
+| 條件 | 類型 | 允許 |
+|---|---|---|
+| 上市／上櫃普通股 | Structural | 是 |
+| T 日已存在（有收盤價） | Structural | 是 |
+| 非 ETF／ETN／DR／特別股 | Structural | 是 |
+| T 日非停牌 | Trading | 是 |
+| T 日非處置 | Trading | 是 |
+| 最低流動性水準 | Trading | 是 |
+| 20 日漲幅 > 20% | Alpha | 否 |
+| RSI > 70 | Alpha | 否 |
+| 成交量暴增 | Alpha | 否 |
+| 過去報酬排名 Top 20% | Alpha | 否 |
+
+註：「處置狀態」本身可能帶預測資訊。將其作為 Universe Rule（不允許模型推薦）與作為
+Feature（允許進場並讓模型利用）是兩種不同設計，皆合理但回答不同問題。Level 1 的
+產品定義是「產生今日可正常交易的推薦榜單」，故採前者。
+
+## 4. U_t 新定義
+
+```
+U_t = { i | Structural(i) ∧ close(i,T) 存在 ∧ ADV20(i,T) ≥ 5e7 ∧ T ∉ Punish(i) }
+```
+
+- **Structural(i)**：不變。股號 4 位數字、`is_etf=0`、market ∈ {上市, 上櫃}、
+  `industry_category` 不屬非普通股類別。
+- **存在性**：不變。T 日 `daily_prices` 有收盤價（停牌當日無列，自然排除）。
+- **ADV20**：`mean(turnover[i, T-19..T])`，`min_periods=10`，門檻 5,000 萬。純回看。
+- **Punish**：T 落在任何 `attention_listings.kind='punish'` 的 `[begin_date, end_date]`
+  區間內則排除。**只排除處置（punish），不排除注意（notice）**——注意股仍為正常競價
+  撮合，且既有實證顯示其帶上漲動能，排除等同丟棄 alpha。
+
+### 4.1 凍結性
+
+5,000 萬為 FRS 凍結常數，選定後不得再調。以績效調整此門檻等同燒毀 holdout。
+
+### 4.2 暖身
+
+`rolling(20, min_periods=10)` 前 10 個交易日無值。研究期起點設為 **2020-02-01**。
+
+### 4.3 資料來源 PIT 保證
+
+`attention_listings` 覆蓋 punish 自 2019-12-19、notice 自 2020-01-02，3,137 筆 punish
+全數具備 `begin_date`／`end_date`，涵蓋整個研究期。禁止以今日名單回填歷史可交易性
+（與 §3 現有存活者偏差條款同一紀律）。
+
+### 4.4 實測影響
+
+`|U_t|` 全期中位數：**1766 → 564**。逐年統計（已含 ADV 門檻與 punish 排除，
+起點 2020-02-01）：
+
+| 年 | 中位數 | 最少 | 最多 |
+|---|---|---|---|
+| 2020 | 474 | 368 | 609 |
+| 2021 | 585 | 493 | 810 |
+| 2022 | 485 | 388 | 608 |
+| 2023 | 577 | 423 | 669 |
+| 2024 | 662 | 534 | 797 |
+| 2025 | 555 | 511 | 631 |
+| 2026 | 633 | 537 | 770 |
+
+處置排除的邊際效果：每日中位數再剔除 8 檔（約 1.4%）。
+
+`|U_t|` 隨行情擺動約 2.2 倍（最少 368 ↔ 最多 810）。百分位 target 每日獨立故
+尺度無虞，但固定 K 的榜單語意會隨時間漂移（Top 20 在 368 檔中是前 5.4%、在 810 檔中
+是前 2.5%）。展示層必須一律顯示當日 `|U_t|`。
+
+訓練列數：每日約 1801 → 564，全期約 250 萬 → 90 萬列。對 LGBM 充足。
+
+### 4.5 Data Eligibility 不列入 U_t
+
+新 U_t 內基本面覆蓋率（分母＝U_t 為真的格數）：
+
+| 特徵 | 新 U_t | 舊 U_t |
+|---|---|---|
+| `rev_yoy` | 98.4% | 97.1% |
+| `rev_yoy_chg` | 97.4% | 95.9% |
+| `rev_yoy3` | 97.5% | 95.9% |
+| `eps_yoy_d` | 81.0% | 79.1% |
+| `gm_chg` | 88.9% | 87.9% |
+
+覆蓋率在新 U_t 中略優於舊 U_t。缺值續採 `assemble_dataset` 的 0.5 中性補值。將資料
+完整性升級為硬條件會以「是否已出財報」砍掉約 19% 樣本，引入不必要的偏差。
+
+附帶修正：`scripts/level1_run.py` 的基本面覆蓋率 log 以整個矩陣為分母
+（`v.where(mask).notna().stack().mean()`），長期低報覆蓋率。改為以 mask 為真的格數
+為分母。
+
+## 5. Target 重定義
+
+```
+Y(i,t,N) = Percentile( R(i,t,N) | U_t^new )
+```
+
+在新 U_t（~563 檔）內重新排名，**不是**舊 1801 檔排名後取子集。
+
+Prediction Universe 必須等於 Target Universe——兩者不一致是 §2 所述「OOS 數字與可交易
+榜單對不上」的來源之一。
+
+## 6. 訓練窗修正（前置必修）
+
+`level1_predict.predict()` 改為與 OOS 共用同一個 embargo 規則：
+
+```python
+i = close.index.get_loc(pred_date)
+train_dates = wf.train_slice(close.index, i, embargo=n)
+x_tr, y_tr, _ = ft.assemble_dataset(ranked, pct, train_dates)
+```
+
+此項獨立於 Universe 改版，且必須先做：重建 ledger 必然要跑歷史日期，未修則產出假戰績。
+
+同時將兩端的 `LGBMRegressor` 統一為 `n_jobs=1`。LightGBM 在多執行緒下的直方圖
+累加順序不保證固定，score 可能無法逐位元重現；§15 要求每次推薦可重現，故以
+單執行緒換取確定性。訓練規模約 90 萬列，成本可接受。
+
+## 7. 母體記錄分離
+
+- ledger 的 `universe_size` 記 `|U_t|`（預測母體）
+- 評估結果的 `n` 記 fwd 非 NaN 數（評估母體）
+
+兩者皆須寫出，不再混用同一個數字。
+
+## 8. 版本策略
+
+| 常數 | 舊 | 新 | 理由 |
+|---|---|---|---|
+| `MODEL_VERSION` | `l1_lgbm_v1` | `l1_lgbm_v2` | ledger PK 含此欄，舊版天然並存 |
+| `FEATURE_VERSION` | `v2_feat20` | `v2_feat20_u2` | 特徵公式未改，但 `rank_transform` 為橫斷面操作，母體由 1801 縮至 563 使同股同日特徵值改變 |
+
+`data/level1_results.json` 重跑前先另存 `level1_results_u1.json` 留檔。
+
+新舊 holdout 數字不可並排比較——它們量的是不同母體上的不同 target。唯一有意義的比較
+是新 U_t 上的模型階梯（random / 動能 / ridge_v1 / ridge_v2 / lgbm）整座重跑。
+
+### 8.1 API 相容性（版本並存的副作用）
+
+`routes_level1.board()` 目前以
+
+```python
+d = select(func.max(P.prediction_date)).where(P.horizon == horizon)
+rows = select(...).where(P.horizon == horizon, P.prediction_date == d).order_by(P.rank)
+```
+
+取資料，**未過濾 `model_version`**。v1 與 v2 在同一 `prediction_date` 並存時，同一支
+股票會回傳兩列、`rank` 出現重複，Top-K 直接失真。`performance()` 的
+`avg(actual_return)` 同樣會跨版本混算。
+
+處理方式：於 `routes_level1` 新增模組常數 `CURRENT_MODEL_VERSION`，`board()` 與
+`performance()` 皆加上 `P.model_version == CURRENT_MODEL_VERSION` 條件，`max(prediction_date)`
+的子查詢一併加。版本切換時只改此常數。
+
+此項必須與版本號變更同一批上線，否則並存策略會立即破壞現有畫面。
+
+## 9. 快照漂移防護
+
+`scripts/level1_targets.py` 產 pkl 時將 DB 的 `max(date)` 寫入 payload；
+`scripts/level1_run.py` 啟動時比對 DB 現況，不一致則 fail-fast，不得靜默沿用舊快照。
+
+## 10. 一致性回歸測試
+
+新增 `backend/tests/test_level1_pipeline_parity.py`，對指定歷史日 T 斷言：
+
+1. A 與 B 產出的 `U_t` 股票集合相同
+2. A 與 B 建出的訓練集 index 相同
+3. 相同 X 進相同模型得到相同 score
+
+將一次性稽核轉為永久護欄。
+
+## 11. 執行順序與停損點
+
+1. 修訓練窗共用 `train_slice`，釘 `n_jobs`（含測試）
+2. 改 `universe.py`：ADV20 + punish 排除
+3. 修 `level1_run.py` 覆蓋率 log 分母
+4. 重跑 `scripts.level1_targets` → 新 pkl（含 DB max(date)）
+5. 重跑 `scripts.level1_run` → 新 `level1_results.json`
+6. **停損點**：檢視新 U_t 上的模型階梯。若 lgbm 的 IC 崩至接近 0、或未能穩定勝過
+   新 U_t 上的 baseline，停止並重新評估，不得直接上線
+7. 改 `level1_predict.py`（版本號、訓練窗）
+8. 新增 parity 測試
+9. 重跑最新交易日，v1 ledger 保留並存
+10. 回到 `/app/level1` 畫面設計
+
+## 12. 預期與風險
+
+**IC 預期下降。** 舊 U_t 中約 66% 為日均成交值低於 5,000 萬的股票，其價格由極少數委託
+驅動、橫斷面排名相對易猜。目前 0.09 的 IC 有多少來自這批股票未知。這與
+`ten-day-70pct-regime-bound`（穩定的是超額、基率不可預測）及 `wave-crash-atr9`
+（≥70% 存在但全由波動度買單）是同一模式的第三次出現。差別在於這次於上線前發現。
+
+若第 6 步顯示 alpha 大部分來自不可交易區段，那是關於此模型的真實結論，不是失敗。
+
+## 13. 明確不做
+
+- 不在展示層做過濾（那會使 Production 變成 Model + Rule Filter，重新製造 §2 的不一致）
+- 不將流動性門檻參數化或開放調整
+- 不刪除 v1 ledger 與 v1 results（留檔對照）
+- 不新增 SHAP／特徵貢獻（畫面決策為純排序展示）
