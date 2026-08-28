@@ -27,6 +27,8 @@ from app.research.level1 import targets as tg, universe as uv  # noqa: E402
 _DB = Path(__file__).resolve().parents[1] / "data" / "twa.db"
 _OUT = Path(__file__).resolve().parents[1] / "data" / "level1_targets.pkl"
 
+RESEARCH_START = "2020-02-01"   # ADV20 暖身期之後（設計 §4.2）
+
 
 def _log(msg: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
@@ -34,14 +36,14 @@ def _log(msg: str) -> None:
 
 def main() -> None:
     con = sqlite3.connect(_DB)
-    stocks = uv.load_stocks(con)
-    elig = uv.eligible_ids(stocks)
-    _log(f"靜態合格普通股 {len(elig)} 檔（主檔 {len(stocks)}）")
-
-    prices = uv.load_close_prices(con, elig)
+    db_max_date = con.execute("SELECT max(date) FROM daily_prices").fetchone()[0]
+    close, mask = uv.build_tradable_universe(con)   # 唯一入口（設計 §6）
     con.close()
-    close = uv.close_matrix(prices)
-    mask = uv.universe_mask(close)
+
+    # ADV20 暖身期（rolling 20 / min_periods 10）不足，起點後推（設計 §4.2）
+    keep = close.index >= RESEARCH_START
+    close, mask = close.loc[keep], mask.loc[keep]
+    _log(f"U_t 已含流動性底線 ADV20 ≥ {uv.ADV20_FLOOR:,.0f} 與處置排除")
     usize = mask.sum(axis=1)
     _log(f"價格矩陣 {close.shape[0]} 日 × {close.shape[1]} 檔"
          f"（{close.index[0]} ~ {close.index[-1]}）")
@@ -62,7 +64,10 @@ def main() -> None:
     payload = {
         "meta": {
             "built_at": date.today().isoformat(),
-            "spec": "FRS v1.0 §5: Y = Percentile(Close-to-Close R(t,N) | U_t)",
+            "spec": "FRS v1.1 §5: Y = Percentile(R(t,N) | U_t^Tradable)",
+            "db_max_date": db_max_date,
+            "adv20_floor": uv.ADV20_FLOOR,
+            "research_start": RESEARCH_START,
             "horizons": list(built),
             "date_range": (str(close.index[0]), str(close.index[-1])),
             "n_stocks": int(close.shape[1]),
@@ -72,6 +77,7 @@ def main() -> None:
             "limitations": [
                 "close 未還原權息（全市場股利資料不可得）",
                 "下市股僅部分保留（系統收錄前消失者補不到）",
+                "U_t 已含流動性底線（ADV20 ≥ 5,000 萬）與處置排除，非全市場普通股",
             ],
         },
         "close": close.astype("float32"),
