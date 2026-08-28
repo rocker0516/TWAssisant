@@ -1249,6 +1249,7 @@ export function useLookbackSensitivity(since?: string) {
 export type Level1Item = {
   rank: number; stock_id: string; name: string | null;
   score: number; pct_rank: number; close: number | null;
+  adv20: number | null;
   actual_return: number | null; actual_pct: number | null;
 };
 export type Level1Board = {
@@ -1279,5 +1280,33 @@ export function useLevel1Performance(horizon: number, k: number) {
     queryKey: ["level1-performance", horizon, k],
     queryFn: () => getJson<Level1Performance>(`/level1/performance?horizon=${horizon}&k=${k}`),
     staleTime: 5 * 60_000,
+  });
+}
+
+export type Level1LadderCell = {
+  mean_ic: number; icir: number; monotonicity: number; n_days: number;
+  evaluation_n_mean: number;
+  top20_excess_pct: number; top20_day_win_rate: number;
+};
+export type Level1QuantileBlock = {
+  values: number[];
+  interpretation: { shape: string; text: string };  // 解讀語意屬後端——前端只 render
+};
+export type Level1HorizonValidation = {
+  ladder: Record<string, { dev_oos: Level1LadderCell; holdout: Level1LadderCell }>;
+  quantiles: { dev_oos: Level1QuantileBlock; holdout: Level1QuantileBlock };
+};
+export type Level1Validation = {
+  first_test: string;
+  periods: Record<string, [string, string]>;
+  model_version: string;
+  generated_at: string;
+  horizons: Record<string, Level1HorizonValidation>;
+};
+export function useLevel1Validation() {
+  return useQuery({
+    queryKey: ["level1-validation"],
+    queryFn: () => getJson<Level1Validation>("/level1/validation"),
+    staleTime: 60 * 60 * 1000, // 凍結報告——研究重跑才會變
   });
 }
