@@ -20,6 +20,11 @@ router = APIRouter(prefix="/level1", tags=["level1"])
 
 _HORIZONS = (1, 5, 10)
 
+# 展示層只認一個版本。ledger PK 含 model_version，換版時舊列並存——不過濾會使同一
+# 支股票回傳多列、rank 重複，Top-K 直接失真（設計 §8.1）。
+# 此常數必須與 scripts/level1_predict.py 的 MODEL_VERSION 一致。
+CURRENT_MODEL_VERSION = "l1_lgbm_v2"
+
 
 class Level1Item(BaseModel):
     rank: int
@@ -70,7 +75,8 @@ def board(
         horizon = 5
     P = models.Level1Prediction
     d = session.execute(
-        select(func.max(P.prediction_date)).where(P.horizon == horizon)
+        select(func.max(P.prediction_date)).where(
+            P.horizon == horizon, P.model_version == CURRENT_MODEL_VERSION)
     ).scalar()
     if d is None:
         return Level1Board(date=None, horizon=horizon, k=k,
@@ -81,7 +87,8 @@ def board(
         .outerjoin(models.DailyPrice,
                    (models.DailyPrice.stock_id == P.stock_id)
                    & (models.DailyPrice.date == P.prediction_date))
-        .where(P.horizon == horizon, P.prediction_date == d)
+        .where(P.horizon == horizon, P.prediction_date == d,
+               P.model_version == CURRENT_MODEL_VERSION)
         .order_by(P.rank).limit(k)
     ).all()
     items = [
@@ -110,7 +117,8 @@ def performance(
     P = models.Level1Prediction
     dates = session.execute(
         select(P.prediction_date).distinct()
-        .where(P.horizon == horizon, P.actual_return.is_not(None))
+        .where(P.horizon == horizon, P.actual_return.is_not(None),
+               P.model_version == CURRENT_MODEL_VERSION)
         .order_by(P.prediction_date.desc()).limit(limit)
     ).scalars().all()
     days: list[Level1MaturedDay] = []
@@ -118,12 +126,14 @@ def performance(
         topk = session.execute(
             select(func.avg(P.actual_return), func.avg(P.actual_pct))
             .where(P.horizon == horizon, P.prediction_date == d,
-                   P.rank <= k, P.actual_return.is_not(None))
+                   P.rank <= k, P.actual_return.is_not(None),
+                   P.model_version == CURRENT_MODEL_VERSION)
         ).one()
         univ = session.execute(
             select(func.avg(P.actual_return))
             .where(P.horizon == horizon, P.prediction_date == d,
-                   P.actual_return.is_not(None))
+                   P.actual_return.is_not(None),
+                   P.model_version == CURRENT_MODEL_VERSION)
         ).scalar()
         if topk[0] is None or univ is None:
             continue
