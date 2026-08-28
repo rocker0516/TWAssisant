@@ -99,8 +99,8 @@ horizon／K 狀態兩籤共用（切籤不重置 horizon）。
 | Rank IC | mean_ic（4 位） | 每日 Spearman(score, 實際 N 日報酬) 的平均，僅計入 E_{t,N}（U_t 中具有效未來報酬者）；0.05 以上即具實用排序力 |
 | ICIR | icir | IC 均值／IC 波動——穩定度 |
 | 分位單調性 | monotonicity | 十分位序與實際報酬的相關；1＝完美單調 |
-| Top-20 超額 | topk.top20.excess_pct（pp） | Top-20 日均報酬 − 池內全體日均 |
-| 日勝率 | topk.top20.day_win_rate（%） | Top-20 贏過池內均值的日子占比 |
+| Top-20 超額 | topk.top20.excess_pct（pp） | Top-20 日均報酬 − E_{t,N} 全體日均 |
+| 日勝率 | topk.top20.day_win_rate（%） | Top-20 贏過 E_{t,N} 均值的日子占比 |
 | 評估天數 | n_days | — |
 
 **A2 分位單調圖**：lgbm `quantile_mean_pct` 十分位長條，dev/holdout 並排兩張。
