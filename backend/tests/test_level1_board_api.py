@@ -30,6 +30,8 @@ def _db():
     with session_scope() as s:
         s.query(models.Level1Prediction).filter(
             models.Level1Prediction.prediction_date == PRED_DATE).delete()
+        s.query(models.DailyPrice).filter(
+            models.DailyPrice.stock_id == "9001").delete()
         u = s.query(models.User).filter(models.User.email == EMAIL).first()
         if u:
             s.delete(u)
@@ -68,7 +70,8 @@ def _seed_two_versions():
                 universe_size=564, feature_version="test"))
 
 
-def test_board_returns_only_current_model_version(client):
+def test_board_returns_only_current_model_version(client, monkeypatch):
+    monkeypatch.setattr(routes_level1, "CURRENT_MODEL_VERSION", "l1_test_iso")
     _seed_two_versions()
     _, tok = _mk_user(EMAIL)
     client.cookies.set(auth.SESSION_COOKIE, tok)
@@ -76,7 +79,7 @@ def test_board_returns_only_current_model_version(client):
     r = client.get("/api/level1/board?horizon=5&k=20")
     assert r.status_code == 200
     ids = [it["stock_id"] for it in r.json()["items"]]
-    assert len(ids) == len(set(ids)), f"同一股票回傳多列（版本未隔離）：{ids}"
+    assert ids == ["9001"], f"版本隔離失敗（應只回現行版該列）：{ids}"
 
 
 def test_current_model_version_matches_predict_script():
@@ -122,3 +125,30 @@ def test_validation_endpoint_404_when_artifact_missing(client, monkeypatch):
     client.cookies.set(auth.SESSION_COOKIE, tok)
     r = client.get("/api/level1/validation")
     assert r.status_code == 404
+
+
+# ── board adv20（畫面設計 §5.2：倉位規模脈絡，非過濾） ──
+
+def test_board_includes_adv20(client, monkeypatch):
+    """monkeypatch 版本常數把查詢隔離到測試列——否則 max(prediction_date) 會選到
+    真實 ledger 的最新日，2019 年的測試列進不了榜單（虛測）。"""
+    monkeypatch.setattr(routes_level1, "CURRENT_MODEL_VERSION", "l1_test")
+    with session_scope() as s:
+        if not s.query(models.Stock).filter(models.Stock.id == "9001").first():
+            s.add(models.Stock(id="9001", name="測試股", is_etf=False, market="上市"))
+        s.merge(models.Level1Prediction(
+            prediction_date=PRED_DATE, stock_id="9001", horizon=5,
+            model_version="l1_test", score=0.9, rank=1, pct_rank=1.0,
+            universe_size=1, feature_version="test"))
+        for day in (date(2019, 1, 1), date(2019, 1, 2)):
+            s.merge(models.DailyPrice(
+                stock_id="9001", date=day, open=10.0, high=10.0, low=10.0,
+                close=10.0, volume=1000, turnover=2e8))
+    _, tok = _mk_user(EMAIL)
+    client.cookies.set(auth.SESSION_COOKIE, tok)
+
+    r = client.get("/api/level1/board?horizon=5&k=20")
+    assert r.status_code == 200
+    items = r.json()["items"]
+    assert [it["stock_id"] for it in items] == ["9001"]   # 版本隔離下只有測試列
+    assert items[0]["adv20"] == pytest.approx(2e8)

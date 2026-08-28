@@ -12,7 +12,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import bindparam, func, select, text
 from sqlalchemy.orm import Session
 
 from ..storage import models
@@ -100,6 +100,7 @@ class Level1Item(BaseModel):
     score: float
     pct_rank: float
     close: float | None = None
+    adv20: float | None = None   # 20 日均成交值（元）——交易日窗，同 universe.adv20 語意；顯示脈絡，非過濾
     actual_return: float | None = None   # 成熟後才有
     actual_pct: float | None = None
 
@@ -158,10 +159,23 @@ def board(
                P.model_version == CURRENT_MODEL_VERSION)
         .order_by(P.rank).limit(k)
     ).all()
+    adv: dict[str, float | None] = {}
+    ids = [p.stock_id for p, _, _ in rows]
+    if ids:
+        stmt = text(
+            "SELECT s.id AS sid, (SELECT AVG(x.turnover) FROM ("
+            " SELECT d2.turnover FROM daily_prices d2"
+            " WHERE d2.stock_id = s.id AND d2.date <= :d"
+            " ORDER BY d2.date DESC LIMIT 20) x) AS adv20"
+            " FROM stocks s WHERE s.id IN :ids"
+        ).bindparams(bindparam("ids", expanding=True))
+        adv = {r_.sid: r_.adv20
+               for r_ in session.execute(stmt, {"d": str(d), "ids": ids})}
     items = [
         Level1Item(rank=p.rank, stock_id=p.stock_id, name=name,
                    score=round(p.score, 4), pct_rank=round(p.pct_rank, 4),
-                   close=close, actual_return=p.actual_return,
+                   close=close, adv20=adv.get(p.stock_id),
+                   actual_return=p.actual_return,
                    actual_pct=p.actual_pct)
         for p, name, close in rows
     ]
