@@ -1,7 +1,7 @@
-# Level 2 交易層 FRS（v1.0）
+# Level 2 交易層 FRS（v1.1）
 
 日期：2026-09-18
-狀態：**凍結（2026-09-18 使用者核可）→ 同日 M2 停損結案（見 §13）**
+狀態：**v1.0 凍結 → M2 停損結案（§13）→ v1.1 KPI 修訂重開 M3（§14，使用者核可）**
 上游：Level 1 FRS v1.1（l1_lgbm_v2 已凍結、ledger 上線兩週、實盤 IC 0.12~0.13）
 原始規格：使用者 docx「Level 1 股票推薦 ML 模型 FRS」附錄 B
 
@@ -173,3 +173,23 @@ M3（live paper）／M4（RL）不啟動。後續方向屬 Level 1 端新研究�
 為未來任何交易層研究的現成環境；P1（1D 每日再平衡）永久關閉
 （隔夜跳空＋成本，執行結構問題）。回測紀錄：`level2_backtest_dev.json`、
 `level2_backtest_holdout.json`、dev 全變體 `level2_backtest_dev_sweep_20260918.json`。
+
+## 14. KPI 修訂 v1.1 與 M3 重開（2026-09-18 深夜，使用者核可）
+
+**修訂理由**：「勝加權指數」經等權（M2）與市值加權（Level 2.1 captop）兩路
+系統性否證——alpha 為真但快衰減，零售成本結構下衰減曲線與成本曲線無正交叉點。
+掛著已證不可達的 KPI＝alpha 永遠停在紙上。**修訂不是把題目改簡單，是把
+已證不可達的承諾換成 holdout 已證可達的承諾**（baseline_v1 holdout
+絕對 +51.8%、MDD −15.7% vs 大盤 −26.7%）。beta 歸 beta（要指數報酬買 0050），
+本帳戶的職責＝絕對報酬＋回撤控制。
+
+**§6 修訂**：
+- 主 KPI＝**成本後絕對報酬**；硬約束＝**MDD ≤ 大盤同期 MDD**（不變）。
+- **vs 加權指數、vs U_t 等權降為診斷欄**：照常每日計算與顯示（誠實揭露），
+  不作及格線。
+- 閘門不變：60 交易日首評、MDD 破約束紅色警報、Level 1 IC 停機→只出不進。
+
+**M3 範圍**（§9/§10/§11 原文執行，policy＝baseline_v1 凍結參數）：
+level2_accounts/orders/positions/nav 四表、`Level2PaperStep`（21:30，
+Level1PredictStep 之後；backfill 管線不含）、`/app/level2` 頁。
+訊號源＝`level1_predictions`（CURRENT_MODEL_VERSION）。M4（RL）維持關閉。
