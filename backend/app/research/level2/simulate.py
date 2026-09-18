@@ -49,12 +49,16 @@ def _merge_orders(pending: list[Order], new: list[Order]) -> list[Order]:
 def run_simulation(open_df: pd.DataFrame, close_df: pd.DataFrame,
                    pct_df: pd.DataFrame, pct1_df: pd.DataFrame | None,
                    params: BaselineParams, initial_cash: float,
-                   cost: CostModel | None = None) -> SimResult:
+                   cost: CostModel | None = None, planner=None) -> SimResult:
     """跑完整段模擬。pct_df＝再平衡用排名（P5 傳 5D、P1 傳 1D）；
     pct1_df＝防禦用 1D 排名（use_defense=False 可傳 None）。
 
     再平衡日曆：自第一個「pct_df 有訊號」的日子起算，每 rebalance_every 個
     訊號日再平衡一次。
+
+    planner：自訂再平衡規劃器 (state, nav, ref_px, sig, date) -> [Order]，
+    取代預設的 Baseline plan_rebalance（如 capweight.plan_captop 的閉包）；
+    防禦與執行語意不變。
     """
     cost = cost or CostModel()
     dates = list(close_df.index)
@@ -98,8 +102,11 @@ def run_simulation(open_df: pd.DataFrame, close_df: pd.DataFrame,
             planning = state.copy()
             for s in defended:
                 planning.positions.pop(s, None)
-            new_orders += plan_rebalance(planning, nav_d, val_px.to_dict(),
-                                         sig, params)
+            if planner is not None:
+                new_orders += planner(planning, nav_d, val_px.to_dict(), sig, d)
+            else:
+                new_orders += plan_rebalance(planning, nav_d, val_px.to_dict(),
+                                             sig, params)
         pending = _merge_orders(pending, new_orders)
 
     fills_df = pd.DataFrame(fill_rows) if fill_rows else pd.DataFrame(

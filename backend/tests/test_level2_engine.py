@@ -237,3 +237,75 @@ def test_summarize_fields_and_mdd_constraint_flag():
     assert s["total_costs"] == 50 and s["n_defense_exits"] == 1
     assert s["excess_pct"] == pytest.approx(
         (110 / 100 - 1) * 100 - (95 / 100 - 1) * 100, abs=0.01)
+
+
+# ── captop 市值加權頂分位（Level 2.1 設計 §1） ──
+
+def test_plan_captop_selection_and_sizing():
+    from app.research.level2 import capweight as cw
+    st = eg.PortfolioState(0)
+    st.positions.update({"old": 100, "big": 50})
+    pct = _pct({"big": 0.95, "mid": 0.9, "small": 0.85, "weak": 0.3})
+    caps = _pct({"big": 9e9, "mid": 4e9, "small": 1e9, "weak": 8e9})
+    params = cw.CapTopParams(threshold=0.8, top_n=2, min_trade=1_000)
+    ref = {"big": 100.0, "mid": 50.0, "small": 10.0}
+    orders = cw.plan_captop(st, 1_000_000, ref, pct, caps, params)
+    # weak 過不了門檻（雖然市值大）；target = big, mid；old 出局全賣
+    assert orders[0] == eg.Order("old", eg.SELL, 100, "rebalance")
+    buys = {o.stock_id: o for o in orders if o.side == eg.BUY}
+    assert set(buys) == {"big", "mid"}
+    # big 權重 9/13、已持 50 股 → 目標 int(1e6×9/13/100)=6923 → 加碼 6873
+    assert buys["big"].qty == int(1_000_000 * 9 / 13 / 100.0) - 50
+    # 買單順序：權重大者在前
+    buy_list = [o.stock_id for o in orders if o.side == eg.BUY]
+    assert buy_list == ["big", "mid"]
+
+
+def test_plan_captop_min_trade_skips_dust():
+    from app.research.level2 import capweight as cw
+    st = eg.PortfolioState(0)
+    pct = _pct({"a": 0.99, "b": 0.9})
+    caps = _pct({"a": 9e9, "b": 1e7})   # b 權重極小 → 部位 < min_trade
+    params = cw.CapTopParams(threshold=0.8, top_n=2, min_trade=10_000)
+    orders = cw.plan_captop(st, 1_000_000, {"a": 100.0, "b": 100.0},
+                            pct, caps, params)
+    assert [o.stock_id for o in orders] == ["a"]
+
+
+def test_plan_captop_trims_overweight():
+    from app.research.level2 import capweight as cw
+    st = eg.PortfolioState(0)
+    st.positions["a"] = 10_000               # 遠超目標 → 減碼賣單
+    pct = _pct({"a": 0.99, "b": 0.9})
+    caps = _pct({"a": 5e9, "b": 5e9})
+    params = cw.CapTopParams(threshold=0.8, top_n=2, min_trade=1_000)
+    orders = cw.plan_captop(st, 1_000_000, {"a": 100.0, "b": 100.0},
+                            pct, caps, params)
+    sells = [o for o in orders if o.side == eg.SELL]
+    assert len(sells) == 1 and sells[0].stock_id == "a"
+    assert sells[0].qty == 10_000 - int(1_000_000 * 0.5 / 100.0)
+
+
+def test_run_simulation_with_captop_planner():
+    from app.research.level2 import capweight as cw
+    open_, close = _synthetic_market()
+    pct5 = pd.DataFrame({"A": 0.99, "B": 0.9, "C": 0.5, "D": 0.1},
+                        index=close.index)
+    caps = pd.DataFrame({"A": 9e9, "B": 3e9, "C": 1e9, "D": 8e9},
+                        index=close.index)
+    params = cw.CapTopParams(threshold=0.8, top_n=2, rebalance_every=5,
+                             min_trade=1_000)
+    planner = lambda st, nav, ref, sig, d: cw.plan_captop(  # noqa: E731
+        st, nav, ref, sig, caps.loc[d], params)
+    res = run_simulation(open_, close, pct5, None, params, 1_000_000,
+                         planner=planner)
+    held = set(res.final_state.positions)
+    assert held == {"A", "B"}
+    # 重放一致性同樣成立
+    fills = [eg.Fill(**{k: r[k] for k in
+                        ("stock_id", "side", "qty", "price", "fee", "tax",
+                         "status", "reason")})
+             for r in res.fills.to_dict("records")]
+    rep = eg.replay(1_000_000, fills)
+    assert rep.cash == pytest.approx(res.final_state.cash)
+    assert rep.positions == res.final_state.positions
