@@ -202,3 +202,37 @@ def test_run_simulation_defense_exit_fires():
                         & (res.fills.side == "sell")]
     assert not defense.empty and set(defense.stock_id) == {"B"}
     assert "B" not in res.final_state.positions
+
+
+# ── KPI 指標（§6） ──
+
+def test_max_drawdown():
+    from app.research.level2 import metrics as mt
+    nav = pd.Series([100, 120, 90, 110, 80], dtype=float)
+    assert mt.max_drawdown(nav) == pytest.approx(80 / 120 - 1)
+    assert mt.max_drawdown(pd.Series([1.0, 2.0, 3.0])) == 0.0
+
+
+def test_excess_t_stat_direction():
+    from app.research.level2 import metrics as mt
+    idx = pd.RangeIndex(101)
+    rng = np.random.default_rng(3)
+    port = pd.Series(np.cumprod(1 + rng.normal(0.003, 0.001, 101)), index=idx)
+    bench = pd.Series(np.cumprod(1 + rng.normal(0.001, 0.001, 101)), index=idx)
+    mean_ex, t = mt.excess_t_stat(port, bench)
+    assert mean_ex > 0 and t > 5           # 穩定正超額 → t 顯著
+
+
+def test_summarize_fields_and_mdd_constraint_flag():
+    from app.research.level2 import metrics as mt
+    idx = [f"d{i}" for i in range(50)]
+    nav = pd.Series(np.linspace(100, 110, 50), index=idx)
+    bench = pd.Series(np.r_[np.linspace(100, 105, 25),
+                            np.linspace(105, 95, 25)], index=idx)
+    fills = pd.DataFrame([{"status": "filled", "price": 100.0, "qty": 10,
+                           "fee": 20.0, "tax": 30.0, "reason": "defense"}])
+    s = mt.summarize(nav, bench, fills)
+    assert s["mdd_within_bench"] is True   # 單調上升 MDD=0 ≥ 大盤負 MDD
+    assert s["total_costs"] == 50 and s["n_defense_exits"] == 1
+    assert s["excess_pct"] == pytest.approx(
+        (110 / 100 - 1) * 100 - (95 / 100 - 1) * 100, abs=0.01)
