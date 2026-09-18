@@ -111,7 +111,8 @@ def _pct(d: dict) -> pd.Series:
 def test_select_targets_buffer():
     # 100 檔：pct 由高到低 s001 最強
     pct = _pct({f"s{i:03d}": 1 - i / 100 for i in range(100)})
-    params = pl.BaselineParams()  # k_in=20, k_hold=60, target_n=20
+    params = pl.BaselineParams(k_in=20, k_hold=60, target_n=20,
+                               rebalance_every=5)  # 顯式參數：測緩衝邏輯本身
     held = {"s024", "s070"}       # rank 25 應續抱；rank 71 應出場
     t = pl.select_targets(held, pct, params)
     assert "s024" in t and "s070" not in t

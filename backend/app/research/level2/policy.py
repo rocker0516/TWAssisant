@@ -1,12 +1,20 @@
-"""Baseline v0 規則策略（FRS §5，參數凍結）。
+"""Baseline v1 規則策略（FRS §5 修訂版，參數凍結 2026-09-18）。
 
-P5 主組合：每 5 個交易日再平衡（5D pct_rank）；買進門檻 rank ≤ K_IN=20、
-續抱門檻 rank ≤ K_HOLD=60（緩衝降換手）；等權目標 5%／檔；再平衡不對存活
-持股加減碼（只處理進出，允許權重漂移——換手優先）。
-防禦出場：任一日持股 1D pct_rank ≤ 0.2 → 次日出場，不等再平衡日。
+P5 主組合：每 20 個交易日再平衡（5D pct_rank）；買進門檻 rank ≤ K_IN=20、
+續抱門檻 rank ≤ K_HOLD=200（寬緩衝降換手）；等權目標 5%／檔；再平衡不對
+存活持股加減碼（只處理進出，允許權重漂移——換手優先）。
+防禦出場：任一日持股 1D pct_rank ≤ 0.2 → 次日出場，不等再平衡日——
+低頻節奏下唯一的盤中風控，也是「避弱型 edge」的直接兌現。
 
-P1 對照組合：每日再平衡 1D Top-20 等權（K_IN=K_HOLD=20、無另設防禦——
-每日重排本身就是防禦）。
+版本史：
+- v0（reb5/hold60）於 dev 被成本否決：年換手 26.8×、成本拖累 37pp、
+  防禦 3 年觸發 604 次成雜訊源。dev 調參證據（頻率與防禦兩槓桿各自單調）
+  見 data/level2_backtest_dev.json（2026-09-18 sweep）。
+- v1（reb20/hold200/def0.2）：dev 超額 −5.2%（t=−0.29）、換手 7.9×、
+  MDD −15.2% vs 大盤 −31.6%；vs universe 等權淨 +16.5pp。
+
+P1 對照組合：每日再平衡 1D Top-20 等權。dev 已判死刑（1D alpha 在隔夜
+跳空、次日開盤買拿不到＋成本 102pp），保留只為 holdout 完整入檔。
 
 持股缺席當日排名（跌出 tradable universe：ADV 不足或處置）→ 視為 rank=∞，
 於下一個再平衡日出場；防禦規則對缺席者不觸發（無 1D 排名可判）。
@@ -24,15 +32,15 @@ import pandas as pd
 
 from .engine import BUY, SELL, Order, PortfolioState
 
-POLICY_VERSION = "baseline_v0"
+POLICY_VERSION = "baseline_v1"
 
 
 @dataclass(frozen=True)
 class BaselineParams:
     target_n: int = 20
     k_in: int = 20
-    k_hold: int = 60
-    rebalance_every: int = 5
+    k_hold: int = 200
+    rebalance_every: int = 20
     defense_pct: float = 0.2      # 1D pct_rank ≤ 此值 → 防禦出場
     use_defense: bool = True
 

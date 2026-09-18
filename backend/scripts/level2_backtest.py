@@ -172,39 +172,33 @@ def _run_segment(payload: dict, scores: dict, data_dir: Path,
     cost = CostModel()
     out: dict = {}
 
-    # 主組合＋對照；dev 段另跑診斷變體（調參只准看 dev——FRS §7）
+    # universe 等權（解析解）先算——各組合的 vs 等權歸因欄用（2026-09-18 使用者核可）
+    m = mask.loc[sim_dates]
+    ew_ret = (close.loc[sim_dates].pct_change(fill_method=None)
+              .where(m.shift(1)).mean(axis=1))
+    ew_nav = (1 + ew_ret.fillna(0)).cumprod() * INITIAL_CASH
+    ew_total = float(ew_nav.iloc[-1] / ew_nav.iloc[0] - 1) * 100
+
+    # 主組合（baseline_v1 凍結參數）＋對照；v0 只在 dev 保留為修訂紀錄
     variants: dict[str, tuple[pd.DataFrame, pd.DataFrame | None, BaselineParams]] = {
         "P5": (p5, p1, P5_PARAMS),
         "P1": (p1, None, P1_PARAMS),
     }
     if segment == "dev":
-        variants.update({
-            "P5_nodef": (p5, None, BaselineParams(use_defense=False)),
-            "P5_def010": (p5, p1, BaselineParams(defense_pct=0.1)),
-            "P5_reb10_hold120": (p5, p1, BaselineParams(
-                rebalance_every=10, k_hold=120)),
-            "P5_reb10_hold120_nodef": (p5, None, BaselineParams(
-                rebalance_every=10, k_hold=120, use_defense=False)),
-            "P5_reb20_hold200_nodef": (p5, None, BaselineParams(
-                rebalance_every=20, k_hold=200, use_defense=False)),
-            "P5_reb10_hold120_def010": (p5, p1, BaselineParams(
-                rebalance_every=10, k_hold=120, defense_pct=0.1)),
-            "P5_reb20_hold200_def020": (p5, p1, BaselineParams(
-                rebalance_every=20, k_hold=200)),
-            "P5_reb20_hold200_def010": (p5, p1, BaselineParams(
-                rebalance_every=20, k_hold=200, defense_pct=0.1)),
-            "P5_reb10_n10_hold120": (p5, p1, BaselineParams(
-                target_n=10, k_in=20, rebalance_every=10, k_hold=120)),
-        })
+        variants["P5_v0_reference"] = (p5, p1, BaselineParams(
+            rebalance_every=5, k_hold=60))
     for name, (rank_df, def_df, params) in variants.items():
         res = run_simulation(o, c, rank_df, def_df, params, INITIAL_CASH, cost)
         out[name] = mt.summarize(res.nav, b, res.fills)
         out[name]["params"] = params.__dict__
+        out[name]["excess_vs_ew_pct"] = round(
+            out[name]["return_pct"] - ew_total, 2)
         if name in ("P5", "P1"):
             out[name]["nav"] = {"date": list(res.nav.index),
                                 "nav": [round(v, 0) for v in res.nav]}
         s = out[name]
         _log(f"  {name:<24} 超額 {s['excess_pct']:+8.2f}% (t={s['excess_t']:+.2f}) "
+             f"vs等權 {s['excess_vs_ew_pct']:+8.2f}% "
              f"換手 {s['turnover_annual']:5.1f} 成本 {s['cost_drag_pct']:5.1f}pp "
              f"MDD {s['mdd_pct']}%")
 
@@ -223,10 +217,6 @@ def _run_segment(payload: dict, scores: dict, data_dir: Path,
     _log(f"  random×3 平均超額 {out['random_top20']['mean_excess_pct']:+.2f}%"
          f"（應 ≈ 0 − 成本拖累）")
 
-    # universe 等權（解析解，市場對照）
-    m = mask.loc[sim_dates]
-    ew_ret = close.loc[sim_dates].pct_change(fill_method=None).where(m.shift(1)).mean(axis=1)
-    ew_nav = (1 + ew_ret.fillna(0)).cumprod() * INITIAL_CASH
     out["universe_ew"] = mt.summarize(ew_nav, b, pd.DataFrame())
     return out
 
