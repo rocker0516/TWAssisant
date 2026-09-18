@@ -415,6 +415,35 @@ class Level1PredictStep(PipelineStep):
         return {"ok": True, "log_tail": tail}
 
 
+class Level2PaperStep(PipelineStep):
+    """Level 2 live paper 帳戶（scripts/level2_paper.py，FRS v1.1 §10/§14）。
+
+    須在 Level1PredictStep 之後（訊號源＝當日 ledger）。子行程＋先 commit
+    放 SQLite 寫鎖，慣例同 Level1PredictStep。關機漏日由腳本 catch-up 逐日補
+    （委託源自各日當時 ledger、成交用各日真實開盤價——非事後訊號）。
+    backfill 管線不掛此 step（假戰績條款）。
+    """
+
+    name = "level2_paper"
+    required = False
+
+    def run(self, ctx: PipelineContext) -> dict:
+        import subprocess
+        import sys as _sys
+        from pathlib import Path
+
+        ctx.session.commit()  # 釋放 SQLite 寫鎖，讓子行程能寫 level2_* 表
+        base = Path(__file__).resolve().parents[2]
+        r = subprocess.run(
+            [_sys.executable, "-m", "scripts.level2_paper"],
+            cwd=base, capture_output=True, text=True, timeout=600,
+        )
+        if r.returncode != 0:
+            return {"ok": False, "reason": (r.stderr or r.stdout)[-200:]}
+        tail = [ln for ln in r.stdout.strip().splitlines() if ln][-3:]
+        return {"ok": True, "log_tail": tail}
+
+
 class ScoringStep(PipelineStep):
     """雙軌評分 → scores（P1，含類股修正）。"""
 
