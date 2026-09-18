@@ -1310,3 +1310,49 @@ export function useLevel1Validation() {
     staleTime: 60 * 60 * 1000, // 凍結報告——研究重跑才會變
   });
 }
+
+// ── Level 2 live paper 帳戶（FRS v1.1 §11/§14）──
+// openapi 型別未重跑，手寫（對應後端 routes_level2 的 pydantic schema）。
+export type Level2NavPoint = { date: string; nav: number; benchmark: number | null };
+export type Level2Summary = {
+  account: string; policy_version: string; start_date: string | null;
+  days: number; initial_cash: number; nav: number | null; cash: number | null;
+  return_pct: number | null;            // 主 KPI：絕對報酬
+  mdd_pct: number | null; bench_mdd_pct: number | null;
+  mdd_within_bench: boolean | null;     // 硬約束
+  excess_vs_bench_pct: number | null;   // 診斷欄
+  total_costs: number; n_fills: number; n_defense_exits: number;
+  series: Level2NavPoint[];
+};
+export type Level2Position = {
+  stock_id: string; name: string | null; qty: number; close: number | null;
+  market_value: number | null; weight_pct: number | null;
+};
+export type Level2Order = {
+  created_date: string; stock_id: string; side: string; qty: number;
+  reason: string; status: string; trade_date: string | null; price: number | null;
+};
+export function useLevel2Summary() {
+  return useQuery({
+    queryKey: ["level2-summary"],
+    queryFn: () => getJson<Level2Summary>("/level2/summary"),
+    staleTime: 5 * 60_000,
+    retry: false, // 帳戶未建立時 404 屬正常狀態
+  });
+}
+export function useLevel2Positions() {
+  return useQuery({
+    queryKey: ["level2-positions"],
+    queryFn: () => getJson<Level2Position[]>("/level2/positions"),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}
+export function useLevel2Orders() {
+  return useQuery({
+    queryKey: ["level2-orders"],
+    queryFn: () => getJson<Level2Order[]>("/level2/orders"),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}

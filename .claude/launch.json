@@ -39,6 +39,17 @@
         "backend"
       ],
       "port": 8001
+    },
+    {
+      "name": "web-verify",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev:verify",
+        "--prefix",
+        "frontend"
+      ],
+      "port": 5174
     }
   ]
 }

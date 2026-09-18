@@ -17,6 +17,7 @@ const NAV: NavItem[] = [
   { to: "/lab", label: "策略室", icon: "🧪", enabled: true },
   { to: "/ctx-matrix", label: "情境矩陣", icon: "🗺️", enabled: true },
   { to: "/level1", label: "ML 排序", icon: "🤖", enabled: true },
+  { to: "/level2", label: "模擬帳戶", icon: "🧾", enabled: true },
 ];
 
 // 側欄底部帳號卡＝設定入口（帳號與偏好同在設定頁）。
