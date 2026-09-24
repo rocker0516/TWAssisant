@@ -119,10 +119,10 @@ def overview(ud: UserData = Depends(get_user_data)) -> OverviewResponse:
     alerts.sort(key=lambda a: _LEVEL.get({"🔴": "red", "🟠": "orange", "🟡": "yellow"}.get(a.light, "green"), 9))
 
     # 進場推薦摘要
-    counts = {tk: session.execute(
+    wave_count = session.execute(
         select(func.count()).select_from(models.Score)
-        .where(models.Score.track == tk, models.Score.date == td, models.Score.passed.is_(True))
-    ).scalar_one() for tk in ("wave", "long")}
+        .where(models.Score.track == "wave", models.Score.date == td, models.Score.passed.is_(True))
+    ).scalar_one()
     top_rows = session.execute(
         select(models.Score, models.Stock.name).join(models.Stock, models.Score.stock_id == models.Stock.id)
         .where(models.Score.date == td, models.Score.passed.is_(True))
@@ -152,6 +152,6 @@ def overview(ud: UserData = Depends(get_user_data)) -> OverviewResponse:
     return OverviewResponse(
         market=_market(session, td), market_note=market_note(session, td),
         holdings_alerts=alerts[:5],
-        reco_wave_count=counts["wave"], reco_long_count=counts["long"], reco_top=reco_top,
+        reco_wave_count=wave_count, reco_top=reco_top,
         sectors_top=sectors_top, recent_events=recent_events,
     )

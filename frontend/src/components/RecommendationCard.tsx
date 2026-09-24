@@ -24,19 +24,6 @@ const STYLE_TAGS: Record<string, { label: string; cls: string; title: string }> 
       + "（10日摸+10%：挖掘77%/holdout67%；但段間離散大——11個崩段的中位67%、最差18%）" },
 };
 
-// 長線畢業條件配色：回測毒性單調 → 黃/紅為「重新審視」訊號（非停損）
-function fishAgeClass(n: number): string {
-  if (n > 18) return "bg-red-500/15 text-red-300";
-  if (n > 12) return "bg-amber-500/15 text-amber-300";
-  return "bg-emerald-500/10 text-emerald-300";
-}
-
-function mom12Class(pct: number): string {
-  if (pct > 200) return "bg-red-500/15 text-red-300";
-  if (pct > 80) return "bg-amber-500/15 text-amber-300";
-  return "bg-gray-500/10 text-gray-400";
-}
-
 function toneClass(tone: NarrativeTone): string {
   if (tone === "neg") return "text-amber-400";
   if (tone === "pos") return "text-gray-300";
@@ -182,76 +169,9 @@ export function RecommendationCard({
             )}
           </div>
         </div>
-      ) : item.target_zone ? (
-        /* 目標主區塊（長線軌）：基準錨上漲空間；區間細節在下方「目標區間」欄 */
-        <div
-          className="flex items-baseline gap-3"
-          title={
-            item.target_zone.basis === "analyst"
-              ? "FactSet 法人共識目標價中位相對現價的空間。法人評等在循環頂點最樂觀（落後指標），搭配下方畢業條件一起看；非保證"
-              : "無法人報告，改以 PE 河流中位帶（估值回到歷史常態）推算。估值推算非保證"
-          }
-        >
-          <span
-            className={`text-3xl font-bold tabular-nums leading-none ${
-              (item.target_zone.upside_pct ?? 0) >= 30
-                ? "text-up"
-                : (item.target_zone.upside_pct ?? 0) >= 10
-                  ? "text-amber-300"
-                  : "text-gray-400"
-            }`}
-          >
-            {item.target_zone.upside_pct != null ? fmtPct(item.target_zone.upside_pct) : "—"}
-          </span>
-          <div className="min-w-0 text-xs leading-snug">
-            <div className="text-gray-300">
-              目標 {fmtNum(item.target_zone.base)}（
-              {item.target_zone.basis === "analyst" ? "法人目標價中位" : "估值推算"}）的空間
-            </div>
-            <div className="text-muted">
-              {item.target_zone.basis === "analyst" && item.target_zone.analyst_count != null
-                ? `${item.target_zone.analyst_count} 位分析師　·　`
-                : item.target_zone.basis === "pe_river"
-                  ? "PE 河流中位帶　·　"
-                  : ""}
-              參考期間 12 個月
-            </div>
-          </div>
-        </div>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-y-1">
           <ScoreDisplay total={item.total_score} subScores={item.sub_scores} />
-        </div>
-      )}
-
-      {/* 畢業條件（長線軌）：不設停損，這排是「該重新審視這條魚了嗎」 */}
-      {item.graduation && (
-        <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <span className="text-muted">畢業條件</span>
-          {item.graduation.hit_target && (
-            <span
-              className="rounded bg-rose-500/15 px-1.5 py-0.5 font-medium text-rose-300"
-              title="現價/期間高點已觸及基準目標——這條魚釣到了，重新評估是否續抱"
-            >
-              🎣 已達標
-            </span>
-          )}
-          {item.graduation.streak_months != null && (
-            <span
-              className={`rounded px-1.5 py-0.5 font-medium ${fishAgeClass(item.graduation.streak_months)}`}
-              title="連續營收年增為正的月數。回測：12 月見頂、19 月以上相對宇宙 −5.5pp（老魚是毒）"
-            >
-              🐟 魚齡 {item.graduation.streak_months} 月
-            </span>
-          )}
-          {item.graduation.mom12_pct != null && (
-            <span
-              className={`rounded px-1.5 py-0.5 font-medium ${mom12Class(item.graduation.mom12_pct)}`}
-              title="近 12 月漲幅。回測：漲幅 80~200% 相對宇宙 −8.2pp、200%+ −20.9pp（魚已被釣走）"
-            >
-              📈 已漲 {fmtPct(item.graduation.mom12_pct)}
-            </span>
-          )}
         </div>
       )}
 
@@ -341,16 +261,7 @@ export function RecommendationCard({
             {fmtNum(item.buy_low)} ~ {fmtNum(item.buy_high)}
           </div>
         </div>
-        {item.track === "long" ? (
-          <div title="保守=PE 河流中位帶（估值回常態）、樂觀=上緣帶（估值走到歷史高檔）。長線軌不設停損，以畢業條件檢視">
-            <div className="text-xs text-muted">目標區間（保守~樂觀）</div>
-            <div className="tabular-nums">
-              {item.target_zone?.low != null && item.target_zone?.high != null
-                ? `${fmtNum(item.target_zone.low)} ~ ${fmtNum(item.target_zone.high)}`
-                : "—"}
-            </div>
-          </div>
-        ) : item.stop_loss != null ? (
+        {item.stop_loss != null ? (
           <div>
             <div className="text-xs text-muted">參考停損</div>
             <div className="tabular-nums">

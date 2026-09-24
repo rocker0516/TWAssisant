@@ -13,7 +13,7 @@ import {
 } from "../api/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { inputCls } from "../components/Modal";
-import { CATEGORY_LABELS, changeColor } from "../lib/format";
+import { changeColor } from "../lib/format";
 import { applyTheme, getStoredTheme, type Theme } from "../lib/theme";
 
 const SECTIONS = [
@@ -31,7 +31,6 @@ const EXIT_LABELS: Record<string, string> = {
   stop_cap: "停損 %",
   trail_trigger: "移動停利啟動 %",
   trail_pullback: "回落 %",
-  score_slip_warn: "分數滑落警戒（分）",
 };
 
 const WAVE_DEFAULTS_LABELS: Record<string, string> = {
@@ -107,36 +106,20 @@ export default function SettingsPage() {
         {/* 評分與推薦 */}
         {section === "scoring" && (
           <div className="flex flex-col gap-5">
-            {(["wave", "long"] as const).map((tk) => (
-              <div key={tk} className="rounded-xl border border-edge bg-panel p-4">
-                <div className="mb-3 font-semibold">{tk === "wave" ? "波段軌（會噴）" : "長線軌"}</div>
-                {tk === "wave" ? (
-                  <>
-                    <p className="mb-3 text-xs leading-relaxed text-muted">
-                      進場推薦＝<b>會噴</b>：分數為當天全市場橫截面 <b>2×波動度 + 均線多排</b> 的百分位
-                      （回測實證的會噴機率，無配分可調）。下方設定進推薦的「前 N%」；推薦頁也有橫桿可即時調整。
-                    </p>
-                    <label className="block w-40">
-                      <span className="mb-1 block text-xs text-muted">推薦前 N%</span>
-                      <input type="number" min={1} max={100} className={inputCls}
-                        value={draft.wave?.top_pct ?? 20}
-                        onChange={(e) => setDraft({ ...draft, wave: { ...draft.wave, top_pct: Number(e.target.value) } })} />
-                    </label>
-                  </>
-                ) : (
-                  <>
-                    <NumGrid obj={draft[tk].weights} labels={CATEGORY_LABELS}
-                      onChange={(k, v) => setDraft({ ...draft, [tk]: { ...draft[tk], weights: { ...draft[tk].weights, [k]: v } } })} />
-                    <label className="mt-3 block w-40">
-                      <span className="mb-1 block text-xs text-muted">推薦門檻</span>
-                      <input type="number" className={inputCls} value={draft[tk].threshold}
-                        onChange={(e) => setDraft({ ...draft, [tk]: { ...draft[tk], threshold: Number(e.target.value) } })} />
-                    </label>
-                  </>
-                )}
-              </div>
-            ))}
-            <p className="text-xs text-muted">長線軌配分自由給分、系統自動換算比例（不需加總 100）。儲存後當日重算、即時生效。</p>
+            <div className="rounded-xl border border-edge bg-panel p-4">
+              <div className="mb-3 font-semibold">波段軌（會噴）</div>
+              <p className="mb-3 text-xs leading-relaxed text-muted">
+                進場推薦＝<b>會噴</b>：分數為當天全市場橫截面 <b>2×波動度 + 均線多排</b> 的百分位
+                （回測實證的會噴機率，無配分可調）。下方設定進推薦的「前 N%」；推薦頁也有橫桿可即時調整。
+              </p>
+              <label className="block w-40">
+                <span className="mb-1 block text-xs text-muted">推薦前 N%</span>
+                <input type="number" min={1} max={100} className={inputCls}
+                  value={draft.wave?.top_pct ?? 20}
+                  onChange={(e) => setDraft({ ...draft, wave: { ...draft.wave, top_pct: Number(e.target.value) } })} />
+              </label>
+            </div>
+            <p className="text-xs text-muted">儲存後當日重算、即時生效。（長線軌已移除）</p>
           </div>
         )}
 
@@ -174,7 +157,8 @@ export default function SettingsPage() {
               </label>
             </div>
             <div className="rounded-xl border border-edge bg-panel p-4">
-              <div className="mb-3 font-semibold">長線軌出場參數</div>
+              <div className="mb-3 font-semibold">既有長線持倉出場參數</div>
+              <p className="mb-3 text-xs text-muted">長線軌推薦已移除；此組參數只照顧先前建立的長線持倉（停損上限、移動停利、跌破季線）。</p>
               <NumGrid obj={draft.long} labels={EXIT_LABELS}
                 onChange={(k, v) => setDraft({ ...draft, long: { ...draft.long, [k]: v } })} />
               <label className="mt-3 flex items-center gap-2 text-sm">

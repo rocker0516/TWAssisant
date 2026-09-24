@@ -233,6 +233,126 @@ class FinancialQuarter(Base):
     roe: Mapped[float | None] = mapped_column(Float)
 
 
+class FundamentalFirstSeen(Base):
+    """基本面列「首次入庫日」（append-only，Level 1 PIT 可得性側表）。
+
+    主表（revenue_monthly / financials_quarterly）只有所屬期間、沒有公告日，
+    且 upsert 全欄覆寫，首次入庫日放主表會被歷史回補洗掉，故獨立成側表。
+    寫入只走 insert-ignore，已寫下的日期永不改寫。
+    可得日語意見 `app/services/pit_fundamentals.py`：avail = min(法定期限, first_seen)。
+
+    PK = (kind, stock_id, year, period)；kind: rev=月營收(period=月) / fin=季報(period=季)。
+    """
+
+    __tablename__ = "fundamental_first_seen"
+
+    kind: Mapped[str] = mapped_column(String(4), primary_key=True)
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    year: Mapped[int] = mapped_column(Integer, primary_key=True)
+    period: Mapped[int] = mapped_column(Integer, primary_key=True)
+    first_seen: Mapped[date_] = mapped_column(Date)
+
+
+class Level1Prediction(Base):
+    """Level 1 Prediction Ledger（FRS §15）：每次推薦可追溯、可重現。
+
+    每日對 U_t 全體寫入分數與排名（K 不預先固定，Top-K 是展示層的視圖）。
+    actual_* 三欄於 t+N 成熟後由 scripts.level1_predict --mature 回填；
+    rank_error = |pct_rank − actual_pct|。
+    PK = (prediction_date, stock_id, horizon, model_version)——同日同版重跑覆寫
+    自己，換版本則並存，歷史版本不受影響。
+    """
+
+    __tablename__ = "level1_predictions"
+
+    prediction_date: Mapped[date_] = mapped_column(Date, primary_key=True)
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    horizon: Mapped[int] = mapped_column(Integer, primary_key=True)
+    model_version: Mapped[str] = mapped_column(String(40), primary_key=True)
+    score: Mapped[float] = mapped_column(Float)
+    rank: Mapped[int] = mapped_column(Integer)          # 1 = 最強
+    pct_rank: Mapped[float] = mapped_column(Float)      # (0,1]，1 = 最強
+    universe_size: Mapped[int] = mapped_column(Integer)
+    feature_version: Mapped[str] = mapped_column(String(40))
+    actual_return: Mapped[float | None] = mapped_column(Float)
+    actual_pct: Mapped[float | None] = mapped_column(Float)
+    rank_error: Mapped[float | None] = mapped_column(Float)
+    matured_at: Mapped[date_ | None] = mapped_column(Date)
+
+
+class Level2Account(Base):
+    """Level 2 模擬帳戶（FRS v1.1 §9/§14）。
+
+    cash / rebalance_counter 為便利快照——真相在 level2_orders，重放必須一致
+    （scripts.level2_paper 的 verify_replay 釘住）。
+    """
+
+    __tablename__ = "level2_accounts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(40), unique=True)
+    policy_version: Mapped[str] = mapped_column(String(40))
+    initial_cash: Mapped[float] = mapped_column(Float)
+    cash: Mapped[float] = mapped_column(Float)
+    rebalance_counter: Mapped[int] = mapped_column(Integer, default=0)  # 訊號日計數
+    start_date: Mapped[date_ | None] = mapped_column(Date)
+    last_processed: Mapped[date_ | None] = mapped_column(Date)
+
+
+class Level2Order(Base):
+    """Level 2 委託（append-only 事實來源）。
+
+    status: pending（今晚產生、等次一交易日開盤）→ filled / rejected /
+    deferred（漲跌停或停牌順延，次日再試）。trade_date/price/fee/tax 於
+    執行時回填；reason 保留策略原因（rebalance/defense），拒單附 ':limit_up' 等。
+    """
+
+    __tablename__ = "level2_orders"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("level2_accounts.id"))
+    created_date: Mapped[date_] = mapped_column(Date)      # 訊號日
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"))
+    side: Mapped[str] = mapped_column(String(4))           # buy / sell
+    qty: Mapped[int] = mapped_column(Integer)
+    reason: Mapped[str] = mapped_column(String(40))
+    status: Mapped[str] = mapped_column(String(10), default="pending")
+    trade_date: Mapped[date_ | None] = mapped_column(Date)
+    price: Mapped[float | None] = mapped_column(Float)
+    fee: Mapped[float | None] = mapped_column(Float)
+    tax: Mapped[float | None] = mapped_column(Float)
+
+
+class Level2Position(Base):
+    """Level 2 每日持倉快照（查詢便利；可由 orders 重放重建）。"""
+
+    __tablename__ = "level2_positions"
+
+    account_id: Mapped[int] = mapped_column(
+        ForeignKey("level2_accounts.id"), primary_key=True)
+    date: Mapped[date_] = mapped_column(Date, primary_key=True)
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"),
+                                          primary_key=True)
+    qty: Mapped[int] = mapped_column(Integer)
+    close: Mapped[float | None] = mapped_column(Float)
+    market_value: Mapped[float | None] = mapped_column(Float)
+
+
+class Level2Nav(Base):
+    """Level 2 每日淨值（收盤估值；benchmark=加權指數收盤，診斷欄用）。"""
+
+    __tablename__ = "level2_nav"
+
+    account_id: Mapped[int] = mapped_column(
+        ForeignKey("level2_accounts.id"), primary_key=True)
+    date: Mapped[date_] = mapped_column(Date, primary_key=True)
+    nav: Mapped[float] = mapped_column(Float)
+    cash: Mapped[float] = mapped_column(Float)
+    invested: Mapped[float] = mapped_column(Float)
+    benchmark_close: Mapped[float | None] = mapped_column(Float)
+    had_signal: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
 class AttentionListing(Base):
     """注意股（notice）／處置股（punish）名單（TWSE + TPEX 官方公告）。
 

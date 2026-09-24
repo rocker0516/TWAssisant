@@ -6,8 +6,6 @@ import type { components } from "./types";
 // 那份副本沒有任何機制保證它跟後端一致（本檔曾因此累積出三塊手補型別）。
 export type RecommendationList = components["schemas"]["RecommendationList"];
 export type RecommendationItem = components["schemas"]["RecommendationItem"];
-export type LongTargetZone = components["schemas"]["LongTargetZone"];
-export type LongGraduation = components["schemas"]["LongGraduation"];
 export type RecommendationDetail = components["schemas"]["RecommendationDetail"];
 export type RecommendationLookbackResponse = components["schemas"]["RecommendationLookbackResponse"];
 export type LookbackReview = components["schemas"]["LookbackReview"];
@@ -1243,5 +1241,118 @@ export function useLookbackSensitivity(since?: string) {
     queryKey: ["lookback-sensitivity", since ?? "all"],
     queryFn: () => getJson<SensitivityResponse>(`/recommendations/lookback/sensitivity${q}`),
     staleTime: 10 * 60_000,
+  });
+}
+
+// ── Level 1 ML 推薦軌（openapi 型別未重跑，手補；真相來源 backend/app/api/routes_level1.py） ──
+
+export type Level1Item = {
+  rank: number; stock_id: string; name: string | null;
+  score: number; pct_rank: number; close: number | null;
+  adv20: number | null;
+  actual_return: number | null; actual_pct: number | null;
+};
+export type Level1Board = {
+  date: string | null; horizon: number; k: number;
+  model_version: string | null; universe_size: number | null;
+  items: Level1Item[];
+};
+export type Level1MaturedDay = {
+  prediction_date: string; topk_mean_return: number;
+  universe_mean_return: number; excess: number; topk_mean_actual_pct: number;
+};
+export type Level1Performance = {
+  horizon: number; k: number; n_days: number;
+  mean_excess: number | null; day_win_rate: number | null;
+  mean_actual_pct: number | null; days: Level1MaturedDay[];
+};
+
+export function useLevel1Board(horizon: number, k: number) {
+  return useQuery({
+    queryKey: ["level1-board", horizon, k],
+    queryFn: () => getJson<Level1Board>(`/level1/board?horizon=${horizon}&k=${k}`),
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useLevel1Performance(horizon: number, k: number) {
+  return useQuery({
+    queryKey: ["level1-performance", horizon, k],
+    queryFn: () => getJson<Level1Performance>(`/level1/performance?horizon=${horizon}&k=${k}`),
+    staleTime: 5 * 60_000,
+  });
+}
+
+export type Level1LadderCell = {
+  mean_ic: number; icir: number; monotonicity: number; n_days: number;
+  evaluation_n_mean: number;
+  top20_excess_pct: number; top20_day_win_rate: number;
+};
+export type Level1QuantileBlock = {
+  values: number[];
+  interpretation: { shape: string; text: string };  // 解讀語意屬後端——前端只 render
+};
+export type Level1HorizonValidation = {
+  ladder: Record<string, { dev_oos: Level1LadderCell; holdout: Level1LadderCell }>;
+  quantiles: { dev_oos: Level1QuantileBlock; holdout: Level1QuantileBlock };
+};
+export type Level1Validation = {
+  first_test: string;
+  periods: Record<string, [string, string]>;
+  model_version: string;
+  generated_at: string;
+  horizons: Record<string, Level1HorizonValidation>;
+};
+export function useLevel1Validation() {
+  return useQuery({
+    queryKey: ["level1-validation"],
+    queryFn: () => getJson<Level1Validation>("/level1/validation"),
+    staleTime: 60 * 60 * 1000, // 凍結報告——研究重跑才會變
+  });
+}
+
+// ── Level 2 live paper 帳戶（FRS v1.1 §11/§14）──
+// openapi 型別未重跑，手寫（對應後端 routes_level2 的 pydantic schema）。
+export type Level2NavPoint = { date: string; nav: number; benchmark: number | null };
+export type Level2Summary = {
+  account: string; policy_version: string; start_date: string | null;
+  days: number; initial_cash: number; nav: number | null; cash: number | null;
+  return_pct: number | null;            // 主 KPI：絕對報酬
+  mdd_pct: number | null; bench_mdd_pct: number | null;
+  mdd_within_bench: boolean | null;     // 硬約束
+  excess_vs_bench_pct: number | null;   // 診斷欄
+  total_costs: number; n_fills: number; n_defense_exits: number;
+  series: Level2NavPoint[];
+};
+export type Level2Position = {
+  stock_id: string; name: string | null; qty: number; close: number | null;
+  market_value: number | null; weight_pct: number | null;
+};
+export type Level2Order = {
+  created_date: string; stock_id: string; side: string; qty: number;
+  reason: string; status: string; trade_date: string | null; price: number | null;
+};
+export function useLevel2Summary() {
+  return useQuery({
+    queryKey: ["level2-summary"],
+    queryFn: () => getJson<Level2Summary>("/level2/summary"),
+    staleTime: 5 * 60_000,
+    retry: false, // 帳戶未建立時 404 屬正常狀態
+  });
+}
+export function useLevel2Positions() {
+  return useQuery({
+    queryKey: ["level2-positions"],
+    queryFn: () => getJson<Level2Position[]>("/level2/positions"),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}
+export function useLevel2Orders() {
+  return useQuery({
+    queryKey: ["level2-orders"],
+    queryFn: () => getJson<Level2Order[]>("/level2/orders"),
+    staleTime: 5 * 60_000,
+    retry: false,
   });
 }

@@ -246,7 +246,7 @@ def home(request: Request, session: Session = Depends(get_session)) -> HTMLRespo
         return _templates.TemplateResponse(request, "home.html", {
             "cutoff": "尚無資料", "idx_close": None, "idx_chg": None,
             "turnover_total": None, "n_up": 0, "n_down": 0, "inst_total": None,
-            "n_passed": 0, "n_wave": 0, "n_long": 0,
+            "n_passed": 0, "n_wave": 0,
             "sectors": [], "news": [], "n_stocks": 0})
 
     # 加權指數：取最近兩筆自算漲跌（index 表只有 close）
@@ -291,7 +291,7 @@ def home(request: Request, session: Session = Depends(get_session)) -> HTMLRespo
             models.Score.date == d0, models.Score.passed.is_(True))
         .group_by(models.Score.track)
     ).all())
-    n_wave, n_long = passed.get("wave", 0), passed.get("long", 0)
+    n_wave = passed.get("wave", 0)
 
     sector_rows = session.execute(
         select(models.Sector.id, models.Sector.name, models.SectorDaily.strength_score,
@@ -325,7 +325,7 @@ def home(request: Request, session: Session = Depends(get_session)) -> HTMLRespo
         "idx_close": idx_close, "idx_chg": idx_chg,
         "turnover_total": turnover_total,
         "n_up": n_up, "n_down": n_down, "inst_total": inst_total,
-        "n_passed": n_wave + n_long, "n_wave": n_wave, "n_long": n_long,
+        "n_passed": n_wave, "n_wave": n_wave,
         "sectors": sectors, "news": news, "n_stocks": n_stocks,
     })
 
@@ -460,7 +460,7 @@ def daily(day: str, request: Request, session: Session = Depends(get_session)) -
         "idx_close": idx_close, "idx_chg": idx_chg,
         "turnover_total": turnover_total, "n_up": n_up, "n_down": n_down,
         "inst": inst,
-        "n_wave": passed.get("wave", 0), "n_long": passed.get("long", 0),
+        "n_wave": passed.get("wave", 0),
         "n_listed": changes.get(("listed", "wave"), 0) + changes.get(("listed", "long"), 0),
         "n_delisted": changes.get(("delisted", "wave"), 0) + changes.get(("delisted", "long"), 0),
         "sectors": sectors, "news": news,

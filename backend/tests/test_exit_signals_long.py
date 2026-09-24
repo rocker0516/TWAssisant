@@ -1,15 +1,14 @@
-"""長線出場小修：分數滑落主訊號、營收 yoy 降級、法人 20 日窗。"""
+"""既有長線持倉的出場照顧（長線「推薦」已移除，出場訊號保留）：
+FundamentalWeakSignal 營收 yoy 降級、法人 20 日窗。ScoreSlipSignal 已隨
+Score(track='long') 停產而刪除。"""
 import pandas as pd
-import pytest
 
-from app.engines import exit_signals as xs
-from app.engines.exit_signals import Position, ScoreSlipSignal, FundamentalWeakSignal, Sev
+from app.engines.exit_signals import Position, FundamentalWeakSignal, Sev
 from app.storage import models
 
 
 class Ctx:  # 最小假 context
-    def __init__(self, long_scores=None, revenue=None, inst=None, ind=None):
-        self.long_scores = long_scores or []
+    def __init__(self, revenue=None, inst=None, ind=None):
         self.revenue = revenue
         self.inst = inst if inst is not None else pd.DataFrame(
             columns=["foreign_net", "trust_net", "dealer_net", "total_net"])
@@ -24,32 +23,20 @@ class Ctx:  # 最小假 context
 
 
 def _h(entry_score=70.0):
-    h = models.Holding(stock_id="1101", track="long",
-                       entry_snapshot={"total_score": entry_score})
-    return h
+    return models.Holding(stock_id="1101", track="long",
+                          entry_snapshot={"total_score": entry_score})
 
 
 POS = Position(shares=1, avg_cost=100, highest=100, close=100)
-
-
-def test_score_slip_warn():
-    hits = ScoreSlipSignal().check(_h(70), POS, Ctx(long_scores=[54, 55, 55, 56, 55]))
-    assert len(hits) == 1 and hits[0].sev == Sev.WARN
-
-
-def test_score_slip_critical_when_filter_lost():
-    ctx = Ctx(long_scores=[50, 51, 52, 50, 51])
-    ctx.long_passed_filter = False
-    hits = ScoreSlipSignal().check(_h(70), POS, ctx)
-    assert hits[0].sev == Sev.CRITICAL
-
-
-def test_score_slip_silent_without_snapshot():
-    h = models.Holding(stock_id="1101", track="long", entry_snapshot=None)
-    assert ScoreSlipSignal().check(h, POS, Ctx(long_scores=[50] * 5)) == []
 
 
 def test_yoy_deep_negative_is_warn_not_critical():
     ctx = Ctx(revenue=pd.Series({"yoy": -20.0}))
     hits = FundamentalWeakSignal().check(_h(), POS, ctx)
     assert any(h.code == "rev_drop" and h.sev == Sev.WARN for h in hits)
+
+
+def test_yoy_mild_negative_is_early():
+    ctx = Ctx(revenue=pd.Series({"yoy": -3.0}))
+    hits = FundamentalWeakSignal().check(_h(), POS, ctx)
+    assert any(h.code == "rev_neg" and h.sev == Sev.EARLY for h in hits)

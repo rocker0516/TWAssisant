@@ -50,32 +50,6 @@ class LookbackReview(BaseModel):
     days_elapsed: int = 0              # 進場日後已過幾個交易日
 
 
-class LongTargetZone(BaseModel):
-    """長線軌目標區間（參考期間 12 個月＝回測視窗）。
-
-    基準錨優先用法人目標價中位（FactSet），無法人報告退 PE 河流中位帶（估值推算）；
-    保守/樂觀恆為 PE 河流中位帶/上緣帶 × 隱含 EPS（長線硬篩②保證 EPS>0，缺的只會是 PE 史料）。
-    """
-
-    basis: Literal["analyst", "pe_river"]  # 基準錨來源：法人目標價 / 估值推算
-    base: float                       # 基準目標價
-    upside_pct: float | None          # 基準相對現價上漲空間 %
-    low: float | None                 # 保守：PE 河流中位帶價
-    high: float | None                # 樂觀：PE 河流上緣帶價
-    analyst_target: float | None = None   # 法人目標價中位（有 FactSet 報告才有）
-    analyst_date: date | None = None      # 該目標價發布日
-    analyst_count: int | None = None      # 分析師家數
-    hit: bool = False                 # 已達標：analyst=發布後最高價曾觸及；pe_river=現價已在基準上
-
-
-class LongGraduation(BaseModel):
-    """長線軌畢業條件（重新審視訊號，非停損）：達標 / 魚齡老化 / 已暴漲。"""
-
-    hit_target: bool = False          # 現價已觸及基準目標
-    streak_months: int | None = None  # 魚齡：連續營收 YoY>0 月數（>12 轉黃、>18 轉紅）
-    mom12_pct: float | None = None    # 近 12 月漲幅 %（>80 轉黃、>200 轉紅）
-
-
 class RecommendationItem(BaseModel):
     stock_id: str
     name: str
@@ -109,8 +83,6 @@ class RecommendationItem(BaseModel):
     attention_tags: list[str] = []  # 完整旗標集（可同時 punish+notice；精確組合篩選用）
     # ML 共識確認（2026-08 實證：四因子∩ML 交集 holdout 命中 ~34% vs 單獨 ~30-31%）
     ml_consensus: bool | None = None  # True=ML 模型也將其排入硬篩內前 20%（資料日對得上才附）
-    target_zone: LongTargetZone | None = None   # 長線軌限定：目標區間（波段軌恆 None）
-    graduation: LongGraduation | None = None    # 長線軌限定：畢業條件狀態
 
 
 class MarketRegime(BaseModel):
@@ -704,7 +676,7 @@ class LevelsResponse(BaseModel):
 
 class HoldingCreate(BaseModel):
     stock_id: str
-    track: str  # wave / long
+    track: str  # wave（長線軌已移除 2026-08-28；既有 long 持倉仍可載入/出場，僅不再新增）
     date: date
     price: float
     shares: int
@@ -859,7 +831,6 @@ class SectorConstituent(BaseModel):
     close: float | None
     change_pct: float | None
     wave_score: float | None
-    long_score: float | None
     recommended: bool
     tags: list[str] = []  # 產業鏈細分標籤（如 晶圓製造 / 消費性IC）
     # 細分狀態聚合用（前端按標籤即時聚合成「細分狀態卡」）
@@ -1048,7 +1019,6 @@ class WatchlistItemDTO(BaseModel):
     close: float | None
     change_pct: float | None
     wave_score: float | None
-    long_score: float | None
     light: str  # green / yellow / white
     reminders: list[str]
 
@@ -1142,7 +1112,6 @@ class OverviewResponse(BaseModel):
     market_note: str | None = None  # AI 盤勢總結（盤後批次快取）
     holdings_alerts: list[AlertBrief]
     reco_wave_count: int
-    reco_long_count: int
     reco_top: list[RecoBrief]
     sectors_top: list[SectorBrief]
     recent_events: list[EventBrief]
