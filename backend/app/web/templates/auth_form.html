@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% set noindex = true %}
+{% block title %}{{ page_title }}｜TWAssistant{% endblock %}
+{% block description %}TWAssistant 帳號{{ page_title }}。{% endblock %}
+{% block content %}
+
+<div style="max-width: 400px; margin: 24px auto 0;">
+  <div class="tbl" style="padding: 30px 32px;">
+    <h1 style="margin: 0 0 6px; font-size: 23px;">{{ heading }}</h1>
+    {% if sub %}<p style="color: var(--ink-2); font-size: 13.5px; margin: 0 0 18px;">{{ sub }}</p>
+    {% else %}<div style="height: 12px;"></div>{% endif %}
+
+    <form id="f" novalidate>
+      {% for fl in fields %}
+      <label style="display: block; margin-bottom: 14px;">
+        <span style="display: block; font-size: 12.5px; color: var(--ink-2); margin-bottom: 5px;">{{ fl.label }}</span>
+        <input name="{{ fl.name }}" type="{{ fl.type }}" autocomplete="{{ fl.autocomplete }}" required
+               style="width: 100%; box-sizing: border-box; background: var(--bg); color: var(--ink);
+                      border: 1px solid var(--line-2); border-radius: 9px; padding: 10px 13px;
+                      font-size: 15px; font-family: inherit; outline: none;"
+               onfocus="this.style.borderColor='var(--brand)'"
+               onblur="this.style.borderColor='var(--line-2)'">
+      </label>
+      {% endfor %}
+      <button id="btn" type="submit"
+              style="width: 100%; margin-top: 6px; color: var(--bg); background: var(--brand);
+                     border: 0; font-weight: 700; font-size: 15px; padding: 11px 0;
+                     border-radius: 9px; cursor: pointer; font-family: inherit;">
+        {{ submit_label }}</button>
+      <p id="msg" style="min-height: 20px; font-size: 13px; margin: 12px 0 0;"></p>
+    </form>
+
+    <div style="border-top: 1px solid var(--line); margin-top: 18px; padding-top: 14px;
+                display: flex; gap: 16px; font-size: 13px;">
+      {% for l in links %}<a class="code" style="color: var(--ink-2);" href="{{ l.href }}">{{ l.label }}</a>{% endfor %}
+    </div>
+  </div>
+</div>
+
+<script>
+  const f = document.getElementById("f"), msg = document.getElementById("msg"),
+        btn = document.getElementById("btn");
+  f.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    btn.disabled = true; btn.style.opacity = .6; msg.textContent = "";
+    const body = Object.fromEntries(new FormData(f));
+    {% if hidden %}Object.assign(body, {{ hidden | tojson }});{% endif %}
+    try {
+      const r = await fetch("{{ api }}", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(body),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.ok !== false) {
+        {% if redirect %}
+        location.href = "{{ redirect }}";
+        {% else %}
+        msg.style.color = "var(--brand)";
+        msg.textContent = d.message || "{{ success_message }}";
+        f.querySelectorAll("input,button").forEach(el => el.disabled = true);
+        {% endif %}
+      } else {
+        msg.style.color = "var(--up)";
+        msg.textContent = d.reason || d.detail || "操作失敗，請再試一次";
+        btn.disabled = false; btn.style.opacity = 1;
+      }
+    } catch {
+      msg.style.color = "var(--up)";
+      msg.textContent = "連線失敗，請再試一次";
+      btn.disabled = false; btn.style.opacity = 1;
+    }
+  });
+</script>
+
+{% endblock %}

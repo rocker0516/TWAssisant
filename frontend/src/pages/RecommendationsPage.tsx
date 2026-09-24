@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   bestTagLift,
   comboKeyOf,
   COMBO_FILTER_KEY,
   readComboFilters,
+  useActiveStrategyDaily,
   useRecommendations,
   useRecommendationsLookback,
   useRecommendationsLookbackCalendar,
@@ -78,7 +80,10 @@ function sortItems(items: RecommendationItem[], key: SortKey): RecommendationIte
 }
 
 export default function RecommendationsPage() {
-  const [track, setTrack] = useState<Track>("wave");
+  const [track, setTrack] = useState<Track | "custom">("wave");
+  const { data: custom } = useActiveStrategyDaily();
+  // custom 頁籤無啟用策略時 fallback 渲染 wave
+  const displayTrack = track === "custom" && !custom?.strategy ? "wave" : track;
   const [sort, setSort] = useState<SortKey>("prob"); // 波段預設按達標機率
   const [showExtra, setShowExtra] = useState(false);
   const [posFilter, setPosFilter] = useState<PosFilter>("all");
@@ -98,8 +103,11 @@ export default function RecommendationsPage() {
   const [selectedLookbackDate, setSelectedLookbackDate] = useState<string | null>(null); // null=今天；否則=月曆點選的推薦日
   // 風格改標籤制（2026-07-28）：不再分頁切換，清單=會噴候選∪風格股，
   // 每檔卡片顯示標籤（會噴/爆發/強勢延伸/故事股/深跌反攻），標籤越多排越前。
-  // 回看只支援波段軌；切到長線軌時自動回到今天
-  const effTrack: Track = selectedLookbackDate ? "wave" : track;
+  // 進場推薦只留波段軌（長線軌入口已移除，僅波段/custom 兩種頁籤）；displayTrack 已處理 custom fallback
+  // custom 頁籤本身不打 /recommendations（清單另外用 useActiveStrategyDaily），
+  // 但 useRecommendations 仍需要合法 track，固定回 wave 避免 422（後端 track pattern ^(wave|long)$）
+  const effTrack: Track =
+    selectedLookbackDate || displayTrack === "custom" ? "wave" : (displayTrack as Track);
   const effStyle: WaveStyle = "pop";
   const { data, isLoading, isError, error } = useRecommendations(effTrack, effStyle);
   const { data: tagStats } = useTagComboStats();
@@ -111,7 +119,7 @@ export default function RecommendationsPage() {
   // 大盤 regime 閘門（僅波段軌）：防禦期(收盤跌破季線逾2%未站回)清單命中率實證較低
   // (39.5% vs 47.4%，walk-forward 三段皆成立)，預設收起清單、可手動展開。
   const regime = data?.regime ?? null;
-  const inDefense = track === "wave" && selectedLookbackDate == null && regime?.state === "defense";
+  const inDefense = displayTrack === "wave" && selectedLookbackDate == null && regime?.state === "defense";
   const gateClosed = inDefense && !showDefenseList;
 
   // 月曆摘要（命中率）：機率口徑（成員=標籤制∩當日PIT機率≥門檻），隨機率門檻/風格切換
@@ -129,13 +137,13 @@ export default function RecommendationsPage() {
   // 「低位盤整」＝低檔盤整打底（盤整分≥50，低位已內建在分數裡；此為後端短線打底訊號，不隨走勢視窗變）。
   const matchPos = useMemo(
     () =>
-      track !== "wave" || posFilter === "all"
+      displayTrack !== "wave" || posFilter === "all"
         ? () => true
         : posFilter === "低位盤整"
         ? (it: RecommendationItem) => consolidationMeta(it.sub_scores?.consolidation) !== null
         : (it: RecommendationItem) =>
             (rangePositionMeta(it.spark, sparkDays) ?? positionMeta(it.sub_scores?.position))?.label === posFilter,
-    [track, posFilter, sparkDays],
+    [displayTrack, posFilter, sparkDays],
   );
 
   // 股價上下限（個人偏好，與會噴分數無關）：缺現價的標的在有設限時濾掉。
@@ -156,6 +164,9 @@ export default function RecommendationsPage() {
   // 回看模式：後端已套用 top_pct 切清單並附 review；前端只做排序+股價篩選
   const isLookback = selectedLookbackDate != null;
   const baseItems = isLookback ? lookback.data?.items ?? [] : data?.items ?? [];
+  // 組合鍵/pop 標籤的分數線：回看用該回應自帶的 cutoff（後端 100−top_pct），今日用 data.top_pct。
+  // 兩者讀同一個設定值，但回看嚴謹起見不借用今日的。
+  const effCutoff = isLookback ? lookback.data?.cutoff ?? cutoff : cutoff;
   const sorted = useMemo(
     () =>
       isLookback
@@ -188,8 +199,8 @@ export default function RecommendationsPage() {
   const tagCountOf = useMemo(
     () => (it: RecommendationItem) =>
       (it.passed_styles?.filter((t) => !hiddenTags.has(t)).length ?? 0)
-      + (!hiddenTags.has("pop") && it.passed_filter && (it.total_score ?? 0) >= cutoff ? 1 : 0),
-    [cutoff, hiddenTags],
+      + (!hiddenTags.has("pop") && it.passed_filter && (it.total_score ?? 0) >= effCutoff ? 1 : 0),
+    [effCutoff, hiddenTags],
   );
   // 精確組合篩選（策略室全枚舉表勾選 → localStorage）：勾了才生效，全不勾＝不過濾。
   // 組合鍵口徑與策略室一致：pop(過硬篩且達橫桿) + passed_styles + 注意/處置旗標。
@@ -202,10 +213,10 @@ export default function RecommendationsPage() {
     () => (it: RecommendationItem) =>
       comboKeyOf([
         ...(it.passed_styles ?? []),
-        ...(it.passed_filter && (it.total_score ?? 0) >= cutoff ? ["pop"] : []),
+        ...(it.passed_filter && (it.total_score ?? 0) >= effCutoff ? ["pop"] : []),
         ...(it.attention_tags ?? []),
       ]),
-    [cutoff],
+    [effCutoff],
   );
   // 波段軌：主清單=至少一個標籤；排序主鍵=使用者所選鍵（預設達標機率），
   // 次鍵=標籤數（同分時標籤多者在前，越多獨立驗證的訊號共振越前）；
@@ -218,33 +229,52 @@ export default function RecommendationsPage() {
   const main = useMemo(() => {
     const base = isLookback
       ? [...sorted].sort(mainCompare)
-      : track === "wave"
+      : displayTrack === "wave"
       ? sorted.filter((it) => tagCountOf(it) > 0).sort(mainCompare)
       : sorted;
-    // 組合篩選只作用於波段當日主清單（回看/長線不套，避免誤解歷史口徑）
-    if (!isLookback && track === "wave" && comboFilters.length > 0) {
+    // 組合篩選作用於波段主清單：今日與回看都套。回看清單的標籤/注意處置旗標
+    // 後端本來就以「回看日」PIT 計算（_attach_probabilities 帶 lookback_d），口徑與今日一致。
+    if ((isLookback || displayTrack === "wave") && comboFilters.length > 0) {
       return base.filter((it) => comboFilters.includes(comboOf(it)));
     }
     return base;
-  }, [isLookback, track, sorted, tagCountOf, mainCompare, comboFilters, comboOf]);
+  }, [isLookback, displayTrack, sorted, tagCountOf, mainCompare, comboFilters, comboOf]);
   const extra = useMemo(
     () =>
       isLookback
         ? []
-        : track === "wave"
+        : displayTrack === "wave"
         ? sorted.filter((it) => tagCountOf(it) === 0)
         : sortItems(data?.near ?? [], sort).filter(matchPrice),
-    [isLookback, track, sorted, tagCountOf, data, sort, matchPrice],
+    [isLookback, displayTrack, sorted, tagCountOf, data, sort, matchPrice],
   );
-  const extraLabel = track === "wave" ? `未達前 ${topPct}% 觀察區` : "接近門檻觀察區";
+  const extraLabel = displayTrack === "wave" ? `未達前 ${topPct}% 觀察區` : "接近門檻觀察區";
 
-  // 回看摘要
-  const lbSummary = lookback.data?.summary;
+  // 回看摘要：後端摘要是全清單口徑；套精確組合篩選時改前端就地重算（review 欄位每檔都有），
+  // 讓「這個組合那天推幾檔、中幾檔」和下方清單直接對得上。
+  const lbSummary = useMemo(() => {
+    if (!isLookback) return undefined;
+    if (comboFilters.length === 0) return lookback.data?.summary;
+    const reviews = main.flatMap((it) => (it.review ? [it.review] : []));
+    const nums = (xs: (number | null | undefined)[]) => xs.filter((v): v is number => v != null);
+    const avg = (xs: number[]) =>
+      xs.length ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 100) / 100 : null;
+    const hitCount = reviews.filter((r) => r.hit_pop).length;
+    const n = main.length;
+    return {
+      n,
+      hit_count: hitCount,
+      hit_rate: n ? hitCount / n : null,
+      avg_return_pct: avg(nums(reviews.map((r) => r.return_pct))),
+      avg_mfe_pct: avg(nums(reviews.map((r) => r.mfe_pct))),
+      avg_mae_pct: avg(nums(reviews.map((r) => r.mae_pct))),
+    };
+  }, [isLookback, comboFilters.length, main, lookback.data]);
   const lbHitRate = lbSummary?.hit_rate != null ? Math.round(lbSummary.hit_rate * 100) : null;
 
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-6">
+    <div className="w-full px-6 py-6">
       <div className="mb-4 flex items-end justify-between">
         <div>
           <h1 className="text-xl font-bold">進場推薦</h1>
@@ -256,8 +286,10 @@ export default function RecommendationsPage() {
             ) : (
               <>
                 盤後資料：{data?.date ?? "—"}
-                {track === "wave"
+                {displayTrack === "wave"
                   ? `　會噴前 ${topPct}%＋風格標籤（依所選排序，同序看標籤數）`
+                  : displayTrack === "custom"
+                  ? `　自訂策略清單`
                   : `　門檻 ≥ ${data?.threshold ?? 70} 分`}
               </>
             )}
@@ -265,7 +297,8 @@ export default function RecommendationsPage() {
         </div>
       </div>
 
-      {/* 回看月曆：波段軌專屬。切到回看時長線軌會自動切回波段 */}
+      {/* 回看月曆：波段軌專屬。切到回看時長線軌會自動切回波段；custom 軌不支援回看 */}
+      {displayTrack !== "custom" && (
       <div className="mb-3">
         <button
           onClick={() => setShowCalendar((s) => !s)}
@@ -299,22 +332,33 @@ export default function RecommendationsPage() {
           </>
         )}
       </div>
+      )}
 
-      {/* 雙軌分頁（回看模式不可切，固定波段） */}
+      {/* 進場推薦單純化（2026-08-26）：只留波段軌＋自訂策略頁籤；長線 scoring 管線與出場機不受影響 */}
       {!isLookback && (
         <div className="mb-4 flex gap-1 border-b border-edge">
-          {(["wave", "long"] as Track[]).map((t) => (
+          {(["wave"] as Track[]).map((t) => (
             <button
               key={t}
-              onClick={() => { setTrack(t); setSort(t === "wave" ? "prob" : "score"); }}
+              onClick={() => { setTrack(t); setSort("prob"); }}
               className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition ${
-                track === t ? "border-sky-500 text-sky-300" : "border-transparent text-muted hover:text-gray-300"
+                displayTrack === t ? "border-sky-500 text-sky-300" : "border-transparent text-muted hover:text-gray-300"
               }`}
             >
               {TRACK_LABELS[t]}軌
-              {data && track === t ? <span className="ml-1.5 text-xs">({main.length})</span> : null}
+              {data && displayTrack === t ? <span className="ml-1.5 text-xs">({main.length})</span> : null}
             </button>
           ))}
+          {custom?.strategy && (
+            <button key="custom"
+              onClick={() => setTrack("custom")}
+              className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition ${
+                displayTrack === "custom" ? "border-amber-500 text-amber-300"
+                                          : "border-transparent text-muted hover:text-gray-300"}`}>
+              🧪 {custom.strategy.name}
+              {displayTrack === "custom" && <span className="ml-1.5 text-xs">({custom.items.length})</span>}
+            </button>
+          )}
         </div>
       )}
 
@@ -337,7 +381,7 @@ export default function RecommendationsPage() {
       {isLookback && lbSummary && lbSummary.n > 0 && (
         <div className="mb-4 rounded-lg border border-sky-700/40 bg-sky-950/30 px-3.5 py-2.5 text-xs leading-relaxed">
           <span className="text-sky-300">
-            那天推了 <b>{lbSummary.n}</b> 檔，已噴（摸過 +10%） <b>{lbSummary.hit_count}</b> 檔
+            那天{comboFilters.length > 0 ? "符合勾選組合的有" : "推了"} <b>{lbSummary.n}</b> 檔，已噴（摸過 +10%） <b>{lbSummary.hit_count}</b> 檔
             {lbHitRate != null ? <>（命中率 <b>{lbHitRate}%</b>）</> : null}
           </span>
           <span className="ml-3 text-gray-300">
@@ -350,7 +394,7 @@ export default function RecommendationsPage() {
       )}
 
       {/* 機率門檻（今日與回看共用）：清單以達標機率為主軸；回看=後端依當日 PIT 機率篩 */}
-      {track === "wave" && !gateClosed && (
+      {displayTrack === "wave" && !gateClosed && (
         <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted">達標機率</span>
           <div className="inline-flex items-center gap-2 rounded-lg border border-edge bg-panel px-3 py-1.5">
@@ -371,7 +415,7 @@ export default function RecommendationsPage() {
 
       {/* 標籤開關：命中率看不上眼的標籤可關掉（不顯示、也不讓該股靠它進主清單）。
           括號＝2026-08 全樣本實測「30日內摸+10%」train/holdout 命中 */}
-      {track === "wave" && !gateClosed && (
+      {displayTrack === "wave" && !gateClosed && (
         <div className="mb-3 flex flex-wrap items-center gap-1.5 text-sm">
           <span className="text-xs text-muted">標籤</span>
           {TAG_TOGGLES.map(([key, label]) => {
@@ -404,7 +448,7 @@ export default function RecommendationsPage() {
       )}
 
       {/* 位階篩選（個人偏好，不影響會噴分數；回看模式不適用）*/}
-      {track === "wave" && !isLookback && !gateClosed && (
+      {displayTrack === "wave" && !isLookback && !gateClosed && (
         <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted">買點</span>
           <div className="inline-flex rounded-lg border border-edge bg-panel p-0.5">
@@ -425,7 +469,7 @@ export default function RecommendationsPage() {
       )}
 
       {/* 會噴誠實話術：分數=會噴機率(回測實證)，非漲跌保證；高波動雙面刃。回看模式改顯示回看摘要 */}
-      {track === "wave" && !isLookback && !gateClosed && (
+      {displayTrack === "wave" && !isLookback && !gateClosed && (
         <div className="mb-4 rounded-lg border border-amber-700/50 bg-amber-950/30 px-3.5 py-2.5 text-xs leading-relaxed text-amber-200/90">
           每檔的大字＝<b>達標機率</b>：同條件（會噴排名帶 × 波動帶 × 大盤狀態）在 2021 年起歷史裡
           「<b>隔天最高價進場、10 個交易日內曾摸到 +10%</b>」的實際比率——是<b>歷史條件機率，不是保證</b>，
@@ -435,14 +479,14 @@ export default function RecommendationsPage() {
         </div>
       )}
 
-      {/* 工具列（防禦期收起清單時一併隱藏） */}
-      {!gateClosed && (
+      {/* 工具列（防禦期收起清單時一併隱藏；custom 軌不適用） */}
+      {!gateClosed && displayTrack !== "custom" && (
       <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
         <div className="flex items-center gap-2">
           <span className="text-muted">排序</span>
           {(
             [
-              ...(track === "wave" && !isLookback
+              ...(displayTrack === "wave" && !isLookback
                 ? ([["prob", "達標機率"], ["entry_timing", "進場時機"]] as [SortKey, string][])
                 : isLookback
                   ? ([["prob", "達標機率"]] as [SortKey, string][])
@@ -516,15 +560,22 @@ export default function RecommendationsPage() {
       {(isLookback ? lookback.isLoading : isLoading) && <p className="text-muted">載入中…</p>}
       {isLookback
         ? lookback.isError && <p className="text-down">載入失敗：{(lookback.error as Error)?.message}</p>
-        : isError && <p className="text-down">載入失敗：{(error as Error).message}</p>}
+        : displayTrack !== "custom" && isError && <p className="text-down">載入失敗：{(error as Error).message}</p>}
 
       {isLookback && lookback.data && lookback.data.lookback_date == null && (
         <div className="rounded-xl border border-dashed border-edge py-16 text-center text-sm leading-relaxed text-muted">
           該日沒有過門檻的推薦。可點月曆其他日期。
         </div>
       )}
-      {/* 精確組合篩選提示（策略室勾選；只作用於波段當日主清單） */}
-      {!isLookback && track === "wave" && comboFilters.length > 0 && !gateClosed && (
+      {isLookback && lookback.data && lookback.data.lookback_date != null && main.length === 0 && (
+        <div className="rounded-xl border border-dashed border-edge py-16 text-center text-sm leading-relaxed text-muted">
+          {comboFilters.length > 0
+            ? "該日清單沒有符合勾選精確組合的標的（組合是稀有事件，多數日子為空屬正常；可清除篩選或點月曆換日期）。"
+            : "該日沒有符合目前篩選（機率門檻/股價）的標的，可放寬條件或點月曆換日期。"}
+        </div>
+      )}
+      {/* 精確組合篩選提示（策略室勾選；作用於波段主清單，今日與回看皆套） */}
+      {(isLookback || displayTrack === "wave") && comboFilters.length > 0 && !gateClosed && (
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-sky-800/50 bg-sky-950/30 px-3 py-2 text-sm">
           <span className="text-sky-300">🔬 精確組合篩選中</span>
           {comboFilters.map((k) => (
@@ -538,26 +589,63 @@ export default function RecommendationsPage() {
       )}
       {!isLookback && data && main.length === 0 && !gateClosed && (
         <div className="rounded-xl border border-dashed border-edge py-16 text-center text-sm leading-relaxed text-muted">
-          {!isLookback && track === "wave" && comboFilters.length > 0
+          {!isLookback && displayTrack === "wave" && comboFilters.length > 0
             ? "今日主清單沒有符合勾選精確組合的標的（組合是稀有事件，多數日子為空屬正常；可在策略室調整勾選或清除篩選）。"
             : (minPrice !== "" || maxPrice !== "")
             ? "目前篩選的股價區間內沒有符合的標的，可調整或清除股價上下限。"
-            : track !== "wave"
-            ? `今日無符合條件的${TRACK_LABELS[track]}軌標的`
+            : displayTrack !== "wave"
+            ? `今日無符合條件的${TRACK_LABELS[displayTrack]}軌標的`
             : posFilter === "低位盤整"
             ? "目前會噴清單中沒有「低位盤整打底」的標的。會噴股多在上揚趨勢、波動偏大，少見低檔盤整收斂——此篩選多數時候為空屬正常，可切回「全部」。"
             : `目前沒有掛任何標籤（會噴/爆發/強勢延伸/故事股/深跌反攻）的標的，可放寬橫桿`}
         </div>
       )}
 
-      {!gateClosed && (
+      {track === "custom" && custom?.strategy && (
+        <div className="rounded-xl border border-edge bg-panel p-4">
+          <p className="mb-3 text-xs text-muted">
+            自訂策略「{custom.strategy.name}」· {custom.date} 收盤符合條件前 {custom.strategy.top_n} 檔
+            · 目標 {custom.strategy.horizon_days} 日 +{custom.strategy.target_pct}%
+            {custom.strategy.stop_pct != null && ` · 停損 -${custom.strategy.stop_pct}%`}
+            　<Link to="/lab" className="text-sky-400 hover:underline">→ 回實驗室調整</Link>
+          </p>
+          {custom.items.length === 0 ? (
+            <p className="text-sm text-muted">今日無符合條件的股票</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead><tr className="text-xs text-muted">
+                <th className="py-1 text-left font-normal">股票</th>
+                <th className="py-1 text-right font-normal">收盤</th>
+                <th className="py-1 text-right font-normal">排序值</th>
+              </tr></thead>
+              <tbody>
+                {custom.items.map((it) => (
+                  <tr key={it.stock_id} className="border-t border-edge/60">
+                    <td className="py-1.5">
+                      <Link to={`/stocks/${it.stock_id}`} className="hover:underline">
+                        <span className="tabular-nums text-muted">{it.stock_id}</span> {it.name}
+                      </Link>
+                    </td>
+                    <td className="py-1.5 text-right tabular-nums">{it.close ?? "—"}</td>
+                    <td className="py-1.5 text-right tabular-nums text-muted">
+                      {it.sort_value == null ? "—" : Math.round(it.sort_value).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {!gateClosed && displayTrack !== "custom" && (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {main.map((it) => (
           <RecommendationCard
             key={it.stock_id}
             item={hiddenTags.size ? { ...it, passed_styles: it.passed_styles?.filter((t) => !hiddenTags.has(t)) ?? null } : it}
             sparkDays={sparkDays}
-            popQualified={!hiddenTags.has("pop") && track === "wave" && Boolean(it.passed_filter) && (it.total_score ?? 0) >= cutoff}
+            popQualified={!hiddenTags.has("pop") && displayTrack === "wave" && Boolean(it.passed_filter) && (it.total_score ?? 0) >= cutoff}
             tagStats={tagStats?.stats}
           />
         ))}
@@ -566,10 +654,10 @@ export default function RecommendationsPage() {
 
       {/* 高確信角落影子軌（實驗）：與排序無關的獨立分區，亮燈才佔版面；
           防禦期也顯示（深崩角落正是那時亮，主清單反而關著）。完整檢視在實驗室。 */}
-      {track === "wave" && !isLookback && <CornerSignalsStrip />}
+      {displayTrack === "wave" && !isLookback && <CornerSignalsStrip />}
 
       {/* 觀察區折疊 */}
-      {extra.length > 0 && !gateClosed && (
+      {extra.length > 0 && !gateClosed && displayTrack !== "custom" && (
         <div className="mt-6">
           <button
             onClick={() => setShowExtra((s) => !s)}

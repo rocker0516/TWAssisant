@@ -71,7 +71,7 @@ export default function SectorsPage() {
   }, [data]);
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-6">
+    <div className="w-full px-6 py-6">
       <div className="mb-4">
         <h1 className="text-xl font-bold">類股行情</h1>
         <p className="text-sm text-muted">盤後資料：{data?.date ?? "—"}　顏色＝短波段方向、大小＝成交佔比</p>

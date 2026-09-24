@@ -66,7 +66,10 @@ class MopsClient:
     """輕量 MOPS 客戶端（非 BaseSource：需要 POST 且無能力綁定，回補腳本與來源共用）。"""
 
     def __init__(self) -> None:
-        self._client = httpx.Client(timeout=30.0, headers={"User-Agent": _UA})
+        # follow_redirects：MOPS 偶發 307 轉址（限流/主機切換），不跟隨會整批請求報錯
+        self._client = httpx.Client(
+            timeout=30.0, headers={"User-Agent": _UA}, follow_redirects=True
+        )
         self._last = 0.0
 
     def _throttle(self) -> None:
@@ -78,7 +81,7 @@ class MopsClient:
     def _fetch(self, method: str, path: str, data: dict | None = None) -> str | None:
         """回文字內容；404 回 None（該期檔案不存在，如 KY 檔早年缺）；其餘錯誤重試後拋。"""
         last: Exception | None = None
-        for attempt in range(3):
+        for attempt in range(6):
             self._throttle()
             try:
                 if method == "GET":
@@ -87,6 +90,12 @@ class MopsClient:
                     resp = self._client.post(f"{_BASE}{path}", data=data)
                 if resp.status_code == 404:
                     return None
+                if resp.status_code == 307:
+                    # MOPS WAF 節流訊號（無 Location 的 307，follow_redirects 也跟不了）：
+                    # 快速重試只會被繼續擋，改長退避讓對方冷卻
+                    last = SourceError(f"MOPS {path} 節流（307）")
+                    time.sleep(15.0 * (attempt + 1))
+                    continue
                 resp.raise_for_status()
                 # nas 舊檔為 Big5；ajax 端點為 UTF-8（httpx 依 header 自動判斷，nas 無 charset 需手動）
                 if "/nas/" in path:
@@ -116,6 +125,45 @@ class MopsClient:
                         "revenue": _num(c[2]), "mom": _num(c[5]), "yoy": _num(c[6]),
                     })
         return pd.DataFrame(rows)[schemas.REVENUE_COLS] if rows else pd.DataFrame(columns=schemas.REVENUE_COLS)
+
+    # ── 董監持股（單檔單月歷史）──
+
+    def insider_month(self, co_id: str, year: int, month: int) -> dict | None:
+        """單檔單月董監事持股餘額明細（ajax_stapap1，isnew=false 可回溯全歷史）。
+
+        逐列（每列一席，含經理人；口徑對齊 twse._digest_insider＝openapi t187ap11
+        全列直加，已以 2330 11507 期比對分毫不差）加總 → INSIDER_COLS 單列 dict。
+        該月無資料（未上市/停售）回 None。
+        """
+        html = self._fetch("POST", "/mops/web/ajax_stapap1", data={
+            "encodeURIComponent": "1", "step": "1", "firstin": "1", "off": "1",
+            "queryName": "co_id", "inpuType": "co_id", "TYPEK": "all",
+            "isnew": "false", "co_id": str(co_id),
+            "year": str(year - 1911), "month": f"{month:02d}",
+        })
+        if not html:
+            return None
+        held_sum = pledged_sum = 0.0
+        n = 0
+        for tr in _TR.findall(html):
+            cells = [_text(c) for c in _TD.findall(tr)]
+            # 資料列：[職稱, 姓名, 選任時持股, 目前持股, 設質股數, 設質%, 配偶目前持股, 設質股數, 設質%]
+            if len(cells) < 9 or _CODE.fullmatch(cells[0]):
+                continue
+            held = _num(cells[3])
+            if held is None:
+                continue
+            held_sum += held
+            pledged_sum += _num(cells[4]) or 0.0
+            n += 1
+        if n == 0:
+            return None
+        return {
+            "stock_id": str(co_id), "year": year, "month": month,
+            "director_shares": held_sum,
+            "pledge_pct": round(pledged_sum / held_sum * 100, 2) if held_sum > 0 else None,
+            "positions": n,
+        }
 
     # ── 季財報（累計制）──
 

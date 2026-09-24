@@ -20,7 +20,12 @@ from .context import StockContext
 from ..storage import models
 
 DEFAULTS = {
-    "wave": {"stop_cap": 0.08, "trail_trigger": 0.10, "trail_pullback": 0.10, "break_ma_exit": True},
+    # 波段 stop_cap=None＝不設停損（2026-08-24；見 engines/stoploss.py docstring）。
+    # 波段持股正常走 thesis 論點機，這組只在「還沒補到論點快照的舊倉」用得到。
+    "wave": {"stop_cap": None, "trail_trigger": 0.10, "trail_pullback": 0.10, "break_ma_exit": True},
+    # long：長線「推薦/評分」已移除（2026-08-28），此組只服務**既有** track='long' 持倉的
+    # 出場照顧（-15% 停損、跌破季線、基本面轉弱）。ScoreSlipSignal 已刪——它依賴每日
+    # Score(track='long') 新列，停產後必然失效。
     "long": {"stop_cap": 0.15, "trail_trigger": 0.20, "trail_pullback": 0.20, "break_ma_exit": True},
 }
 
@@ -77,7 +82,7 @@ class Position:
         return (self.highest - self.close) / self.highest if self.highest else 0.0
 
 
-def _cfg(holding: models.Holding, key: str) -> float:
+def _cfg(holding: models.Holding, key: str) -> float | None:
     return _ACTIVE.get(holding.track, _ACTIVE["wave"])[key]
 
 
@@ -97,12 +102,15 @@ class StopLossSignal(ExitSignal):
     def check(self, holding, pos, ctx):
         hits: list[Hit] = []
         cap = _cfg(holding, "stop_cap")
-        hard_stop = holding.stop_loss_override or pos.avg_cost * (1 - cap)
-        if pos.close <= hard_stop:
-            hits.append(Hit("stop_loss", Sev.CRITICAL, f"跌破停損價 {hard_stop:.2f}"))
-        elif pos.close <= hard_stop * 1.02:
-            dist = (pos.close / hard_stop - 1) * 100
-            hits.append(Hit("near_stop", Sev.WARN, f"接近停損價（距 {dist:.1f}%）"))
+        # cap=None（波段軌）＝這條軌沒有停損線，只有手動覆寫才會有
+        hard_stop = holding.stop_loss_override or (
+            pos.avg_cost * (1 - cap) if cap is not None else None)
+        if hard_stop is not None:
+            if pos.close <= hard_stop:
+                hits.append(Hit("stop_loss", Sev.CRITICAL, f"跌破停損價 {hard_stop:.2f}"))
+            elif pos.close <= hard_stop * 1.02:
+                dist = (pos.close / hard_stop - 1) * 100
+                hits.append(Hit("near_stop", Sev.WARN, f"接近停損價（距 {dist:.1f}%）"))
 
         ind = ctx.ind
         ma_key = "ma20" if holding.track == "wave" else "ma60"
@@ -172,14 +180,14 @@ class FundamentalWeakSignal(ExitSignal):
             yoy = None if v is None else float(v)
         if yoy is not None:
             if yoy < -10:
-                hits.append(Hit("rev_drop", Sev.CRITICAL, f"月營收年增大幅轉負 {yoy:.0f}%"))
+                hits.append(Hit("rev_drop", Sev.WARN, f"月營收年增大幅轉負 {yoy:.0f}%"))
             elif yoy < 0:
                 hits.append(Hit("rev_neg", Sev.EARLY, f"月營收年增轉負 {yoy:.0f}%"))
         ind = ctx.ind
         vma_lots = (ind.get("vol_ma20") or 0) / 1000 if ind is not None else 0
         if vma_lots > 0:
-            net10 = ctx.inst_sum("foreign_net", 10) + ctx.inst_sum("trust_net", 10)
-            if net10 / (vma_lots * 10) < -0.05:
+            net20 = ctx.inst_sum("foreign_net", 20) + ctx.inst_sum("trust_net", 20)
+            if net20 / (vma_lots * 20) < -0.05:
                 hits.append(Hit("inst_sell", Sev.EARLY, "法人連續賣超"))
         return hits
 

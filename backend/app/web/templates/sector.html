@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}{{ sector.name }} 類股行情｜TWAssistant{% endblock %}
+{% block description %}{{ sector.name }} 類股：強弱分數、輪動階段與全部成分股收盤行情，每日盤後更新。{% endblock %}
+{% block content %}
+
+<div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-top: 8px;">
+  <h1 style="margin: 0;">{{ sector.name }}</h1>
+  <a class="code" href="/sectors" style="font-size: 13px; border: 1px solid var(--line); border-radius: 7px; padding: 3px 12px;">← 全部類股</a>
+</div>
+
+{% if sd %}
+<h2>類股狀態</h2>
+<div class="stats">
+  <div class="stat"><div class="k">強弱分數</div>
+    <div class="v">{{ "%.0f"|format(sd.strength_score) if sd.strength_score is not none else "—" }}</div></div>
+  <div class="stat"><div class="k">短線／長線</div>
+    <div class="v" style="font-size: 17px;">{{ sd.trend_short or "—" }}／{{ sd.trend_long or "—" }}</div></div>
+  <div class="stat"><div class="k">輪動階段</div>
+    <div class="v" style="font-size: 17px;">{{ sd.rotation_stage or "—" }}</div></div>
+  <div class="stat"><div class="k">5 日動能</div>
+    <div class="v {{ 'up' if sd.momentum_5 and sd.momentum_5 > 0 else ('down' if sd.momentum_5 and sd.momentum_5 < 0 else '') }}">
+      {{ "%+.1f%%"|format(sd.momentum_5) if sd.momentum_5 is not none else "—" }}</div></div>
+  <div class="stat"><div class="k">站上月線</div>
+    <div class="v">{{ "%.0f%%"|format(sd.above_ma20 * 100) if sd.above_ma20 is not none else "—" }}</div></div>
+  <div class="stat"><div class="k">成交佔比</div>
+    <div class="v">{{ "%.1f%%"|format(sd.turnover_share) if sd.turnover_share is not none else "—" }}</div></div>
+</div>
+{% endif %}
+
+<h2>成分股（{{ stocks|length }} 檔，依成交值排序）</h2>
+<div class="tbl">
+  <table>
+    <thead><tr><th class="l">代號</th><th class="l">名稱</th><th>收盤</th><th>漲跌</th><th>成交值(億)</th></tr></thead>
+    <tbody>
+      {% for s in stocks %}
+      <tr>
+        <td class="l"><a class="code" href="/stock/{{ s.stock_id }}">{{ s.stock_id }}</a></td>
+        <td class="l"><a class="code" href="/stock/{{ s.stock_id }}">{{ s.name }}</a></td>
+        <td>{{ "%.2f"|format(s.close) if s.close is not none else "—" }}</td>
+        <td class="{{ 'up' if s.chg and s.chg > 0 else ('down' if s.chg and s.chg < 0 else '') }}">
+          {{ "%+.2f%%"|format(s.chg) if s.chg is not none else "—" }}</td>
+        <td>{{ "%.1f"|format(s.turnover) if s.turnover is not none else "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

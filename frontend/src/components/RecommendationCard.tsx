@@ -20,21 +20,9 @@ const STYLE_TAGS: Record<string, { label: string; cls: string; title: string }> 
   story: { label: "故事股", cls: "bg-violet-500/15 text-violet-300",
     title: "高PB＋高PE＋高波動（回測命中~68%）" },
   crash: { label: "深跌反攻", cls: "bg-red-500/15 text-red-300",
-    title: "大盤崩跌日限定：逆勢強勢/故事股＋波幅>6%（回測命中~68%）" },
+    title: "大盤距季線≤-2.3%的崩跌日限定：日均波幅>9%＋股價≥20元＋成交值≥1億＋非注意/處置"
+      + "（10日摸+10%：挖掘77%/holdout67%；但段間離散大——11個崩段的中位67%、最差18%）" },
 };
-
-// 長線畢業條件配色：回測毒性單調 → 黃/紅為「重新審視」訊號（非停損）
-function fishAgeClass(n: number): string {
-  if (n > 18) return "bg-red-500/15 text-red-300";
-  if (n > 12) return "bg-amber-500/15 text-amber-300";
-  return "bg-emerald-500/10 text-emerald-300";
-}
-
-function mom12Class(pct: number): string {
-  if (pct > 200) return "bg-red-500/15 text-red-300";
-  if (pct > 80) return "bg-amber-500/15 text-amber-300";
-  return "bg-gray-500/10 text-gray-400";
-}
 
 function toneClass(tone: NarrativeTone): string {
   if (tone === "neg") return "text-amber-400";
@@ -62,7 +50,7 @@ export function RecommendationCard({
   item: RecommendationItem;
   sparkDays?: number; // 走勢取近幾個交易日（由推薦頁切換；不傳＝全部）
   popQualified?: boolean; // 會噴標籤（過硬篩且分數達橫桿；由推薦頁依橫桿算）
-  tagStats?: TagComboStats["stats"]; // 量能共振徽章的雙段實證來源（機率本身走達標機率查表）
+  tagStats?: TagComboStats["stats"]; // 量能共振徽章＋風格段級離散度的來源（機率本身走查表）
 }) {
   const tags = TAG_ORDER.filter(
     (t) => (t === "pop" ? popQualified : item.passed_styles?.includes(t)),
@@ -72,6 +60,10 @@ export function RecommendationCard({
     const badge = lift ? LIFT_BADGE[lift.cond] : undefined;
     return lift && badge && badge.ok(item.vol_ratio!) ? [{ tag, lift, badge }] : [];
   });
+  // 機率若來自風格分層格子，附上該風格的段級離散度（tagStats 已在推薦頁載入，不另開 API）
+  const epStat = item.prob_style ? tagStats?.[`any:${item.prob_style}`] : undefined;
+  // 至少 3 段才談離散度：2 段的「中位/最差」本身就是雜訊（story 只有 1 段、strong 2 段）
+  const epSpread = epStat?.ep_median != null && (epStat.ep_n ?? 0) >= 3 ? epStat : null;
   const [open, setOpen] = useState(false);
   const hasDetails = (item.details?.length ?? 0) > 0;
   const segments = marketSegments(item);
@@ -136,7 +128,18 @@ export function RecommendationCard({
       {item.prob_hit != null ? (
         <div
           className="flex items-baseline gap-3"
-          title={`同條件（${item.prob_cond ?? ""}）2021 起歷史：隔日最高價進場、10 交易日內碰到 +10% 的比率，n=${(item.prob_n ?? 0).toLocaleString()}。歷史條件機率，非保證`}
+          title={
+            `同條件（${item.prob_cond ?? ""}）2021 起歷史：隔日最高價進場、10 交易日內碰到 +10% 的比率`
+            + `（**無停損**，與波段軌口徑一致），n=${(item.prob_n ?? 0).toLocaleString()}。`
+            + (item.prob_style
+              ? "這檔有風格標籤，所以查的是「該風格×波動×大盤」的歷史——全市場同格看不到風格多出來的條件。"
+              : "")
+            + (epSpread
+              ? `　段級離散 ${epSpread.ep_min}%~${epSpread.ep_max}%：同一段行情裡選到的多半是同一批股票，`
+                + "有效樣本數是段數不是筆數，請以段中位與最差段一起看。"
+              : "")
+            + "　歷史條件機率，非保證。"
+          }
         >
           <span
             className={`text-3xl font-bold tabular-nums leading-none ${
@@ -155,78 +158,20 @@ export function RecommendationCard({
                 </>
               )}
             </div>
-          </div>
-        </div>
-      ) : item.target_zone ? (
-        /* 目標主區塊（長線軌）：基準錨上漲空間；區間細節在下方「目標區間」欄 */
-        <div
-          className="flex items-baseline gap-3"
-          title={
-            item.target_zone.basis === "analyst"
-              ? "FactSet 法人共識目標價中位相對現價的空間。法人評等在循環頂點最樂觀（落後指標），搭配下方畢業條件一起看；非保證"
-              : "無法人報告，改以 PE 河流中位帶（估值回到歷史常態）推算。估值推算非保證"
-          }
-        >
-          <span
-            className={`text-3xl font-bold tabular-nums leading-none ${
-              (item.target_zone.upside_pct ?? 0) >= 30
-                ? "text-up"
-                : (item.target_zone.upside_pct ?? 0) >= 10
-                  ? "text-amber-300"
-                  : "text-gray-400"
-            }`}
-          >
-            {item.target_zone.upside_pct != null ? fmtPct(item.target_zone.upside_pct) : "—"}
-          </span>
-          <div className="min-w-0 text-xs leading-snug">
-            <div className="text-gray-300">
-              目標 {fmtNum(item.target_zone.base)}（
-              {item.target_zone.basis === "analyst" ? "法人目標價中位" : "估值推算"}）的空間
-            </div>
-            <div className="text-muted">
-              {item.target_zone.basis === "analyst" && item.target_zone.analyst_count != null
-                ? `${item.target_zone.analyst_count} 位分析師　·　`
-                : item.target_zone.basis === "pe_river"
-                  ? "PE 河流中位帶　·　"
-                  : ""}
-              參考期間 12 個月
-            </div>
+            {/* 段級離散：崩勢型標籤的有效樣本是「段數」不是筆數，只給單一數字必然誤導。
+                機率來自風格分層格子時才顯示（prob_style 由後端指名）。 */}
+            {epSpread && (
+              <div className="text-muted">
+                段級 中位 <b className="text-gray-300">{epSpread.ep_median}%</b>
+                　·　最差段 <b className="text-down">{epSpread.ep_min}%</b>
+                　·　{epSpread.ep_ge70}/{epSpread.ep_n} 段 ≥70%
+              </div>
+            )}
           </div>
         </div>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-y-1">
           <ScoreDisplay total={item.total_score} subScores={item.sub_scores} />
-        </div>
-      )}
-
-      {/* 畢業條件（長線軌）：不設停損，這排是「該重新審視這條魚了嗎」 */}
-      {item.graduation && (
-        <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <span className="text-muted">畢業條件</span>
-          {item.graduation.hit_target && (
-            <span
-              className="rounded bg-rose-500/15 px-1.5 py-0.5 font-medium text-rose-300"
-              title="現價/期間高點已觸及基準目標——這條魚釣到了，重新評估是否續抱"
-            >
-              🎣 已達標
-            </span>
-          )}
-          {item.graduation.streak_months != null && (
-            <span
-              className={`rounded px-1.5 py-0.5 font-medium ${fishAgeClass(item.graduation.streak_months)}`}
-              title="連續營收年增為正的月數。回測：12 月見頂、19 月以上相對宇宙 −5.5pp（老魚是毒）"
-            >
-              🐟 魚齡 {item.graduation.streak_months} 月
-            </span>
-          )}
-          {item.graduation.mom12_pct != null && (
-            <span
-              className={`rounded px-1.5 py-0.5 font-medium ${mom12Class(item.graduation.mom12_pct)}`}
-              title="近 12 月漲幅。回測：漲幅 80~200% 相對宇宙 −8.2pp、200%+ −20.9pp（魚已被釣走）"
-            >
-              📈 已漲 {fmtPct(item.graduation.mom12_pct)}
-            </span>
-          )}
         </div>
       )}
 
@@ -316,22 +261,20 @@ export function RecommendationCard({
             {fmtNum(item.buy_low)} ~ {fmtNum(item.buy_high)}
           </div>
         </div>
-        {item.track === "long" ? (
-          <div title="保守=PE 河流中位帶（估值回常態）、樂觀=上緣帶（估值走到歷史高檔）。長線軌不設停損，以畢業條件檢視">
-            <div className="text-xs text-muted">目標區間（保守~樂觀）</div>
-            <div className="tabular-nums">
-              {item.target_zone?.low != null && item.target_zone?.high != null
-                ? `${fmtNum(item.target_zone.low)} ~ ${fmtNum(item.target_zone.high)}`
-                : "—"}
-            </div>
-          </div>
-        ) : (
+        {item.stop_loss != null ? (
           <div>
             <div className="text-xs text-muted">參考停損</div>
             <div className="tabular-nums">
               {fmtNum(item.stop_loss)}{" "}
               <span className="text-down">({fmtPct(item.loss_pct)})</span>
             </div>
+          </div>
+        ) : (
+          // 波段軌 2026-08-24 定版：不設停損。這條軌挑的是 ATR>9% 的高波動標的，
+          // −8% 停損實測把命中率打掉 25pp；風控改由「10 日到期」承擔。
+          <div title="波段軌不設停損：選的是高波動標的，停損線會切在它自己的呼吸幅度上（實測 −8% 停損讓命中率掉 25pp，而期間浮虧>10% 的部位仍有 47% 最後照樣達標）。風控是時間——10 個交易日內沒摸到目標就重審或出場。">
+            <div className="text-xs text-muted">風控方式</div>
+            <div className="tabular-nums">不設停損 · <span className="text-muted">10 日到期</span></div>
           </div>
         )}
       </div>

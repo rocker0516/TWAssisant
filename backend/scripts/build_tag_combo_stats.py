@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import sys
 from datetime import date
 
@@ -19,13 +20,73 @@ import pandas as pd
 sys.path.insert(0, __file__.replace("\\", "/").rsplit("/scripts/", 1)[0])
 from pop_condition_judge import _CACHE, _build_cache  # noqa: E402
 from app.engines.rules.wave import (  # noqa: E402
-    CRASH_ATR_MIN, CRASH_MKT_BIAS60, EXPLOSIVE_ATR_MIN,
+    CRASH_ATR_MIN, CRASH_MKT_BIAS60, CRASH_PX_MIN, CRASH_TURNOVER_MIN,
+    EXPLOSIVE_ATR_MIN,
     STORY_ATR_MIN, STORY_PB_MIN, STORY_PE_MIN, STRONG_OVER_MA20, STRONG_POS_MIN,
 )
 
-_OUT = __file__.replace("\\", "/").rsplit("/scripts/", 1)[0] + "/data/tag_combo_stats.json"
+_BASE = __file__.replace("\\", "/").rsplit("/scripts/", 1)[0]
+_OUT = _BASE + "/data/tag_combo_stats.json"
+_DB = _BASE + "/data/twa.db"
 _MIN_VOL = 500 * 1000
 _HOLDOUT_FROM = "2025-07-01"  # 雙段檢定切點：加成條件要挖掘窗＋holdout 都贏基線才算數
+
+
+def _clean_pool(m: pd.DataFrame) -> pd.Series:
+    """乾淨池：近 5 交易日被列注意、近 10 交易日被列處置者不算（同線上 crash 口徑）。
+
+    命中率是在這個池上量的，統計端不排就會與線上掛出來的名單口徑不一致。
+    """
+    con = sqlite3.connect(f"file:{_DB}?mode=ro", uri=True)
+    att = pd.read_sql_query("SELECT stock_id sid, date, kind FROM attention_listings", con)
+    con.close()
+    days = sorted(m["date"].unique())
+    pos = {d: i for i, d in enumerate(days)}
+    dirty: set[tuple[str, str]] = set()
+    for sid, d0, kind in att.itertuples(index=False):
+        p0 = pos.get(d0)
+        if p0 is None:
+            continue
+        for k in range(5 if kind == "notice" else 10):
+            if p0 + k < len(days):
+                dirty.add((sid, days[p0 + k]))
+    return pd.Series([(s_, d_) not in dirty for s_, d_ in zip(m["stock_id"], m["date"])],
+                     index=m.index)
+
+
+def _episodes(dates, gap: int = 15) -> dict:
+    """訊號日相隔 >15 個日曆日＝換一段行情（同 docs/wave-hit-challenge.md §5）。"""
+    ds = pd.to_datetime(sorted(set(dates)))
+    ep, cur, out = 0, ds[0], {}
+    for x in ds:
+        if (x - cur).days > gap:
+            ep += 1
+        out[x.strftime("%Y-%m-%d")] = ep
+        cur = x
+    return out
+
+
+def style_masks(m: pd.DataFrame) -> dict[str, pd.Series]:
+    """四個純門檻風格的向量化遮罩——**這是唯一一份定義**，build_prob_table.py 也 import 它。
+
+    與 app/engines/rules/wave.py 同式（常數直接 import，不抄數字）。crash 另含乾淨池，
+    因為線上 ScoringEngine._apply_crash_style 也排除注意/處置窗內的標的。
+    """
+    liq = m["vol_ma20"].notna() & (m["vol_ma20"] >= _MIN_VOL)
+    above_rising = (m["c_over_ma20"] > 0) & m["ma20_up5"].fillna(False)
+    return {
+        "explosive": (liq & (m["atr_pct"] > EXPLOSIVE_ATR_MIN) & above_rising).fillna(False),
+        "strong": (liq & (m["pos_52w"] > STRONG_POS_MIN)
+                   & (m["c_over_ma20"] > STRONG_OVER_MA20)).fillna(False),
+        "story": (liq & (m["pb"] > STORY_PB_MIN) & (m["pe"] > STORY_PE_MIN)
+                  & (m["atr_pct"] > STORY_ATR_MIN)).fillna(False),
+        # crash 2026-08-24 改版（同 wave.crash_cand_ok + scoring._apply_crash_style）
+        "crash": (liq & (m["atr_pct"] > CRASH_ATR_MIN)
+                  & (m["mkt_bias60"] <= CRASH_MKT_BIAS60)
+                  & (m["close"] >= CRASH_PX_MIN)
+                  & (m["close"] * m["volume"] >= CRASH_TURNOVER_MIN)
+                  & _clean_pool(m)).fillna(False),
+    }
 
 
 def main() -> None:
@@ -46,13 +107,8 @@ def main() -> None:
     comp = (2 * ra + rl + rp + rb) / 5
     pop_score = comp.groupby(m["date"]).rank(pct=True) * 100  # 合成再重排名（與線上同式）
     m["t_pop"] = (hard & liq & (pop_score >= 80)).fillna(False)
-    m["t_explosive"] = (liq & (m["atr_pct"] > EXPLOSIVE_ATR_MIN) & above_rising).fillna(False)
-    m["t_strong"] = (liq & (m["pos_52w"] > STRONG_POS_MIN)
-                     & (m["c_over_ma20"] > STRONG_OVER_MA20)).fillna(False)
-    m["t_story"] = (liq & (m["pb"] > STORY_PB_MIN) & (m["pe"] > STORY_PE_MIN)
-                    & (m["atr_pct"] > STORY_ATR_MIN)).fillna(False)
-    m["t_crash"] = ((m["t_strong"] | m["t_story"]) & (m["atr_pct"] > CRASH_ATR_MIN)
-                    & (m["mkt_bias60"] <= CRASH_MKT_BIAS60)).fillna(False)
+    for _t, _mask in style_masks(m).items():
+        m[f"t_{_t}"] = _mask
 
     # 2026-08 定版：目標＝「10 日內碰到 +10%」（與 build_prob_table.py／實驗室同口徑）。
     # 舊版誤用 hit/mae30（30 日窗）→ 標籤命中率全面虛高，深跌反攻尤甚。
@@ -72,6 +128,18 @@ def main() -> None:
         n = len(gsel)
         return n, (round(float(gsel["hit"].mean()) * 100, 1) if n >= 30 else None)
 
+    def _ep_spread(gsel: pd.DataFrame) -> dict:
+        """段級中位／最差／≥70% 段數。日加權平均會被最大的一段綁架，單一數字必然誤導
+        （docs/wave-hit-challenge.md §5）；只計 n≥10 的段。"""
+        ep = gsel["date"].map(_episodes(gsel["date"]))
+        g_ = gsel.assign(_ep=ep).groupby("_ep")["hit"].agg(["size", "mean"])
+        k = g_[g_["size"] >= 10]["mean"] * 100
+        if len(k) < 2:
+            return {"ep_n": int(len(k))}
+        return {"ep_n": int(len(k)), "ep_median": round(float(k.median()), 1),
+                "ep_min": round(float(k.min()), 1), "ep_max": round(float(k.max()), 1),
+                "ep_ge70": int((k >= 70).sum())}
+
     def _put(key: str, gsel: pd.DataFrame) -> None:
         n = len(gsel)
         if n < 30:
@@ -84,6 +152,7 @@ def main() -> None:
             "avg_mae": round(float(gsel["mae30"].mean()), 1),
             "n_tr": int(n_tr), "hit_tr": hit_tr,   # 挖掘窗（< _HOLDOUT_FROM）
             "n_ho": int(n_ho), "hit_ho": hit_ho,   # holdout（>= _HOLDOUT_FROM）
+            **_ep_spread(gsel),                    # 段級離散（崩勢型標籤的有效樣本是段數）
         }
 
     # 精確組合
@@ -105,7 +174,9 @@ def main() -> None:
         "generated_at": date.today().isoformat(),
         "window": {"from": str(m["date"].min()), "to": str(m["date"].max())},
         "holdout_from": _HOLDOUT_FROM,  # 前端標「單段實證」用，不要在 UI 端寫死
-        "note": "五年實證：同標籤組合隔日高錨、10交易日內摸+10%比率；pop=預設前20%口徑(無遲滯)",
+        "note": ("五年實證：同標籤組合隔日高錨、10 交易日內摸 +10% 比率（**無停損**，與波段軌"
+                 "定版口徑一致）；pop=預設前20%口徑(無遲滯)；ep_* 為段級離散度——"
+                 "崩勢型標籤的有效樣本數是段數不是筆數，單看 hit 會被最大的一段綁架。"),
         "stats": stats,
     }
     with open(_OUT, "w", encoding="utf-8") as fh:  # Windows 預設 cp950，端點以 utf-8 讀會 500

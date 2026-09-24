@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import pandas as pd
-from sqlalchemy import distinct, func, select
+from sqlalchemy import and_, distinct, func, or_, select
 from sqlalchemy.orm import Session
 
 from ..storage import models
@@ -17,7 +17,7 @@ from ..storage.repositories import BaseRepository
 from .base import BaseEngine
 from .context import StockContext
 from .rules.base import clamp
-from .tracks import LongTrack, WaveTrack
+from .tracks import WaveTrack
 
 _STABILITY_LOOKBACK = 5  # 取近 5 個評分日算分數穩定度
 _STABILITY_MIN_POINTS = 3  # 含今日至少 3 點才談穩定度，否則中性不扣
@@ -150,103 +150,11 @@ def _load_latest(
     return out
 
 
-def _load_revenue_history(session: Session, td: date) -> dict[str, pd.DataFrame]:
-    """月營收全歷史，依「公布時點」切片（point-in-time）：(y,m) 於次月 10 日可得。
-
-    長線軌（釣大魚）的持續性/加速度因子需要多期歷史；切片讓評分只用當日已公布
-    的資料，未來回測可直接沿用。
-    """
-    rows = session.execute(
-        select(
-            models.RevenueMonthly.stock_id, models.RevenueMonthly.year,
-            models.RevenueMonthly.month, models.RevenueMonthly.revenue,
-            models.RevenueMonthly.yoy, models.RevenueMonthly.mom,
-        ).order_by(models.RevenueMonthly.stock_id, models.RevenueMonthly.year, models.RevenueMonthly.month)
-    ).all()
-    if not rows:
-        return {}
-    df = pd.DataFrame(rows, columns=["stock_id", "year", "month", "revenue", "yoy", "mom"])
-    next_m = df["month"] % 12 + 1
-    next_y = df["year"] + (df["month"] == 12).astype(int)
-    avail = pd.to_datetime(dict(year=next_y, month=next_m, day=10))
-    df = df[avail <= pd.Timestamp(td)]
-    return {sid: g.reset_index(drop=True) for sid, g in df.groupby("stock_id", sort=False)}
-
-
-# 季報法定申報期限：Q1→5/15、Q2→8/14、Q3→11/14、Q4(年報)→次年3/31
-_FIN_DEADLINES = {1: (0, 5, 15), 2: (0, 8, 14), 3: (0, 11, 14), 4: (1, 3, 31)}
-
-
-def _load_financial_history(session: Session, td: date) -> dict[str, pd.DataFrame]:
-    """季財報（單季化）全歷史，依申報期限切片（保守：期限日起才視為可得）。"""
-    rows = session.execute(
-        select(
-            models.FinancialQuarter.stock_id, models.FinancialQuarter.year,
-            models.FinancialQuarter.quarter, models.FinancialQuarter.eps,
-            models.FinancialQuarter.gross_margin, models.FinancialQuarter.op_margin,
-            models.FinancialQuarter.net_margin,
-        ).order_by(models.FinancialQuarter.stock_id, models.FinancialQuarter.year, models.FinancialQuarter.quarter)
-    ).all()
-    if not rows:
-        return {}
-    df = pd.DataFrame(rows, columns=["stock_id", "year", "quarter", "eps", "gross_margin", "op_margin", "net_margin"])
-    dl = df["quarter"].map(_FIN_DEADLINES)
-    avail = pd.to_datetime(dict(
-        year=df["year"] + dl.str[0], month=dl.str[1], day=dl.str[2],
-    ))
-    df = df[avail <= pd.Timestamp(td)]
-    return {sid: g.reset_index(drop=True) for sid, g in df.groupby("stock_id", sort=False)}
-
-
-def _fund_relatives(
-    rev_hist: dict[str, pd.DataFrame],
-    valuation: dict[str, pd.Series],
-    stock_map: dict,
-    min_sector_n: int = 15,
-) -> tuple[dict[str, float], dict[int, float]]:
-    """類股相對量尺（原則：量尺相對化、定義保持絕對）。
-
-    回 (yoy3m_rank per stock（類股內百分位；小類股退全市場）, pe 中位 per sector_id)。
-    """
-    yoy3m: dict[str, float] = {}
-    for sid, g in rev_hist.items():
-        tail = [float(v) for v in g["yoy"].iloc[-3:] if pd.notna(v)]
-        if len(tail) == 3:
-            yoy3m[sid] = sum(tail) / 3
-    # 依類股分組排名；樣本太小的類股集中到全市場池
-    by_sector: dict[int | None, list[str]] = {}
-    for sid in yoy3m:
-        st = stock_map.get(sid)
-        by_sector.setdefault(st.sector_id if st else None, []).append(sid)
-    global_pool: list[str] = []
-    rank_map: dict[str, float] = {}
-    for sec_id, sids in by_sector.items():
-        if sec_id is None or len(sids) < min_sector_n:
-            global_pool.extend(sids)
-            continue
-        ranks = _pct_ranks([yoy3m[s] for s in sids])
-        rank_map.update({s: r for s, r in zip(sids, ranks) if r is not None})
-    if global_pool:
-        ranks = _pct_ranks([yoy3m[s] for s in global_pool])
-        rank_map.update({s: r for s, r in zip(global_pool, ranks) if r is not None})
-
-    pe_by_sector: dict[int, list[float]] = {}
-    for sid, v in valuation.items():
-        st = stock_map.get(sid)
-        pe = v.get("pe")
-        if st and st.sector_id is not None and pe is not None and not pd.isna(pe) and pe > 0:
-            pe_by_sector.setdefault(st.sector_id, []).append(float(pe))
-    pe_median = {
-        sec: float(pd.Series(vals).median()) for sec, vals in pe_by_sector.items() if len(vals) >= 5
-    }
-    return rank_map, pe_median
-
-
 class ScoringEngine(BaseEngine):
     name = "scoring"
 
     def __init__(self) -> None:
-        self.tracks = [WaveTrack(), LongTrack()]
+        self.tracks = [WaveTrack()]  # 長線軌已移除（2026-08-28），只剩波段
 
     def _config(self, session: Session) -> dict:
         row = session.get(models.Setting, "scoring")
@@ -272,14 +180,12 @@ class ScoringEngine(BaseEngine):
         holding = _load_groups(session, models.ShareholdingDistribution, hold_cols, td)
         stock_map = {s.id: s for s in session.execute(select(models.Stock)).scalars().all()}
 
-        # 基本面（長線軌）：估值最新一筆；月營收/季財報載「歷史」並依公布時點切片
+        # 估值最新一筆（波段規則/前端顯示用）。長線軌已移除：月營收/季財報
+        # 歷史切片與 fund_relatives 隨之刪除（Level 1 推薦軌自有 PIT 特徵層）。
         valuation = _load_latest(
             session, models.Valuation, ["pe", "pb", "dividend_yield"],
             [models.Valuation.stock_id, models.Valuation.date], td=td,
         )
-        revenue = _load_revenue_history(session, td)
-        financials = _load_financial_history(session, td)
-        fund_rank, pe_median = _fund_relatives(revenue, valuation, stock_map)
         # 類股方向（P3）→ Track 算 sector_adjust
         sector_daily = {
             sd.sector_id: sd
@@ -297,18 +203,6 @@ class ScoringEngine(BaseEngine):
             )
         ).scalars().all():
             disposed.setdefault(ev.stock_id, []).append(ev)
-
-        # 展望/利空事件（近 60 日）→ 長線軌 OutlookScore
-        events60: dict[str, list] = {}
-        for ev in session.execute(
-            select(models.Event).where(
-                models.Event.category.in_(["展望", "利空"]),
-                models.Event.date >= td - timedelta(days=60),
-                models.Event.date <= td,
-                models.Event.stock_id.is_not(None),
-            )
-        ).scalars().all():
-            events60.setdefault(ev.stock_id, []).append(ev)
 
         rows: list[dict] = []
         scored = 0
@@ -328,15 +222,8 @@ class ScoringEngine(BaseEngine):
                 margin=margin.get(sid),
                 holding=holding.get(sid),
                 valuation=valuation.get(sid),
-                revenue=revenue.get(sid),
-                financials=financials.get(sid),
                 sector=sector_daily.get(stock.sector_id),
                 events=disposed.get(sid),
-                fund_rel={
-                    "yoy3m_rank": fund_rank.get(sid),
-                    "pe_sector_median": pe_median.get(stock.sector_id),
-                },
-                events_60d=events60.get(sid),
             )
             for track in self.tracks:
                 rows.append(track.evaluate(ctx, config.get(track.track_key, {})))
@@ -391,10 +278,18 @@ class ScoringEngine(BaseEngine):
                 r["passed_filter"] = not (h["hard_break"] or soft_break)
 
     def _apply_crash_style(self, session: Session, td: date, rows: list[dict]) -> None:
-        """深跌反攻風格的市場端閘（wave.CRASH_MKT_BIAS60）：
+        """深跌反攻風格的市場端閘（wave.CRASH_MKT_BIAS60）＋乾淨池。
 
         大盤收盤距 MA60 ≤ −2.3% 時，crash_cand（個股端已過）轉正式 crash 風格；
         其餘日子拔掉 crash_cand（不落 DB、清單為空=誠實）。
+
+        乾淨池（2026-08-24 加）：近 5 個交易日被列「注意」、近 10 個交易日被列「處置」者
+        不掛 crash。兩個理由：
+        1) 口徑一致——crash 對外掛的命中率（挖掘 76.6% / holdout 67.1%）是在排除注意/處置的
+           池子上量的；不排就會系統性高估，holdout 實測掉到 57.1%（挖掘窗幾乎不變 75.8%）。
+        2) 不重複計價——注意/處置本身在策略室是**獨立**的事件策略（處置後 10 日 holdout 命中
+           71%），混進 crash 會把兩條邊際疊在同一個標籤上，事後無法歸因；處置股又是人工撮合
+           /預收款，實際上也不是同一種可交易性。
         """
         from .rules.wave import CRASH_MKT_BIAS60
         closes = session.execute(
@@ -407,13 +302,32 @@ class ScoringEngine(BaseEngine):
         if len(closes) == 60:
             ma60 = sum(float(c) for c in closes) / 60.0
             deep = ma60 > 0 and (float(closes[0]) / ma60 - 1.0) * 100.0 <= CRASH_MKT_BIAS60
+        dirty: set[str] = set()
+        if deep:
+            # 用交易日而非日曆日回推窗頭（研究口徑就是交易日）；史料不足時退成「有資料的最早日」
+            recent = session.execute(
+                select(models.MarketIndex.date).where(models.MarketIndex.date <= td)
+                .order_by(models.MarketIndex.date.desc()).limit(10)
+            ).scalars().all()
+            if recent:
+                notice_from = recent[min(4, len(recent) - 1)]
+                punish_from = recent[-1]
+                dirty = set(session.execute(
+                    select(models.AttentionListing.stock_id).where(
+                        models.AttentionListing.date <= td,
+                        or_(and_(models.AttentionListing.kind == "notice",
+                                 models.AttentionListing.date >= notice_from),
+                            and_(models.AttentionListing.kind == "punish",
+                                 models.AttentionListing.date >= punish_from)),
+                    )
+                ).scalars().all())
         for r in rows:
             if r.get("track") != "wave":
                 continue
             styles = r.get("passed_styles") or []
             if "crash_cand" in styles:
                 styles = [st for st in styles if st != "crash_cand"]
-                if deep:
+                if deep and r["stock_id"] not in dirty:
                     styles.append("crash")
                 r["passed_styles"] = styles
 

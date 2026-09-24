@@ -203,7 +203,7 @@ export default function SectorDetailPage() {
     : data.constituents) as SectorConstituent[];
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-6">
+    <div className="w-full px-6 py-6">
       <Link to="/sectors" className="text-sm text-sky-400 hover:underline">← 類股行情</Link>
 
       <div className="mb-5 mt-3 flex items-center gap-3">
@@ -308,7 +308,6 @@ export default function SectorDetailPage() {
               <th className="px-3 py-2 text-right">法人5日</th>
               <th className="px-3 py-2 text-right">營收YoY</th>
               <th className="px-3 py-2 text-right">波段</th>
-              <th className="px-3 py-2 text-right">長線</th>
               <th className="px-3 py-2 text-center">推薦</th>
             </tr>
           </thead>
@@ -341,7 +340,6 @@ export default function SectorDetailPage() {
                 <td className={`px-3 py-2 text-right text-xs tabular-nums ${changeColor(c.inst_net5)}`}>{c.inst_net5 != null ? fmtNum(c.inst_net5, 0) : "—"}</td>
                 <td className={`px-3 py-2 text-right text-xs tabular-nums ${changeColor(c.rev_yoy)}`}>{fmtPct(c.rev_yoy)}</td>
                 <td className={`px-3 py-2 text-right tabular-nums ${scoreColor(c.wave_score)}`}>{c.wave_score?.toFixed(0) ?? "—"}</td>
-                <td className={`px-3 py-2 text-right tabular-nums ${scoreColor(c.long_score)}`}>{c.long_score?.toFixed(0) ?? "—"}</td>
                 <td className="px-3 py-2 text-center">{c.recommended ? "★" : ""}</td>
               </tr>
             ))}

@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import datetime as _dt
 from datetime import date
+from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class RecommendationDetail(BaseModel):
@@ -49,32 +50,6 @@ class LookbackReview(BaseModel):
     days_elapsed: int = 0              # 進場日後已過幾個交易日
 
 
-class LongTargetZone(BaseModel):
-    """長線軌目標區間（參考期間 12 個月＝回測視窗）。
-
-    基準錨優先用法人目標價中位（FactSet），無法人報告退 PE 河流中位帶（估值推算）；
-    保守/樂觀恆為 PE 河流中位帶/上緣帶 × 隱含 EPS（長線硬篩②保證 EPS>0，缺的只會是 PE 史料）。
-    """
-
-    basis: str                        # 基準錨來源：analyst=法人目標價 | pe_river=估值推算
-    base: float                       # 基準目標價
-    upside_pct: float | None          # 基準相對現價上漲空間 %
-    low: float | None                 # 保守：PE 河流中位帶價
-    high: float | None                # 樂觀：PE 河流上緣帶價
-    analyst_target: float | None = None   # 法人目標價中位（有 FactSet 報告才有）
-    analyst_date: date | None = None      # 該目標價發布日
-    analyst_count: int | None = None      # 分析師家數
-    hit: bool = False                 # 已達標：analyst=發布後最高價曾觸及；pe_river=現價已在基準上
-
-
-class LongGraduation(BaseModel):
-    """長線軌畢業條件（重新審視訊號，非停損）：達標 / 魚齡老化 / 已暴漲。"""
-
-    hit_target: bool = False          # 現價已觸及基準目標
-    streak_months: int | None = None  # 魚齡：連續營收 YoY>0 月數（>12 轉黃、>18 轉紅）
-    mom12_pct: float | None = None    # 近 12 月漲幅 %（>80 轉黃、>200 轉紅）
-
-
 class RecommendationItem(BaseModel):
     stock_id: str
     name: str
@@ -101,14 +76,13 @@ class RecommendationItem(BaseModel):
     prob_n: int | None = None       # 該條件格歷史樣本數
     prob_cond: str | None = None    # 條件描述（例：分數90-95×波動5-8%×大盤正常）
     prob_mae: float | None = None   # 同條件歷史平均最深回撤%（風險行顯示用）
+    prob_style: str | None = None   # 機率若來自風格分層格子，這裡放風格 key（前端據此附上段級離散）
     vol_ratio: float | None = None  # 量增比＝vol_ma5/vol_ma20（標籤共振徽章用：爆發×量增>1.5 實證加成）
     # 注意/處置動能徽章（2026-08 判官驗證：處置後10日 控波動+16pp、holdout命中71%；注意×上升 +5~7pp）
     attention: str | None = None    # "punish"（處置公告10日內/執行中）/ "notice"（近5日列注意）/ None
     attention_tags: list[str] = []  # 完整旗標集（可同時 punish+notice；精確組合篩選用）
     # ML 共識確認（2026-08 實證：四因子∩ML 交集 holdout 命中 ~34% vs 單獨 ~30-31%）
     ml_consensus: bool | None = None  # True=ML 模型也將其排入硬篩內前 20%（資料日對得上才附）
-    target_zone: LongTargetZone | None = None   # 長線軌限定：目標區間（波段軌恆 None）
-    graduation: LongGraduation | None = None    # 長線軌限定：畢業條件狀態
 
 
 class MarketRegime(BaseModel):
@@ -702,7 +676,7 @@ class LevelsResponse(BaseModel):
 
 class HoldingCreate(BaseModel):
     stock_id: str
-    track: str  # wave / long
+    track: str  # wave（長線軌已移除 2026-08-28；既有 long 持倉仍可載入/出場，僅不再新增）
     date: date
     price: float
     shares: int
@@ -711,6 +685,7 @@ class HoldingCreate(BaseModel):
     trail_trigger_override: float | None = None
     trail_pullback_override: float | None = None
     note: str | None = None
+    strategy_id: int | None = None
 
 
 class TransactionCreate(BaseModel):
@@ -741,10 +716,29 @@ class TransactionDTO(BaseModel):
     note: str | None
 
 
+class EntrySnapshot(BaseModel):
+    """建倉當下 Score 的凍結副本。
+
+    欄位固定，故宣告成模型而非 dict：宣告成 dict 時 openapi 只能吐出
+    `{[key: string]: unknown}`，前端就得自己手寫一份同名型別 & 上來——
+    那份手寫副本沒有任何機制保證它跟後端一致。
+    """
+
+    score_date: date
+    total_score: float | None = None
+    passed_filter: bool | None = None
+    passed_styles: list[str] | None = None
+    reasons: list[str] | None = None
+    buy_low: float | None = None
+    buy_high: float | None = None
+    stop_loss: float | None = None
+    close: float | None = None
+
+
 class ThesisStatus(BaseModel):
     """進場論點追蹤：進場快照 vs 最新評分的對照結論。"""
 
-    status: str  # intact / weakening / broken / unknown
+    status: Literal["intact", "weakening", "broken", "unknown"]
     entry_score: float | None = None
     latest_score: float | None = None
     latest_passed_filter: bool | None = None
@@ -775,10 +769,16 @@ class HoldingItem(BaseModel):
     highest: float | None
     drawdown_pct: float | None
     trail_active: bool
+    thesis_state: str | None = None
+    days_left: int | None = None
+    reaudit_count: int | None = None
+    target_price: float | None = None
+    stop_price: float | None = None
+    horizon_days: int | None = None
     stop_loss_override: float | None
     trail_trigger_override: float | None
     trail_pullback_override: float | None
-    entry_snapshot: dict | None = None  # 建倉當下 Score 凍結副本
+    entry_snapshot: EntrySnapshot | None = None  # 建倉當下 Score 凍結副本
     thesis: ThesisStatus | None = None  # 論點是否還成立
     note: str | None
     transactions: list[TransactionDTO]
@@ -831,7 +831,6 @@ class SectorConstituent(BaseModel):
     close: float | None
     change_pct: float | None
     wave_score: float | None
-    long_score: float | None
     recommended: bool
     tags: list[str] = []  # 產業鏈細分標籤（如 晶圓製造 / 消費性IC）
     # 細分狀態聚合用（前端按標籤即時聚合成「細分狀態卡」）
@@ -1020,7 +1019,6 @@ class WatchlistItemDTO(BaseModel):
     close: float | None
     change_pct: float | None
     wave_score: float | None
-    long_score: float | None
     light: str  # green / yellow / white
     reminders: list[str]
 
@@ -1114,7 +1112,6 @@ class OverviewResponse(BaseModel):
     market_note: str | None = None  # AI 盤勢總結（盤後批次快取）
     holdings_alerts: list[AlertBrief]
     reco_wave_count: int
-    reco_long_count: int
     reco_top: list[RecoBrief]
     sectors_top: list[SectorBrief]
     recent_events: list[EventBrief]
@@ -1164,7 +1161,7 @@ class PaperPositionDTO(BaseModel):
     signal_date: date          # 推薦日（Score 日）
     entry_date: date           # 進場日＝隔一交易日
     entry_price: float         # 進場價＝隔日最高（保守錨，與回看口徑一致）
-    stop_price: float
+    stop_price: float | None   # None＝這次模擬不設停損（波段軌定版口徑）
     target_price: float
     status: str                # open / closed
     exit_date: date | None = None
@@ -1201,7 +1198,7 @@ class PaperSimResponse(BaseModel):
     prob_min: float
     top_n: int
     hold_days: int
-    stop_pct: float
+    stop_pct: float | None     # None＝不設停損
     target_pct: float
     stats: PaperSimStats
     equity: list[PaperEquityPoint]
@@ -1229,16 +1226,349 @@ class LookbackStatsResponse(BaseModel):
 
 
 class SensitivityPoint(BaseModel):
+    """累積門檻（prob ≥ X）的成效。
+
+    days 才是有效樣本數：同一天的個股命中高度相關，n=22 若只落在 2 天，統計上就是
+    2 個觀測。故 reliable 以 days 為主判準，前端據此把不可信的列灰化。
+    """
+
     prob_min: float
-    n: int                  # 全期樣本數
-    avg_daily_n: float | None  # 平均每日推薦檔數
+    n: int                     # 個股樣本數（同日高度相關，勿當獨立觀測）
+    days: int                  # 有貨的進場日數 ← 有效樣本數
+    day_cover: float | None    # 有貨日 / 全部進場日（揭露「集中在少數幾天」）
+    avg_daily_n: float | None  # 平均每日推薦檔數（分母=全部進場日）
     hit_count: int
-    hit_rate: float | None
-    avg_return_pct: float | None
+    hit_rate: float | None     # 個股級碰到率
+    hit_rate_lo: float | None  # Wilson 95% 下界（以 days 為有效 n 調整）
+    hit_rate_hi: float | None
+    day_hit_rate: float | None  # 日層級（每日一觀測取平均，不被大日子灌權重）
+    lift: float | None          # vs 無門檻基準的倍數
+    avg_return_pct: float | None       # 隔日高錨（保守／最壞追高）
+    avg_return_open_pct: float | None  # 隔日開盤錨（貼近實務）
+    avg_mfe_pct: float | None
+    avg_mae_pct: float | None
+    reliable: bool
+
+
+class CalibrationBin(BaseModel):
+    """非累積分箱：預測機率 vs 實現碰到率，看查表準不準（累積門檻看不出來）。"""
+
+    lo: float
+    hi: float
+    n: int
+    days: int
+    pred_avg: float             # 該箱預測機率均值
+    hit_rate: float | None      # 該箱實現碰到率
+    hit_rate_lo: float | None
+    hit_rate_hi: float | None
+    err_pp: float | None        # 實現 − 預測（負＝機率高估）
+    reliable: bool
 
 
 class SensitivityResponse(BaseModel):
     since: date | None
     today_date: date | None
     min_age_days: int
+    entry_days: int                 # 統計涵蓋的進場日總數
+    base_hit_rate: float | None     # 不設門檻的碰到率（lift 的分母）
     points: list[SensitivityPoint]
+    calibration: list[CalibrationBin]
+    note: str
+
+
+# ── 回測實驗室（spec 2026-08-20-backtest-lab）──
+
+
+class FieldInfo(BaseModel):
+    key: str
+    label: str
+    group: str
+    unit: str
+
+
+class ConditionDTO(BaseModel):
+    field: str
+    op: Literal["gt", "lt", "gte", "lte", "streak_gt", "streak_lt"]
+    value: float | dict  # streak op 用 {n, threshold}
+
+
+class StrategyDTO(BaseModel):
+    id: int
+    name: str
+    conditions: list[ConditionDTO]
+    sort_field: str
+    sort_desc: bool
+    top_n: int
+    target_pct: float
+    horizon_days: int
+    stop_pct: float | None
+    is_active: bool
+
+
+class StrategyCreate(BaseModel):
+    name: str = "我的策略"
+    conditions: list[ConditionDTO] = []
+    sort_field: str = "turnover"
+    sort_desc: bool = True
+    top_n: int = Field(30, ge=1, le=200)
+    target_pct: float = Field(10.0, ge=0.1, le=100)
+    horizon_days: int = Field(10, ge=1, le=60)
+    stop_pct: float | None = Field(None, ge=0.1, le=100)
+
+
+class StrategyPatch(BaseModel):
+    name: str | None = None
+    conditions: list[ConditionDTO] | None = None
+    sort_field: str | None = None
+    sort_desc: bool | None = None
+    top_n: int | None = Field(None, ge=1, le=200)
+    target_pct: float | None = Field(None, ge=0.1, le=100)
+    horizon_days: int | None = Field(None, ge=1, le=60)
+    stop_pct: float | None = Field(None, ge=0.1, le=100)
+    clear_stop: bool = False  # PATCH 語意下 null 無法表達「清掉停損」，用旗標；
+    # 與顯式 stop_pct 同時提交時 clear_stop 優先（見 routes_strategies.patch_strategy）
+
+
+class BacktestRequest(BaseModel):
+    start: date
+    end: date
+
+
+class BacktestMonthly(BaseModel):
+    month: str
+    samples: int
+    hits: int
+
+
+class BacktestDetail(BaseModel):
+    date: str
+    stock_id: str
+    name: str
+    entry: float
+    hit: bool
+    stopped: bool
+    max_gain_pct: float
+    max_dd_pct: float
+
+
+class BacktestEpisode(BaseModel):
+    """一「段」行情（訊號日相隔 >15 個日曆日就切段）。
+
+    段級才是條件型策略的有效樣本數：同一段裡每天選到的多半是同一批股票，
+    以「筆」算信賴區間會嚴重低估不確定性（docs/wave-hit-challenge.md §5）。
+    """
+
+    start: str
+    end: str
+    days: int
+    samples: int
+    hits: int
+    hit_rate: float
+
+
+class BacktestResponse(BaseModel):
+    samples: int
+    hits: int
+    hit_rate: float | None
+    base_rate: float | None
+    lift: float | None
+    avg_max_drawdown: float | None
+    monthly: list[BacktestMonthly]
+    episodes: list[BacktestEpisode] = []
+    episode_median: float | None = None   # 段級中位（只算 samples≥10 的段）
+    episode_worst: float | None = None
+    recent: list[BacktestDetail]
+    warn_loose: bool
+    signal_days: int
+
+
+class StrategyDailyItem(BaseModel):
+    stock_id: str
+    name: str
+    close: float | None
+    sort_value: float | None
+
+
+class StrategyDailyResponse(BaseModel):
+    strategy: StrategyDTO | None
+    date: str | None
+    items: list[StrategyDailyItem]
+
+
+# ─────────────── 波段命中挑戰（data/wave_challenge.json 凍結產物）───────────────
+# 由 scripts/wave_hit_challenge.py --json 產出；端點只做直讀＋型別把關，不做計算
+# （整份要跑 4~6 分鐘、且吃研究快取，不可能放在 request 路徑上）。
+
+
+class WaveWinStat(BaseModel):
+    """單一時窗（挖掘窗 / holdout）的規則成績。"""
+
+    n: int
+    days: int
+    per_day: float
+    hit: float          # 命中率 %
+    ex: float           # 同日全市場配對超額 pp
+    t: float | None     # 以「日」為觀測的 t
+    mae: float          # 平均最大不利偏移 %
+
+
+class WaveEpisode(BaseModel):
+    start: str          # 該崩段起始年月
+    days: int
+    n: int
+    hit: float
+    mae: float
+
+
+class WaveEpStats(BaseModel):
+    episodes: list[WaveEpisode] = []
+    n_eff: int = 0      # 納入離散度統計的段數（n≥10 的段）
+    median: float | None = None
+    mean: float | None = None
+    min: float | None = None
+    max: float | None = None
+    ge70: int | None = None
+    ge60: int | None = None
+
+
+class WaveLadderRow(BaseModel):
+    """ATR 門檻階梯的一格：命中率–案例數前緣。"""
+
+    atr: float
+    mine: WaveWinStat
+    holdout: WaveWinStat
+    day_cover: float    # 有名單的崩日 / 全部崩日 %
+    ep_median: float | None = None
+    ep_min: float | None = None
+    ep_n: int | None = None
+    ep_ge70: int | None = None
+    per_month: float
+
+
+class WaveAxisPart(BaseModel):
+    n: int
+    pp: float           # 同日同 ATR 桶內配對增量 pp
+    t: float | None
+
+
+class WaveAttribution(BaseModel):
+    axis: str
+    mine: WaveAxisPart | None = None
+    holdout: WaveAxisPart | None = None
+    adopted: bool = False   # 判定寫在產物裡（門檻事前定好），前端不再自己推
+    verdict: str = ""
+
+
+class WaveCandidate(BaseModel):
+    id: str
+    rule: str
+    mine: WaveWinStat
+    holdout: WaveWinStat
+    cases: int
+    per_month: float
+    ep: WaveEpStats
+
+
+class WaveOver70(BaseModel):
+    rule: str
+    m_hit: float
+    m_n: int
+    m_days: int
+    m_ex: float
+    h_hit: float
+    h_n: int
+    h_days: int
+    h_ex: float
+    worst: float
+    cases: int
+    per_month: float
+
+
+class WaveNullCalib(BaseModel):
+    runs: int
+    draws: int          # 虛無下的總抽樣次數
+    ge65: int
+    ge70: int
+
+
+class WaveFrontier(BaseModel):
+    tested: int
+    evaluable: int
+    over70: list[WaveOver70] = []
+    top: list[WaveOver70] = []
+    null: WaveNullCalib
+
+
+class WaveRegimeGate(BaseModel):
+    gate: str
+    verdict: str
+    why: str
+    mine: WaveWinStat | None = None
+    holdout: WaveWinStat | None = None
+
+
+class WavePoolRow(BaseModel):
+    """池紀律對照：研究一律用乾淨池，線上若不排注意/處置就會系統性高估。"""
+
+    pool: str
+    mine: WaveWinStat | None = None
+    holdout: WaveWinStat | None = None
+
+
+class WaveOosDay(BaseModel):
+    date: str
+    n: int
+    hit: float
+    mae: float
+
+
+class WaveOos(BaseModel):
+    """真 out-of-sample：forward_labels 之外（>2026-07-01）的崩段實測。"""
+
+    n: int = 0
+    hit: float | None = None
+    mae: float | None = None
+    days: list[WaveOosDay] = []
+    note: str = ""
+
+
+class WaveStopRow(BaseModel):
+    stop: float | None       # None＝無停損
+    mine: float
+    holdout: float
+    d_mine: float           # 相對無停損的 pp 差
+    d_holdout: float
+
+
+class WaveStopSensitivity(BaseModel):
+    """波段軌為什麼不設停損：逐根走路徑（同日雙碰保守記停損）量出來的代價。"""
+
+    n: int = 0
+    table: list[WaveStopRow] = []
+    tail: dict = {}         # 無停損要承受的尾巴（浮虧分位、未命中到期報酬…）
+
+
+class WaveAdopted(BaseModel):
+    rule: str
+    changes: list[str]
+    episodes: list[WaveEpisode]
+
+
+class WaveChallengeResponse(BaseModel):
+    available: bool                       # 產物不存在時 False（其餘欄位為空）
+    generated_at: str | None = None
+    target_label: str | None = None
+    windows: dict = {}
+    base_rate: dict = {}
+    deep_days: int | None = None
+    ladder: list[WaveLadderRow] = []
+    attribution: list[WaveAttribution] = []
+    candidates: list[WaveCandidate] = []
+    frontier: WaveFrontier | None = None
+    regime_gates: list[WaveRegimeGate] = []
+    pool_discipline: list[WavePoolRow] = []
+    oos: WaveOos | None = None
+    stop_sensitivity: WaveStopSensitivity | None = None
+    adopted: WaveAdopted | None = None
+    caveats: list[str] = []
+    note: str = ""

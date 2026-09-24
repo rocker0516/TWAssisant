@@ -128,7 +128,11 @@ class TdccSource(BaseSource, HoldingProvider):
         uri = _URI_RE.search(page)
         if not tok:
             raise SourceError("TDCC 智慧網無 CSRF token（頁面改版？）")
-        cookie = "; ".join(c.split(";")[0] for c in r.headers.get_list("set-cookie")) or ""
+        # 同一 client 第二次 GET 起 session 已建立、回應不再帶 set-cookie；
+        # 此時退回 cookie jar 組字串，否則空 Cookie 標頭會蓋掉 jar → 後續 POST 全部查無資料
+        cookie = "; ".join(c.split(";")[0] for c in r.headers.get_list("set-cookie"))
+        if not cookie:
+            cookie = "; ".join(f"{k}={v}" for k, v in self._client.cookies.items())
         dates = sorted(set(_OPTION_RE.findall(page)), reverse=True)
         return cookie, tok.group(1), (uri.group(1) if uri else _SMART_URL), dates
 

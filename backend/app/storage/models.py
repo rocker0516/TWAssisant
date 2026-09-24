@@ -4,7 +4,7 @@ A 主檔        : Sector, Stock
 B 行情運算    : DailyPrice, Indicator            （PK = stock_id + date）
 C 籌碼基本面  : Institutional, Margin, RevenueMonthly, FinancialQuarter, Valuation
 D 類股        : SectorDaily
-E 引擎結果    : Score（雙軌各一列）, Event          ← 前端只讀此群
+E 引擎結果    : Score（雙軌各一列）, Event, SignalLog   ← 前端只讀此群
 F 使用者      : Holding, Transaction, Watchlist, WatchlistItem, Setting, LlmCache
 排程 log      : PipelineRun
 
@@ -231,6 +231,126 @@ class FinancialQuarter(Base):
     op_margin: Mapped[float | None] = mapped_column(Float)
     net_margin: Mapped[float | None] = mapped_column(Float)
     roe: Mapped[float | None] = mapped_column(Float)
+
+
+class FundamentalFirstSeen(Base):
+    """基本面列「首次入庫日」（append-only，Level 1 PIT 可得性側表）。
+
+    主表（revenue_monthly / financials_quarterly）只有所屬期間、沒有公告日，
+    且 upsert 全欄覆寫，首次入庫日放主表會被歷史回補洗掉，故獨立成側表。
+    寫入只走 insert-ignore，已寫下的日期永不改寫。
+    可得日語意見 `app/services/pit_fundamentals.py`：avail = min(法定期限, first_seen)。
+
+    PK = (kind, stock_id, year, period)；kind: rev=月營收(period=月) / fin=季報(period=季)。
+    """
+
+    __tablename__ = "fundamental_first_seen"
+
+    kind: Mapped[str] = mapped_column(String(4), primary_key=True)
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    year: Mapped[int] = mapped_column(Integer, primary_key=True)
+    period: Mapped[int] = mapped_column(Integer, primary_key=True)
+    first_seen: Mapped[date_] = mapped_column(Date)
+
+
+class Level1Prediction(Base):
+    """Level 1 Prediction Ledger（FRS §15）：每次推薦可追溯、可重現。
+
+    每日對 U_t 全體寫入分數與排名（K 不預先固定，Top-K 是展示層的視圖）。
+    actual_* 三欄於 t+N 成熟後由 scripts.level1_predict --mature 回填；
+    rank_error = |pct_rank − actual_pct|。
+    PK = (prediction_date, stock_id, horizon, model_version)——同日同版重跑覆寫
+    自己，換版本則並存，歷史版本不受影響。
+    """
+
+    __tablename__ = "level1_predictions"
+
+    prediction_date: Mapped[date_] = mapped_column(Date, primary_key=True)
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    horizon: Mapped[int] = mapped_column(Integer, primary_key=True)
+    model_version: Mapped[str] = mapped_column(String(40), primary_key=True)
+    score: Mapped[float] = mapped_column(Float)
+    rank: Mapped[int] = mapped_column(Integer)          # 1 = 最強
+    pct_rank: Mapped[float] = mapped_column(Float)      # (0,1]，1 = 最強
+    universe_size: Mapped[int] = mapped_column(Integer)
+    feature_version: Mapped[str] = mapped_column(String(40))
+    actual_return: Mapped[float | None] = mapped_column(Float)
+    actual_pct: Mapped[float | None] = mapped_column(Float)
+    rank_error: Mapped[float | None] = mapped_column(Float)
+    matured_at: Mapped[date_ | None] = mapped_column(Date)
+
+
+class Level2Account(Base):
+    """Level 2 模擬帳戶（FRS v1.1 §9/§14）。
+
+    cash / rebalance_counter 為便利快照——真相在 level2_orders，重放必須一致
+    （scripts.level2_paper 的 verify_replay 釘住）。
+    """
+
+    __tablename__ = "level2_accounts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(40), unique=True)
+    policy_version: Mapped[str] = mapped_column(String(40))
+    initial_cash: Mapped[float] = mapped_column(Float)
+    cash: Mapped[float] = mapped_column(Float)
+    rebalance_counter: Mapped[int] = mapped_column(Integer, default=0)  # 訊號日計數
+    start_date: Mapped[date_ | None] = mapped_column(Date)
+    last_processed: Mapped[date_ | None] = mapped_column(Date)
+
+
+class Level2Order(Base):
+    """Level 2 委託（append-only 事實來源）。
+
+    status: pending（今晚產生、等次一交易日開盤）→ filled / rejected /
+    deferred（漲跌停或停牌順延，次日再試）。trade_date/price/fee/tax 於
+    執行時回填；reason 保留策略原因（rebalance/defense），拒單附 ':limit_up' 等。
+    """
+
+    __tablename__ = "level2_orders"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("level2_accounts.id"))
+    created_date: Mapped[date_] = mapped_column(Date)      # 訊號日
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"))
+    side: Mapped[str] = mapped_column(String(4))           # buy / sell
+    qty: Mapped[int] = mapped_column(Integer)
+    reason: Mapped[str] = mapped_column(String(40))
+    status: Mapped[str] = mapped_column(String(10), default="pending")
+    trade_date: Mapped[date_ | None] = mapped_column(Date)
+    price: Mapped[float | None] = mapped_column(Float)
+    fee: Mapped[float | None] = mapped_column(Float)
+    tax: Mapped[float | None] = mapped_column(Float)
+
+
+class Level2Position(Base):
+    """Level 2 每日持倉快照（查詢便利；可由 orders 重放重建）。"""
+
+    __tablename__ = "level2_positions"
+
+    account_id: Mapped[int] = mapped_column(
+        ForeignKey("level2_accounts.id"), primary_key=True)
+    date: Mapped[date_] = mapped_column(Date, primary_key=True)
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"),
+                                          primary_key=True)
+    qty: Mapped[int] = mapped_column(Integer)
+    close: Mapped[float | None] = mapped_column(Float)
+    market_value: Mapped[float | None] = mapped_column(Float)
+
+
+class Level2Nav(Base):
+    """Level 2 每日淨值（收盤估值；benchmark=加權指數收盤，診斷欄用）。"""
+
+    __tablename__ = "level2_nav"
+
+    account_id: Mapped[int] = mapped_column(
+        ForeignKey("level2_accounts.id"), primary_key=True)
+    date: Mapped[date_] = mapped_column(Date, primary_key=True)
+    nav: Mapped[float] = mapped_column(Float)
+    cash: Mapped[float] = mapped_column(Float)
+    invested: Mapped[float] = mapped_column(Float)
+    benchmark_close: Mapped[float | None] = mapped_column(Float)
+    had_signal: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class AttentionListing(Base):
@@ -550,12 +670,88 @@ class Event(Base):
 # ─────────────────────────── F 使用者 ───────────────────────────
 
 
+class User(Base):
+    """帳號（分層設計第 6 節）。tier＝付費層級（free/pro），role＝權限（user/admin）。
+
+    tier 與 role 分開存的理由：Admin 也可能想看 Free 視角除錯；付費狀態與
+    管理權限是兩個正交的事實，混成一欄日後必然要拆。
+
+    session_version：可撤銷 session 的機制（設計 7.2-2）。token 內嵌簽發當下的
+    版本號，改密碼／登出全部裝置時 +1，舊 token 立即全部失效——不需要 server
+    端存 token 名單。
+
+    failed_logins / locked_until：per-account 鎖定落 DB（設計 7.2-3）。
+    in-memory per-IP 鎖擋不住分散 IP、重啟即清空，只能當第一道。
+    """
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(200))
+    tier: Mapped[str] = mapped_column(String(10), default="free")   # free / pro
+    role: Mapped[str] = mapped_column(String(10), default="user")   # user / admin
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime)
+    session_version: Mapped[int] = mapped_column(Integer, default=1)
+    failed_logins: Mapped[int] = mapped_column(Integer, default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class UserStrategy(Base):
+    """回測實驗室的使用者自訂策略（spec 2026-08-20-backtest-lab）。
+
+    conditions＝AND 條件清單 JSON；is_active＝掛成進場推薦第三軌
+    （同一 user 至多一個 true，由 UserData.set_active_strategy 保證，
+    不靠 DB 約束——SQLite partial unique index 對既有庫遷移不友善）。
+    """
+    __tablename__ = "user_strategies"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(30), default="我的策略")
+    conditions: Mapped[list] = mapped_column(JSON, default=list)
+    sort_field: Mapped[str] = mapped_column(String(30), default="turnover")
+    sort_desc: Mapped[bool] = mapped_column(Boolean, default=True)
+    top_n: Mapped[int] = mapped_column(Integer, default=30)
+    target_pct: Mapped[float] = mapped_column(Float, default=10.0)
+    horizon_days: Mapped[int] = mapped_column(Integer, default=10)
+    stop_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(),
+                                                 onupdate=func.now())
+
+
+class EmailVerification(Base):
+    """Email 驗證 token（一次性、有時效）。驗證成功即刪列。"""
+
+    __tablename__ = "email_verifications"
+
+    token: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+class PasswordReset(Base):
+    """密碼重設 token。used_at 留痕而非刪列——重設是安全敏感事件，要能回查。"""
+
+    __tablename__ = "password_resets"
+
+    token: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
 class Holding(Base):
     """持股。成本不存欄位，由 transactions 重算均價。"""
 
     __tablename__ = "holdings"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # nullable：舊資料在遷移補值前短暫為 NULL；所有查詢一律經 UserData（強制 user_id）
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
     stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), index=True)
     track: Mapped[str] = mapped_column(String(10))  # wave / long
     status: Mapped[str] = mapped_column(String(10), default="open")  # open / closed
@@ -574,6 +770,9 @@ class Holding(Base):
     # reasons/buy_low/buy_high/stop_loss/close）。之後與最新分數對照＝論點是否還成立。
     entry_snapshot: Mapped[dict | None] = mapped_column(JSON)
 
+    # 波段論點快照+狀態機（spec 2026-08-20-exit-philosophy-v2）。long 軌為 None。
+    thesis: Mapped[dict | None] = mapped_column(JSON)
+
     note: Mapped[str | None] = mapped_column(Text)
 
     transactions: Mapped[list["Transaction"]] = relationship(
@@ -587,6 +786,7 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
     holding_id: Mapped[int] = mapped_column(ForeignKey("holdings.id"), index=True)
     type: Mapped[str] = mapped_column(String(10))  # buy / add / sell
     date: Mapped[date_] = mapped_column(Date)
@@ -605,6 +805,7 @@ class Watchlist(Base):
     __tablename__ = "watchlists"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
     name: Mapped[str] = mapped_column(String(50))
     created_date: Mapped[date_ | None] = mapped_column(Date, server_default=func.current_date())
 
@@ -617,6 +818,7 @@ class WatchlistItem(Base):
     __tablename__ = "watchlist_items"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
     watchlist_id: Mapped[int] = mapped_column(ForeignKey("watchlists.id"), index=True)
     stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"))
     added_price: Mapped[float | None] = mapped_column(Float)
@@ -664,6 +866,47 @@ class CornerSignal(Base):
     date: Mapped[date_] = mapped_column(Date, primary_key=True, index=True)
     corner_id: Mapped[str] = mapped_column(String(8), primary_key=True)  # C01~C30
     close: Mapped[float | None] = mapped_column(Float)  # 訊號日收盤（回顧展示用）
+
+
+class SignalLog(Base):
+    """全站狀態變化事件（append-only）。
+
+    與 `events` 的分野：`events` 是**外部來的消息**（重訊/新聞，帶 url/source/is_risk）；
+    這裡記的是**本站自己算出來的東西發生了什麼變化**。名字不叫 `events` 是因為那個
+    名字已經被前者佔走——泛用名詞當表名，第二種事件出現時必然撞名。
+
+    為什麼要有這張表：通知、每日盤後、戰績三個功能要的都是「變化」而非「狀態」。
+    沒有它，三者會各自寫一套「比對昨天和今天」的邏輯，三份都會有各自的 bug。
+
+    append-only：只 insert 不 update、不 delete。pipeline 重跑靠 unique 約束去重
+    （`on_conflict_do_nothing`），故整條可重跑的性質不變，但**已寫下的紀錄不會被改寫**
+    ——這正是公開戰績可驗證的前提（scores 是 upsert 覆寫，重跑會改寫歷史，不能當戰績依據）。
+
+    date vs created_at vs backfilled：`date` 是事件所屬的交易日，`created_at` 是實際
+    寫入時間，回填歷史時兩者相差數月。`backfilled` 明確標記「這筆是事後從 scores 補的，
+    不是當天寫下的」——公開戰績只有 backfilled=False 的部分能宣稱「我們事前就說了」，
+    回填段落只能當背景參考。不用 created_at 反推是因為那個推論很脆弱（補跑一天前的
+    缺口也會讓兩者不同），而這裡不能有模稜兩可。
+
+    刻意不設通用的 ref/payload_key 欄位：kind 各自需要什麼鍵就開什麼欄位。
+    通用欄位在第三種 kind 出現時會變成「這一列的 ref 是什麼意思要看 kind」，
+    是泛用表名的同一個陷阱換一層。
+    """
+
+    __tablename__ = "signal_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    date: Mapped[date_] = mapped_column(Date, index=True)      # 事件所屬交易日
+    kind: Mapped[str] = mapped_column(String(24), index=True)  # listed / delisted
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), index=True)
+    track: Mapped[str] = mapped_column(String(10))             # wave / long
+    payload: Mapped[dict | None] = mapped_column(JSON)         # 事件當下的快照（見 engines/signal_log.py）
+    backfilled: Mapped[bool] = mapped_column(Boolean, default=False)  # 事後補的，非當日寫下
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("date", "kind", "stock_id", "track", name="uq_signal_log"),
+    )
 
 
 # ─────────────────────────── 排程 log ───────────────────────────

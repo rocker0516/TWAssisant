@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  useMe,
   usePoppableEfficacy,
   useRecompute,
   useRecomputePoppableEfficacy,
@@ -12,10 +13,11 @@ import {
 } from "../api/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { inputCls } from "../components/Modal";
-import { CATEGORY_LABELS, changeColor } from "../lib/format";
+import { changeColor } from "../lib/format";
 import { applyTheme, getStoredTheme, type Theme } from "../lib/theme";
 
 const SECTIONS = [
+  { key: "account", label: "帳號" },
   { key: "data", label: "資料更新" },
   { key: "scoring", label: "評分與推薦" },
   { key: "sector", label: "類股方向" },
@@ -29,6 +31,12 @@ const EXIT_LABELS: Record<string, string> = {
   stop_cap: "停損 %",
   trail_trigger: "移動停利啟動 %",
   trail_pullback: "回落 %",
+};
+
+const WAVE_DEFAULTS_LABELS: Record<string, string> = {
+  target_pct: "目標 %",
+  horizon_days: "天期（日）",
+  stop_pct: "停損 %（不建議，見說明）",
 };
 
 function NumGrid({ obj, labels, onChange }: { obj: Record<string, number>; labels: Record<string, string>; onChange: (k: string, v: number) => void }) {
@@ -50,7 +58,8 @@ export default function SettingsPage() {
   const update = useUpdateSettings();
   const reset = useResetSettings();
   const recompute = useRecompute();
-  const [section, setSection] = useState<string>("scoring");
+  // 預設落在「帳號」——側欄底部帳號卡是本頁的主要入口。
+  const [section, setSection] = useState<string>("account");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [draft, setDraft] = useState<any>(null);
   const [draftFor, setDraftFor] = useState<string | null>(null);
@@ -80,7 +89,7 @@ export default function SettingsPage() {
     return <div className="p-6 text-muted">載入中…</div>;
 
   return (
-    <div className="mx-auto flex max-w-6xl gap-6 px-6 py-6">
+    <div className="flex w-full gap-6 px-6 py-6">
       <aside className="w-40 shrink-0">
         <h1 className="mb-3 text-xl font-bold">設定</h1>
         <nav className="flex flex-col gap-0.5">
@@ -97,36 +106,20 @@ export default function SettingsPage() {
         {/* 評分與推薦 */}
         {section === "scoring" && (
           <div className="flex flex-col gap-5">
-            {(["wave", "long"] as const).map((tk) => (
-              <div key={tk} className="rounded-xl border border-edge bg-panel p-4">
-                <div className="mb-3 font-semibold">{tk === "wave" ? "波段軌（會噴）" : "長線軌"}</div>
-                {tk === "wave" ? (
-                  <>
-                    <p className="mb-3 text-xs leading-relaxed text-muted">
-                      進場推薦＝<b>會噴</b>：分數為當天全市場橫截面 <b>2×波動度 + 均線多排</b> 的百分位
-                      （回測實證的會噴機率，無配分可調）。下方設定進推薦的「前 N%」；推薦頁也有橫桿可即時調整。
-                    </p>
-                    <label className="block w-40">
-                      <span className="mb-1 block text-xs text-muted">推薦前 N%</span>
-                      <input type="number" min={1} max={100} className={inputCls}
-                        value={draft.wave?.top_pct ?? 20}
-                        onChange={(e) => setDraft({ ...draft, wave: { ...draft.wave, top_pct: Number(e.target.value) } })} />
-                    </label>
-                  </>
-                ) : (
-                  <>
-                    <NumGrid obj={draft[tk].weights} labels={CATEGORY_LABELS}
-                      onChange={(k, v) => setDraft({ ...draft, [tk]: { ...draft[tk], weights: { ...draft[tk].weights, [k]: v } } })} />
-                    <label className="mt-3 block w-40">
-                      <span className="mb-1 block text-xs text-muted">推薦門檻</span>
-                      <input type="number" className={inputCls} value={draft[tk].threshold}
-                        onChange={(e) => setDraft({ ...draft, [tk]: { ...draft[tk], threshold: Number(e.target.value) } })} />
-                    </label>
-                  </>
-                )}
-              </div>
-            ))}
-            <p className="text-xs text-muted">長線軌配分自由給分、系統自動換算比例（不需加總 100）。儲存後當日重算、即時生效。</p>
+            <div className="rounded-xl border border-edge bg-panel p-4">
+              <div className="mb-3 font-semibold">波段軌（會噴）</div>
+              <p className="mb-3 text-xs leading-relaxed text-muted">
+                進場推薦＝<b>會噴</b>：分數為當天全市場橫截面 <b>2×波動度 + 均線多排</b> 的百分位
+                （回測實證的會噴機率，無配分可調）。下方設定進推薦的「前 N%」；推薦頁也有橫桿可即時調整。
+              </p>
+              <label className="block w-40">
+                <span className="mb-1 block text-xs text-muted">推薦前 N%</span>
+                <input type="number" min={1} max={100} className={inputCls}
+                  value={draft.wave?.top_pct ?? 20}
+                  onChange={(e) => setDraft({ ...draft, wave: { ...draft.wave, top_pct: Number(e.target.value) } })} />
+              </label>
+            </div>
+            <p className="text-xs text-muted">儲存後當日重算、即時生效。（長線軌已移除）</p>
           </div>
         )}
 
@@ -142,20 +135,40 @@ export default function SettingsPage() {
         {/* 出場提醒 */}
         {section === "exit" && (
           <div className="flex flex-col gap-5">
-            {(["wave", "long"] as const).map((tk) => (
-              <div key={tk} className="rounded-xl border border-edge bg-panel p-4">
-                <div className="mb-3 font-semibold">{tk === "wave" ? "波段軌" : "長線軌"}出場參數</div>
-                <NumGrid obj={draft[tk]} labels={EXIT_LABELS}
-                  onChange={(k, v) => setDraft({ ...draft, [tk]: { ...draft[tk], [k]: v } })} />
-                <label className="mt-3 flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={draft[tk].break_ma_exit ?? true}
-                    onChange={(e) => setDraft({ ...draft, [tk]: { ...draft[tk], break_ma_exit: e.target.checked } })} />
-                  <span>跌破{tk === "wave" ? "月線" : "季線"}即建議出場</span>
-                  <span className="text-xs text-muted">（關閉＝只降為警示、不催出場；回測顯示放寬較佳但回撤較大）</span>
-                </label>
-              </div>
-            ))}
-            <p className="text-xs text-muted">出場參數即時反映於持股頁的停損價與移動停利判斷。</p>
+            <div className="rounded-xl border border-edge bg-panel p-4">
+              <div className="mb-3 font-semibold">波段軌（非策略持股預設）</div>
+              <p className="mb-3 text-xs leading-relaxed text-muted">
+                波段軌採論點式出場：新增持股時套用下方目標／天期預設（個股可個別覆寫）；
+                天期到期未達標可重審，重審上限見下。
+                <br />
+                <span className="text-amber-300">預設不設停損</span>
+                ——這條軌挑的是 ATR&gt;9% 的高波動標的，停損線會切在它自己的呼吸幅度上：
+                實測 −8% 停損讓 10 日命中率從 76.6%/67.1% 掉到 51.6%/41.4%（−25pp），
+                而期間浮虧超過 10% 的部位裡仍有 47% 最後照樣摸到目標。
+                <b> 風控是時間（到期重審），不是價格。</b>
+                期間最深浮虧 中位 −7%、P90 −17%，請據此決定部位大小而不是靠停損。
+              </p>
+              <NumGrid obj={draft.wave_defaults} labels={WAVE_DEFAULTS_LABELS}
+                onChange={(k, v) => setDraft({ ...draft, wave_defaults: { ...draft.wave_defaults, [k]: v } })} />
+              <label className="mt-3 block w-40">
+                <span className="mb-1 block text-xs text-muted">重審上限（次）</span>
+                <input type="number" min={0} className={inputCls} value={draft.reaudit_max}
+                  onChange={(e) => setDraft({ ...draft, reaudit_max: Number(e.target.value) })} />
+              </label>
+            </div>
+            <div className="rounded-xl border border-edge bg-panel p-4">
+              <div className="mb-3 font-semibold">既有長線持倉出場參數</div>
+              <p className="mb-3 text-xs text-muted">長線軌推薦已移除；此組參數只照顧先前建立的長線持倉（停損上限、移動停利、跌破季線）。</p>
+              <NumGrid obj={draft.long} labels={EXIT_LABELS}
+                onChange={(k, v) => setDraft({ ...draft, long: { ...draft.long, [k]: v } })} />
+              <label className="mt-3 flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={draft.long.break_ma_exit ?? true}
+                  onChange={(e) => setDraft({ ...draft, long: { ...draft.long, break_ma_exit: e.target.checked } })} />
+                <span>跌破季線即建議出場</span>
+                <span className="text-xs text-muted">（關閉＝只降為警示、不催出場；回測顯示放寬較佳但回撤較大）</span>
+              </label>
+            </div>
+            <p className="text-xs text-muted">出場參數即時反映於持股頁的停損價與論點進度判斷。</p>
           </div>
         )}
 
@@ -171,7 +184,10 @@ export default function SettingsPage() {
         {/* 一般（主題）*/}
         {section === "general" && <GeneralPanel />}
 
-        {section !== "data" && section !== "sources" && section !== "general" && section !== "poppable_efficacy" && (
+        {/* 帳號 */}
+        {section === "account" && <AccountPanel />}
+
+        {section !== "data" && section !== "sources" && section !== "general" && section !== "poppable_efficacy" && section !== "account" && (
           <div className="mt-5 flex items-center gap-3">
             <button onClick={save} disabled={update.isPending || recompute.isPending}
               className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium disabled:opacity-50">
@@ -505,6 +521,87 @@ function PoppableEfficacyPanel() {
       )}
 
       {has && eff!.note && <p className="text-xs leading-relaxed text-muted">{eff!.note}</p>}
+    </div>
+  );
+}
+
+function AccountPanel() {
+  const { data: me, isLoading } = useMe();
+  const [pending, setPending] = useState<"logout" | "logout-all" | null>(null);
+
+  const doLogout = async (all: boolean) => {
+    setPending(all ? "logout-all" : "logout");
+    await fetch(`/api/auth/${all ? "logout-all" : "logout"}`, { method: "POST" }).catch(() => {});
+    window.location.href = "/login";
+  };
+
+  if (isLoading) return <div className="text-muted">載入中…</div>;
+
+  // 本機無登入牆模式：沒有帳號可顯示。
+  if (!me?.auth_enabled) {
+    return (
+      <div className="rounded-xl border border-edge bg-panel p-4 text-sm text-muted">
+        目前為本機模式（未啟用登入），沒有帳號資訊。
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-xl border border-edge bg-panel p-4">
+        <div className="mb-3 font-semibold">帳號資訊</div>
+        <div className="flex flex-col gap-2 text-sm">
+          <div className="flex items-center gap-3">
+            <span className="w-16 text-muted">Email</span>
+            <span>{me.email}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="w-16 text-muted">方案</span>
+            <span
+              className={`rounded px-1.5 py-0.5 text-xs font-medium ${
+                me.tier === "pro" ? "bg-amber-900/60 text-amber-300" : "bg-panel2 text-gray-300"
+              }`}
+            >
+              {me.tier === "pro" ? "Pro" : "Free"}
+            </span>
+          </div>
+          {me.role === "admin" && (
+            <div className="flex items-center gap-3">
+              <span className="w-16 text-muted">權限</span>
+              <span className="rounded bg-sky-900/50 px-1.5 py-0.5 text-xs text-sky-300">管理員</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-edge bg-panel p-4">
+        <div className="mb-1 font-semibold">密碼</div>
+        <p className="mb-3 text-sm text-muted">透過 Email 重設連結更改密碼（重設後所有裝置需重新登入）。</p>
+        <a href="/forgot" className="rounded-md bg-panel2 px-3 py-1.5 text-sm hover:bg-edge">
+          寄送重設密碼信
+        </a>
+      </div>
+
+      <div className="rounded-xl border border-edge bg-panel p-4">
+        <div className="mb-3 font-semibold">登出</div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => doLogout(false)}
+            disabled={pending !== null}
+            className="rounded-md bg-panel2 px-4 py-2 text-sm hover:bg-edge disabled:opacity-50"
+          >
+            {pending === "logout" ? "登出中…" : "登出"}
+          </button>
+          <button
+            onClick={() => doLogout(true)}
+            disabled={pending !== null}
+            className="rounded-md px-4 py-2 text-sm text-down hover:bg-panel2 disabled:opacity-50"
+          >
+            {pending === "logout-all" ? "登出中…" : "登出所有裝置"}
+          </button>
+          <span className="text-xs text-muted">登出所有裝置＝所有已登入的瀏覽器立即失效。</span>
+        </div>
+      </div>
     </div>
   );
 }

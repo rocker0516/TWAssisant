@@ -52,7 +52,6 @@ export function NewHoldingForm({
       <Field label="軌道">
         <select className={inputCls} value={f.track} onChange={(e) => setF({ ...f, track: e.target.value })}>
           <option value="wave">波段</option>
-          <option value="long">長線</option>
         </select>
       </Field>
       <div className="grid grid-cols-3 gap-2">

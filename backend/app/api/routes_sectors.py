@@ -159,13 +159,12 @@ def sector_detail(sector_id: int, session: Session = Depends(get_session)) -> Se
             continue
         close = seq[-1]
         change_pct = round((close - seq[-2]) / seq[-2] * 100, 2) if len(seq) > 1 and seq[-2] else None
-        w, ll = scores.get((sid, "wave")), scores.get((sid, "long"))
+        w = scores.get((sid, "wave"))
         ma20 = ma20_map.get(sid)
         items.append(SectorConstituent(
             stock_id=sid, name=name, close=close, change_pct=change_pct,
             wave_score=w.total_score if w else None,
-            long_score=ll.total_score if ll else None,
-            recommended=bool((w and w.passed) or (ll and ll.passed)),
+            recommended=bool(w and w.passed),
             tags=tag_map.get(sid, []),
             mom5_pct=_mom(seq, 5), mom20_pct=_mom(seq, 20),
             above_ma20=(close > ma20) if ma20 else None,

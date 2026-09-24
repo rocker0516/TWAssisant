@@ -23,7 +23,8 @@ import pandas as pd
 
 sys.path.insert(0, __file__.replace("\\", "/").rsplit("/scripts/", 1)[0])
 from app.engines.rules.wave import (  # noqa: E402
-    CRASH_ATR_MIN, CRASH_MKT_BIAS60, EXPLOSIVE_ATR_MIN,
+    CRASH_ATR_MIN, CRASH_MKT_BIAS60, CRASH_PX_MIN, CRASH_TURNOVER_MIN,
+    EXPLOSIVE_ATR_MIN,
     STORY_ATR_MIN, STORY_PB_MIN, STORY_PE_MIN, STRONG_OVER_MA20, STRONG_POS_MIN,
 )
 
@@ -85,6 +86,21 @@ def main() -> None:
         f"SELECT stock_id sid, date FROM events WHERE category='處置警示' "
         f"AND date>='{(pd.Timestamp(lo) - timedelta(days=15)).strftime('%Y-%m-%d')}'", con)
 
+    # 乾淨池（同 scoring._apply_crash_style）：注意近 5 個交易日、處置近 10 個交易日不掛 crash
+    att = pd.read_sql_query(
+        f"SELECT stock_id sid, date, kind FROM attention_listings "
+        f"WHERE date>='{(pd.Timestamp(lo) - timedelta(days=30)).strftime('%Y-%m-%d')}'", con)
+    all_days = [r[0] for r in cur.execute("SELECT date FROM market_index ORDER BY date")]
+    _day_pos = {d: i for i, d in enumerate(all_days)}
+    dirty: dict[str, set] = {}
+    for sid, d0, kind in att.itertuples(index=False):
+        p0 = _day_pos.get(d0)
+        if p0 is None:
+            continue
+        for k in range(5 if kind == "notice" else 10):
+            if p0 + k < len(all_days):
+                dirty.setdefault(all_days[p0 + k], set()).add(sid)
+
     mkt = pd.read_sql_query("SELECT date, close FROM market_index ORDER BY date", con)
     mkt["bias60"] = (mkt["close"] / mkt["close"].rolling(60).mean() - 1.0) * 100
     mkt_bias = dict(zip(mkt["date"], mkt["bias60"]))
@@ -139,7 +155,12 @@ def main() -> None:
                  & (gday["atr_pct"] > STORY_ATR_MIN))
         deep = (mkt_bias.get(d) is not None and not pd.isna(mkt_bias.get(d))
                 and mkt_bias[d] <= CRASH_MKT_BIAS60)
-        crash = (strong | story) & (gday["atr_pct"] > CRASH_ATR_MIN) if deep else pd.Series(False, index=gday.index)
+        # crash 2026-08-24 改版（wave.crash_cand_ok 同式）：去掉 (strong|story) 閘、
+        # ATR 6%→9%、加流動篩。這裡不再借 strong/story 的 common，要自己併上。
+        crash = ((common & (gday["atr_pct"] > CRASH_ATR_MIN) & (c >= CRASH_PX_MIN)
+                  & gday["vol"].notna() & (c * gday["vol"] >= CRASH_TURNOVER_MIN)
+                  & ~gday["sid"].isin(dirty.get(d, ())))
+                 if deep else pd.Series(False, index=gday.index))
 
         styles = pd.DataFrame({"explosive": explosive.fillna(False), "strong": strong.fillna(False),
                                "story": story.fillna(False), "crash": crash.fillna(False)})

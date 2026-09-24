@@ -1,0 +1,109 @@
+{
+ "generated_at": "2026-08-25 21:06",
+ "sanity": {
+  "explosive": {
+   "n": 2295,
+   "days": 295,
+   "hit": 43.4,
+   "exc": 21.1
+  },
+  "strong": {
+   "n": 2179,
+   "days": 320,
+   "hit": 42.2,
+   "exc": 22.5
+  },
+  "story": {
+   "n": 5601,
+   "days": 360,
+   "hit": 40.1,
+   "exc": 20.5
+  },
+  "crash": {
+   "n": 78,
+   "days": 25,
+   "hit": 60.3,
+   "exc": 34.0
+  },
+  "union": {
+   "n": 9628,
+   "days": 360,
+   "hit": 41.0,
+   "exc": 20.9
+  }
+ },
+ "zero_days": 0,
+ "n_days_ho": 360,
+ "recover": {
+  "rule_union": {
+   "n": 7077,
+   "per_day": 19.7,
+   "hit": 43.1,
+   "exc": 22.7,
+   "ctrl": 5.7
+  },
+  "ml_top3": {
+   "n": 1080,
+   "per_day": 3.0,
+   "hit": 39.7,
+   "exc": 23.2,
+   "ctrl": 8.4
+  },
+  "recover_top3": {
+   "n": 747,
+   "per_day": 2.2,
+   "hit": 35.5,
+   "exc": 19.0,
+   "ctrl": 4.3
+  },
+  "overlap_top3": {
+   "n": 333,
+   "per_day": 1.4,
+   "hit": 49.2,
+   "exc": 32.5,
+   "ctrl": 17.6
+  },
+  "ml_top5": {
+   "n": 1800,
+   "per_day": 5.0,
+   "hit": 40.5,
+   "exc": 23.9,
+   "ctrl": 9.1
+  },
+  "recover_top5": {
+   "n": 1291,
+   "per_day": 3.6,
+   "hit": 36.4,
+   "exc": 20.1,
+   "ctrl": 5.5
+  },
+  "overlap_top5": {
+   "n": 509,
+   "per_day": 1.8,
+   "hit": 50.9,
+   "exc": 33.6,
+   "ctrl": 18.5
+  },
+  "ml_top10": {
+   "n": 3600,
+   "per_day": 10.0,
+   "hit": 37.8,
+   "exc": 21.2,
+   "ctrl": 6.4
+  },
+  "recover_top10": {
+   "n": 2710,
+   "per_day": 7.5,
+   "hit": 34.7,
+   "exc": 18.5,
+   "ctrl": 3.8
+  },
+  "overlap_top10": {
+   "n": 890,
+   "per_day": 2.7,
+   "hit": 47.3,
+   "exc": 29.7,
+   "ctrl": 14.1
+  }
+ }
+}

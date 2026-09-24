@@ -51,8 +51,6 @@ from .schemas import (
     LookbackDatePoint,
     LookbackReview,
     LookbackSummary,
-    LongGraduation,
-    LongTargetZone,
     OhlcvResponse,
     RecommendationItem,
     RecommendationList,
@@ -73,12 +71,6 @@ _NEAR_BAND = 5.0  # 接近門檻區間寬度
 
 def _latest_score_date(session: Session) -> date | None:
     return session.execute(select(func.max(models.Score.date))).scalar()
-
-
-def _threshold(session: Session, track: str) -> float:
-    row = session.get(models.Setting, "scoring")
-    cfg = row.value if row and isinstance(row.value, dict) else {}
-    return float(cfg.get(track, {}).get("threshold", 70.0))
 
 
 _DEFAULT_TOP_PCT = 20.0  # 會噴推薦預設前 N%（門檻分數 = 100 − N）
@@ -202,30 +194,70 @@ def _bin_label(v: float, edges: list[float], labels: list[str]) -> str | None:
     return None
 
 
-def _prob_lookup(score: float | None, atr_pct: float | None,
-                 mkt_bias60: float | None) -> tuple[float | None, int | None, str | None, float | None]:
-    """回 (同條件歷史命中%, n, 條件描述, 平均最深回撤%)。樣本薄逐層回退。"""
+_STYLE_LABEL = {"explosive": "爆發", "strong": "強勢延伸", "story": "故事股", "crash": "深跌反攻"}
+_STYLE_MIN_N = 100  # 風格格子的樣本下限（比 _PROB_MIN_N 鬆：風格本身已是很強的條件）
+
+
+def _prob_lookup(score: float | None, atr_pct: float | None, mkt_bias60: float | None,
+                 styles: list[str] | None = None,
+                 ) -> tuple[float | None, int | None, str | None, float | None, str | None]:
+    """回 (同條件歷史命中%, n, 條件描述, 平均最深回撤%)。樣本薄逐層回退。
+
+    命中率取 Wilson 95% **下界**(hit_lb)：裸命中率在高機率端 walk-forward 實測系統性
+    高估 +5.9pp（薄格子最嚴重），改下界後收斂到 −1.5pp 而鑑別度不變。舊版 prob_table.json
+    沒有 hit_lb 欄，退回裸值以免整站沒機率。
+
+    styles（2026-08-24）：這檔當日通過的純門檻風格。有標籤時**優先查該風格自己的
+    「風格×波動×大盤」格子**——全市場同格看不到風格多出來的條件（以 crash 為例，
+    查表格子 58.5% vs 規則自己的歷史 72.7%，差 14pp 全是條件差異）。
+    實測 70,288 筆清單列回算：加權|誤差| 4.3pp→2.9pp，四個風格全改善。
+    多標籤取**最高**：多通過一道篩子不應該讓估計變低（交集的真值無從得知，取單篩上界）。
+    """
     t = _prob_table()
     if t is None or score is None:
-        return None, None, None, None
+        return None, None, None, None, None
     b = t["bins"]
     s = _bin_label(score, b["score"], b["score_labels"])
     a = _bin_label(atr_pct * 100, b["atr"], b["atr_labels"]) if atr_pct is not None else None
     mk = _bin_label(mkt_bias60, b["mkt"], b["mkt_labels"]) if mkt_bias60 is not None else None
+
+    def _p(c: dict) -> float:
+        v = c.get("hit_lb")
+        return c["hit"] if v is None else v
+
+    best: tuple[float, int, str, float | None, str] | None = None
+    for st in (styles or ()):
+        c = t.get("style", {}).get(f"{st}|{a}|{mk}") if a and mk else None
+        cond = f"{_STYLE_LABEL.get(st, st)}×波動{a}%×大盤{mk}"
+        if not c or c["n"] < _STYLE_MIN_N:
+            c = t.get("style_all", {}).get(st)
+            cond = f"{_STYLE_LABEL.get(st, st)}（全期）"
+        if c and c["n"] >= _STYLE_MIN_N and (best is None or _p(c) > best[0]):
+            best = (_p(c), c["n"], cond, c.get("mae"), st)
+    if best is not None:
+        return best
+
     if s and a and mk:
         c = t["full"].get(f"{s}|{a}|{mk}")
         if c and c["n"] >= _PROB_MIN_N:
-            return c["hit"], c["n"], f"分數{s}×波動{a}%×大盤{mk}", c.get("mae")
+            return _p(c), c["n"], f"分數{s}×波動{a}%×大盤{mk}", c.get("mae"), None
+    # 回退1：**先丟分數、保留大盤**（2026-08-24）。分數是池內排序，實測增量上限 +3pp；
+    # ATR×大盤才是機制軸。舊版第一步丟大盤，高波動薄格子會被「正常盤」稀釋——實測 crash
+    # 卡片因此低估 ~7pp（顯示 55.8% vs 換順序後 62.6%），而整體校準完全沒退步。
+    if a and mk and t.get("am"):
+        c = t["am"].get(f"{a}|{mk}")
+        if c and c["n"] >= _PROB_MIN_N:
+            return _p(c), c["n"], f"波動{a}%×大盤{mk}", c.get("mae"), None
     if s and a:
         c = t["sa"].get(f"{s}|{a}")
         if c and c["n"] >= _PROB_MIN_N:
-            return c["hit"], c["n"], f"分數{s}×波動{a}%", c.get("mae")
+            return _p(c), c["n"], f"分數{s}×波動{a}%", c.get("mae"), None
     if s:
         c = t["s"].get(s)
         if c:
-            return c["hit"], c["n"], f"分數{s}", c.get("mae")
+            return _p(c), c["n"], f"分數{s}", c.get("mae"), None
     gl = t.get("global")
-    return (gl["hit"], gl["n"], "全市場", gl.get("mae")) if gl else (None, None, None, None)
+    return (_p(gl), gl["n"], "全市場", gl.get("mae"), None) if gl else (None, None, None, None, None)
 
 
 _ml_consensus_cache: dict = {}
@@ -291,11 +323,14 @@ def _attach_probabilities(session: Session, items: list[RecommendationItem], d: 
             att_map.setdefault(r.stock_id, set()).add("notice")
 
     for it in items:
-        hit, n, cond, mae = _prob_lookup(it.total_score, atr_map.get(it.stock_id), mkt_bias)
+        # 帶入當日通過的純門檻風格：查表優先用該風格自己的歷史（見 _prob_lookup docstring）
+        hit, n, cond, mae, pstyle = _prob_lookup(
+            it.total_score, atr_map.get(it.stock_id), mkt_bias, it.passed_styles)
         it.prob_hit = hit
         it.prob_n = n
         it.prob_cond = cond
         it.prob_mae = mae
+        it.prob_style = pstyle
         it.vol_ratio = volr_map.get(it.stock_id)
         flags = att_map.get(it.stock_id, set())
         it.attention = "punish" if "punish" in flags else ("notice" if "notice" in flags else None)
@@ -305,130 +340,6 @@ def _attach_probabilities(session: Session, items: list[RecommendationItem], d: 
     if ml_picks is not None:
         for it in items:
             it.ml_consensus = it.stock_id in ml_picks
-
-
-# ── 長線軌目標區間＋畢業條件（推薦卡主區塊；參考期間 12 個月＝回測視窗）──
-
-_PE_RIVER_MIN_DAYS = 60  # 與 pe-river 端點同門檻：PE 史料不足一季不推估值帶
-
-
-def _pe_quantile(pes: list[float], p: float) -> float:
-    """已排序 PE 序列的線性內插分位數（同 pe-river 端點演算法）。"""
-    i = p * (len(pes) - 1)
-    lo, hi = int(i), min(int(i) + 1, len(pes) - 1)
-    return pes[lo] + (pes[hi] - pes[lo]) * (i - lo)
-
-
-def _long_target_zone(
-    session: Session, stock_id: str, close: float | None, d: date
-) -> LongTargetZone | None:
-    """目標區間：基準錨優先法人目標價（FactSet），無報告退 PE 河流中位帶（估值推算）。
-
-    保守/樂觀恆為 PE 中位/上緣分位 × 隱含 EPS（現價/現 PE）。長線硬篩②保 EPS>0，
-    但官方 PE 史料仍可能缺（新掛牌等）——兩錨皆缺回 None，卡片只顯示畢業條件。
-    """
-    if not close:
-        return None
-    pe_rows = session.execute(
-        select(models.Valuation.pe)
-        .where(models.Valuation.stock_id == stock_id, models.Valuation.date <= d,
-               models.Valuation.pe.is_not(None), models.Valuation.pe > 0)
-        .order_by(models.Valuation.date)
-    ).scalars().all()
-    low = high = None
-    if len(pe_rows) >= _PE_RIVER_MIN_DAYS:
-        eps_implied = close / pe_rows[-1]
-        pes = sorted(pe_rows)
-        q50, q90 = _pe_quantile(pes, 0.5), _pe_quantile(pes, 0.9)
-        # 離散度防呆：循環股虧損期 PE 飆百倍會把上緣撐到假數字（實測 q90 帶=現價 16 倍）
-        # → 分位差過大視為估值帶不可靠，不顯示（長線硬篩③理智線下的入選股通常不觸發）
-        if q50 > 0 and q90 / q50 <= 3:
-            low = round(q50 * eps_implied, 2)
-            high = round(q90 * eps_implied, 2)
-
-    tp = session.execute(
-        select(models.TargetPrice)
-        .where(models.TargetPrice.stock_id == stock_id)
-        .order_by(models.TargetPrice.date.desc())
-        .limit(1)
-    ).scalars().first()
-    if tp is not None:
-        max_high = session.execute(
-            select(func.max(models.DailyPrice.high))
-            .where(models.DailyPrice.stock_id == stock_id,
-                   models.DailyPrice.date >= tp.date, models.DailyPrice.date <= d)
-        ).scalar()
-        return LongTargetZone(
-            basis="analyst",
-            base=tp.target_price,
-            upside_pct=round((tp.target_price / close - 1) * 100, 1),
-            low=low,
-            high=high,
-            analyst_target=tp.target_price,
-            analyst_date=tp.date,
-            analyst_count=tp.analyst_count,
-            hit=bool(max_high is not None and max_high >= tp.target_price),
-        )
-    if low is None:
-        return None
-    return LongTargetZone(
-        basis="pe_river",
-        base=low,
-        upside_pct=round((low / close - 1) * 100, 1),
-        low=low,
-        high=high,
-        hit=close >= low,
-    )
-
-
-def _rev_streak_months(session: Session, stock_id: str) -> int | None:
-    """魚齡：由最新月往回數連續營收 YoY>0 月數（同 ctx.rev_consec_growth_months，缺月即斷）。"""
-    rows = session.execute(
-        select(models.RevenueMonthly.year, models.RevenueMonthly.month, models.RevenueMonthly.yoy)
-        .where(models.RevenueMonthly.stock_id == stock_id, models.RevenueMonthly.yoy.is_not(None))
-        .order_by(models.RevenueMonthly.year, models.RevenueMonthly.month)
-    ).all()
-    if not rows:
-        return None
-    n = 0
-    prev: tuple[int, int] | None = None
-    for y, m, yoy in reversed(rows):
-        ym = (int(y), int(m))
-        if prev is not None:
-            expect = (prev[0] - 1, 12) if prev[1] == 1 else (prev[0], prev[1] - 1)
-            if ym != expect:
-                break
-        if yoy <= 0:
-            break
-        n += 1
-        prev = ym
-    return n
-
-
-def _mom12_pct(session: Session, stock_id: str, d: date) -> float | None:
-    """近 12 月漲幅 %（同 FreshnessScore 口徑：246 交易日前收盤為基期，<120 日史料回 None）。"""
-    closes = session.execute(
-        select(models.DailyPrice.close)
-        .where(models.DailyPrice.stock_id == stock_id, models.DailyPrice.date <= d,
-               models.DailyPrice.close.is_not(None))
-        .order_by(models.DailyPrice.date.desc())
-        .limit(246)
-    ).scalars().all()
-    if len(closes) < 120 or not closes[-1]:
-        return None
-    return round((closes[0] / closes[-1] - 1) * 100, 1)
-
-
-def _attach_long_targets(session: Session, items: list[RecommendationItem], d: date) -> None:
-    """長線軌每檔補目標區間＋畢業條件（達標/魚齡/已漲幅；波段軌不呼叫）。"""
-    for it in items:
-        zone = _long_target_zone(session, it.stock_id, it.close, d)
-        it.target_zone = zone
-        it.graduation = LongGraduation(
-            hit_target=bool(zone and zone.hit),
-            streak_months=_rev_streak_months(session, it.stock_id),
-            mom12_pct=_mom12_pct(session, it.stock_id, d),
-        )
 
 
 @router.get("/recommendations/tag-stats")
@@ -444,23 +355,18 @@ def recommendation_tag_stats() -> dict:
 
 @router.get("/recommendations", response_model=RecommendationList)
 def recommendations(
-    track: str = Query("wave", pattern="^(wave|long)$"),
+    track: str = Query("wave", pattern="^wave$"),  # 長線軌已移除（2026-08-28），參數保留相容
     style: str = Query("pop", pattern="^(pop|explosive|strong|story|crash)$",
                        description="波段風格：pop=會噴(硬篩+前N%)；explosive=爆發(極高波動+上揚月線，純門檻篩)"),
     session: Session = Depends(get_session),
 ) -> RecommendationList:
     """波段軌＝會噴：回傳全部過硬篩股(依會噴分數高→低)，前端橫桿就地切『前 N%』。
-    style=explosive：爆發風格＝atr>7%+上揚月線(不看季線乖離)，純門檻篩全回、無前N%概念。
-    長線軌：沿用門檻切 items / near。"""
+    style=explosive：爆發風格＝atr>7%+上揚月線(不看季線乖離)，純門檻篩全回、無前N%概念。"""
     d = _latest_score_date(session)
-    styled = track == "wave" and style != "pop"   # 純門檻風格（explosive/strong/story/crash）
-    if track == "wave":
-        top_pct = None if styled else _wave_top_pct(session)
-        cutoff = 0.0 if styled else round(100.0 - _wave_top_pct(session), 2)
-    else:
-        top_pct = None
-        cutoff = _threshold(session, track)
-    regime = wave_market_regime(session) if track == "wave" else None
+    styled = style != "pop"   # 純門檻風格（explosive/strong/story/crash）
+    top_pct = None if styled else _wave_top_pct(session)
+    cutoff = 0.0 if styled else round(100.0 - _wave_top_pct(session), 2)
+    regime = wave_market_regime(session)
     if d is None:
         return RecommendationList(
             track=track, style=style if styled else "pop",
@@ -482,23 +388,12 @@ def recommendations(
                 continue
             items.append(_to_item(session, sc, name, sector_name, d))
             continue
-        if track == "wave":
-            # 標籤化清單：過硬篩(會噴候選) 或 任一純門檻風格 都回（前端標籤+排序）
-            if not sc.passed_filter and not sc.passed_styles:
-                continue
-            items.append(_to_item(session, sc, name, sector_name, d))
+        # 標籤化清單：過硬篩(會噴候選) 或 任一純門檻風格 都回（前端標籤+排序）
+        if not sc.passed_filter and not sc.passed_styles:
             continue
-        if not sc.passed_filter or sc.total_score is None:
-            continue
-        if sc.total_score >= cutoff:
-            items.append(_to_item(session, sc, name, sector_name, d))
-        elif sc.total_score >= cutoff - _NEAR_BAND:
-            near.append(_to_item(session, sc, name, sector_name, d))
+        items.append(_to_item(session, sc, name, sector_name, d))
 
-    if track == "wave":
-        _attach_probabilities(session, items + near, d)
-    else:
-        _attach_long_targets(session, items + near, d)
+    _attach_probabilities(session, items + near, d)
     items.sort(key=lambda it: it.total_score or 0, reverse=True)
     near.sort(key=lambda it: it.total_score or 0, reverse=True)
     return RecommendationList(
@@ -600,7 +495,10 @@ def _mark_segments(
 def _mark_status(
     hit_pop: bool, days_to_pop: int | None, days_elapsed: int, horizon: int = _MARK_HORIZON
 ) -> str:
-    """段落起始日的達標狀態：30 交易日內噴=hit；窗走完沒噴=miss；窗未走完=pending。"""
+    """段落起始日的達標狀態：_MARK_HORIZON 交易日內噴=hit；窗走完沒噴=miss；窗未走完=pending。
+
+    窗長跟著 _MARK_HORIZON 走（2026-08 定版 10 日），不要在文件或測試裡寫死天數。
+    """
     if hit_pop and days_to_pop is not None and days_to_pop <= horizon:
         return "hit"
     if days_elapsed >= horizon:
@@ -815,7 +713,7 @@ def recommendations_lookback_calendar(
             bias_map[mkt_dates[i]] = (mkt_closes[i] / ma - 1.0) * 100
         for d_, sid, score_, atr14, close_ in rows:
             atrp = (atr14 / close_) if atr14 is not None and close_ else None
-            hitp, _, _, _ = _prob_lookup(score_, atrp, bias_map.get(d_))
+            hitp, *_ = _prob_lookup(score_, atrp, bias_map.get(d_))
             if hitp is not None and hitp >= prob_min:
                 prob_members.setdefault(d_, []).append(sid)
 
@@ -968,10 +866,10 @@ def stock_detail(stock_id: str, session: Session = Depends(get_session)) -> Stoc
     ).scalar()
     close, change, change_pct = _price_change(session, stock_id, d) if d else (None, None, None)
 
+    # 長線軌已移除：只回 wave（歷史 long 列仍在 DB，但不再對外）
     scores: dict[str, ScoreDTO | None] = {}
-    for tk in ("wave", "long"):
-        sc = session.get(models.Score, {"stock_id": stock_id, "date": d, "track": tk}) if d else None
-        scores[tk] = _score_dto(sc)
+    sc = session.get(models.Score, {"stock_id": stock_id, "date": d, "track": "wave"}) if d else None
+    scores["wave"] = _score_dto(sc)
 
     inst = session.execute(
         select(models.Institutional).where(models.Institutional.stock_id == stock_id)

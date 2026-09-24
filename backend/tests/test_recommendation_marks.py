@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from app.api.routes import _mark_segments, _mark_status
+from app.api.routes import _MARK_HORIZON, _mark_segments, _mark_status
 
 
 def _days(n: int) -> list[date]:
@@ -36,16 +36,29 @@ def test_dates_missing_from_calendar_are_skipped():
     assert _mark_segments([td[3], stray], td) == [td[3]]
 
 
+# 下面三個一律以 _MARK_HORIZON 相對取值，不寫死天數：2026-08 目標由 30 日改 10 日時，
+# 寫死 30 日那版的斷言就整組過期了（_mark_status(True, 12, 40) 從 hit 變 miss）。
+H = _MARK_HORIZON
+
+
 def test_status_hit_within_horizon():
-    assert _mark_status(True, 12, 40) == "hit"
+    assert _mark_status(True, H - 2, H * 4) == "hit"
+
+
+def test_status_hit_on_last_day_of_horizon():
+    assert _mark_status(True, H, H * 4) == "hit"
 
 
 def test_status_hit_after_horizon_counts_as_miss():
-    assert _mark_status(True, 35, 40) == "miss"
+    assert _mark_status(True, H + 1, H * 4) == "miss"
 
 
 def test_status_miss_when_window_elapsed():
-    assert _mark_status(False, None, 30) == "miss"
+    assert _mark_status(False, None, H) == "miss"
+
+
+def test_status_pending_before_window_elapsed():
+    assert _mark_status(False, None, H - 1) == "pending"
 
 
 def test_status_pending_when_window_open():
