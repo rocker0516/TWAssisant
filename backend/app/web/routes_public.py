@@ -26,6 +26,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from .. import auth
 from ..api.deps import get_session
 from ..engines.fear_greed import compute_fear_greed, label_of
 from ..engines.signal_log import LISTED
@@ -34,6 +35,7 @@ from ..storage import models
 
 router = APIRouter(tags=["public"], include_in_schema=False)
 _templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+_templates.env.globals["auth_enabled"] = auth.auth_enabled  # base.html 側欄鈕用
 
 
 def _latest_dates(session: Session, n: int = 2) -> list[date]:

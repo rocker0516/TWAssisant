@@ -14,15 +14,22 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from .. import auth
 from ..api.deps import get_session_write
 from ..api.routes_auth import consume_verification
 
 router = APIRouter(tags=["account"], include_in_schema=False)
 _templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+_templates.env.globals["auth_enabled"] = auth.auth_enabled  # base.html 側欄鈕用
+
+
+def _open_redirect() -> Response | None:
+    """登入關閉時，入口型表單（登入/註冊/忘記密碼）沒意義 → 直接進 App。"""
+    return None if auth.auth_enabled() else RedirectResponse("/app", status_code=302)
 
 
 def _form(request: Request, **ctx) -> HTMLResponse:
@@ -31,7 +38,9 @@ def _form(request: Request, **ctx) -> HTMLResponse:
 
 
 @router.get("/signup", response_class=HTMLResponse)
-def signup_page(request: Request) -> HTMLResponse:
+def signup_page(request: Request) -> Response:
+    if (r := _open_redirect()) is not None:
+        return r
     return _form(
         request, page_title="註冊",
         heading="建立帳號",
@@ -48,7 +57,9 @@ def signup_page(request: Request) -> HTMLResponse:
 
 
 @router.get("/login", response_class=HTMLResponse)
-def login_page(request: Request) -> HTMLResponse:
+def login_page(request: Request) -> Response:
+    if (r := _open_redirect()) is not None:
+        return r
     return _form(
         request, page_title="登入",
         heading="登入",
@@ -66,7 +77,9 @@ def login_page(request: Request) -> HTMLResponse:
 
 
 @router.get("/forgot", response_class=HTMLResponse)
-def forgot_page(request: Request) -> HTMLResponse:
+def forgot_page(request: Request) -> Response:
+    if (r := _open_redirect()) is not None:
+        return r
     return _form(
         request, page_title="忘記密碼",
         heading="重設密碼",

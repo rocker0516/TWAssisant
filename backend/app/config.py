@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     auth_username: str = "admin"
     auth_password: str = ""
     auth_session_days: int = 30
+    # 明確的關閉開關（TWA_AUTH_DISABLED=true）：保留帳密與多租戶資料，只拆登入牆。
+    # 不靠「清空密碼」——PowerShell 的空字串賦值等於刪變數，會回頭讀 .env 的密碼。
+    # 預設 False（安全預設）；本機自用在 .env 打開，公開上線前關掉即可。
+    auth_disabled: bool = False
 
     # --- 信件（驗證信/重設信）：TWA_SMTP_HOST 未設 = console 模式，連結寫進 log ---
     smtp_host: str = ""

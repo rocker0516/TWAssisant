@@ -161,7 +161,7 @@
         <a href="/track-record" class="{{ 'active' if path.startswith('/track-record') }}"><span>🎯</span>戰績</a>
         <a href="/stocks" class="{{ 'active' if path.startswith('/stock') }}"><span>🔍</span>個股索引</a>
       </nav>
-      <div class="login"><a href="/login">登入</a></div>
+      <div class="login">{% if auth_enabled() %}<a href="/login">登入</a>{% else %}<a href="/app">進入 App</a>{% endif %}</div>
     </aside>
     <div class="content">
       <main>
