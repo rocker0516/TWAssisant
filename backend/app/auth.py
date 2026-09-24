@@ -10,7 +10,7 @@
   - 鎖定：in-memory per-IP（第一道，擋單點暴力）＋ DB per-account（第二道，
     擋分散 IP、重啟不歸零；設計 7.2-3）。
 
-TWA_AUTH_PASSWORD 未設 = 關閉登入（純本機開發模式），所有請求以 bootstrap
+TWA_AUTH_PASSWORD 未設或 TWA_AUTH_DISABLED=true = 關閉登入（本機自用模式），所有請求以 bootstrap
 的 dev admin 身分行動——scoped repository 仍拿得到 user_id，程式碼不分岔。
 """
 
@@ -39,7 +39,7 @@ _SCRYPT_N, _SCRYPT_R, _SCRYPT_P = 16384, 8, 1
 
 
 def auth_enabled() -> bool:
-    return bool(settings.auth_password)
+    return bool(settings.auth_password) and not settings.auth_disabled
 
 
 # ── 密碼雜湊 ──────────────────────────────────────────────
