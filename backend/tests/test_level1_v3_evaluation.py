@@ -65,3 +65,48 @@ def test_evaluate_v3_bundle_keys():
     assert {"mean_ic", "topk", "calibration", "no_entry", "evaluation_n_mean"} <= set(out)
     by = e3.evaluate_v3_by_period(net.copy(), net, {"a": ("2025-01-01", "2025-02-01")})
     assert "a" in by and "topk" in by["a"]
+
+
+from app.research.level1 import walkforward as wf
+from app.research.level1 import features_v3 as f3
+
+
+class _ConstModel:
+    def fit(self, x, y):
+        self.c = float(np.nanmean(y))
+    def predict(self, x):
+        return np.full(len(x), self.c, dtype=np.float32)
+
+
+def test_walk_forward_v3_embargo_and_raw_nan_passthrough():
+    n_days, horizon = 80, 5
+    dates = pd.Index(pd.date_range("2025-01-01", periods=n_days).astype(str), name="date")
+    cols = pd.Index([f"{1000+i}" for i in range(35)], name="stock_id")
+    rng = np.random.default_rng(1)
+    net = pd.DataFrame(rng.normal(0, 0.03, (n_days, len(cols))), index=dates, columns=cols)
+    raw = pd.DataFrame(rng.random((n_days, len(cols))), index=dates, columns=cols)
+    raw.iloc[:, 0] = np.nan
+    fs = f3.FeatureSet(ranked={}, raw={"x": raw})
+
+    seen: list[tuple[pd.Index, np.ndarray]] = []
+    orig = wf.assemble_v3
+
+    def spy(fset, tgt, ds):
+        x, y, meta = orig(fset, tgt, ds)
+        seen.append((ds, x))
+        return x, y, meta
+
+    wf.assemble_v3 = spy
+    try:
+        score = wf.walk_forward_scores_v3(
+            _ConstModel, fs, net, horizon=horizon,
+            first_test=str(dates[40]), step=20, min_train_days=10)
+    finally:
+        wf.assemble_v3 = orig
+
+    trains = seen[0::2]
+    for (tr, x), s in zip(trains, [40, 60]):
+        assert list(dates).index(tr[-1]) + horizon < s     # embargo 硬規則
+        assert np.isnan(x).any()                              # raw NaN 沒被補成數字
+    assert score.loc[dates[39]].isna().all()
+    assert score.loc[dates[41]].notna().any()
