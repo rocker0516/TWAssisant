@@ -151,7 +151,8 @@ FAMILIES: dict[str, list[str]] = {
     "C": ["mkt_ret5", "mkt_ret20", "mkt_vol20", "breadth_ma20", "dispersion"],
     "DE": ["ret1", "ret5", "ret20", "ret60", "ret20_ex5", "bias20", "pos240",
            "vr5_60", "amihud20", "sec_neutral_ret20", "dollar_vol20"],
-    "F": [],   # build_feature_set 有基本面時填 FUND_NAMES
+    # 基本面：實際可用者由 build_feature_set 依 fund_feats 決定；FAMILIES 本身不變
+    "F": list(FUND_NAMES),
 }
 
 BASELINE: tuple[str, ...] = ("ret20", "vol20", "dollar_vol20", "mkt_ret20", "dist_limit_up")
@@ -163,9 +164,6 @@ def build_feature_set(open_, high, low, close, volume, turnover, in_universe, mk
     to_rank, raw_de = build_direction_features(close, volume, turnover, in_universe, sector_of)
     if fund_feats:
         to_rank.update({k: fund_feats[k] for k in FUND_NAMES if k in fund_feats})
-        FAMILIES["F"] = [k for k in FUND_NAMES if k in fund_feats]
-    else:
-        FAMILIES["F"] = []
     raw = {**build_execution_features(open_, close),
            **build_scale_features(high, low, close),
            **build_market_features(close, in_universe, mkt_close),

@@ -186,4 +186,25 @@ def test_build_feature_set_representation_by_role():
     # ranked 值域 (0,1]
     r = fs.ranked["ret20"].iloc[-1].dropna()
     assert r.min() > 0 and r.max() <= 1
-    assert set(f3.FAMILIES["F"]) == set()                   # 無基本面時 F 空
+    assert list(f3.FAMILIES["F"]) == list(f3.FUND_NAMES)     # 族群定義不變
+    assert not (set(f3.FUND_NAMES) & set(fs.names))          # 無基本面時特徵集裡沒有任何一個
+
+
+def test_build_feature_set_does_not_mutate_families():
+    open_, high, low, close = _ohlc(n_days=80, n_stocks=5)
+    volume = pd.DataFrame(1000.0, index=close.index, columns=close.columns)
+    turnover = close * volume
+    mask = close.notna()
+    mkt = pd.Series(np.linspace(100, 110, len(close)), index=close.index)
+    sector = pd.Series(1.0, index=close.columns)
+    snapshot = {k: list(v) for k, v in f3.FAMILIES.items()}
+
+    f3.build_feature_set(open_, high, low, close, volume, turnover, mask, mkt, sector,
+                         fund_feats=None)
+    assert {k: list(v) for k, v in f3.FAMILIES.items()} == snapshot
+
+    fund_feats = {"rev_yoy": pd.DataFrame(0.1, index=close.index, columns=close.columns)}
+    fs = f3.build_feature_set(open_, high, low, close, volume, turnover, mask, mkt, sector,
+                              fund_feats=fund_feats)
+    assert {k: list(v) for k, v in f3.FAMILIES.items()} == snapshot
+    assert "rev_yoy" in fs.ranked
