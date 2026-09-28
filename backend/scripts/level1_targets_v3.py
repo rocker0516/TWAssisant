@@ -42,8 +42,10 @@ def main() -> None:
     targets, entry, fill = t3.build_targets_v3(mats["open"], close, mask)
 
     in_u = mask.to_numpy()
-    fill_u = fill.where(mask)
-    years = pd.Index(close.index).str[:4]
+    # 最後一個交易日必為 NO_TRADE（Entry = O(t+1) 尚不存在），是快取邊界的必然結果、非資訊，
+    # 排除它才不會虛灌最後一年的 no_trade_pct（M4）。
+    fill_u = fill.where(mask).iloc[:-1]
+    years = pd.Index(close.index[:-1]).str[:4]
     fill_report = {}
     for y in sorted(set(years)):
         sel = fill_u.loc[years == y]

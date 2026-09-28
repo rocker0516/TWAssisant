@@ -28,7 +28,10 @@ def build_execution_features(open_: pd.DataFrame, close: pd.DataFrame) -> dict[s
     """dist_limit_up / lockup_days20 / gap_std20 / overnight_minus_intraday20。"""
     prev_close = close.shift(1)
     lim_today = limit_up_from_prev(prev_close)           # C(t−1) → t 日漲停價
-    locked = (close >= lim_today - 1e-9).astype(float).where(close.notna() & lim_today.notna())
+    # 相對容忍（非 1e-9 絕對容忍）：快取以 float32 存價，47.35 這類價位往返後可誤差 ~1.5e-6，
+    # 遠大於絕對容忍 1e-9，會漏掉真實鎖漲停日（見 tests 的 float32 迴歸測試）。
+    locked = ((close >= lim_today * (1 - 1e-6)).astype(float)
+              .where(close.notna() & lim_today.notna()))
     gap = open_ / prev_close - 1                         # 隔夜報酬 O(t)/C(t−1)
     intraday = close / open_ - 1                         # 盤中報酬 C(t)/O(t)
     return {

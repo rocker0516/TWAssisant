@@ -64,7 +64,15 @@ def _assert_snapshot_fresh(meta: dict) -> None:
     con.close()
     if meta.get("db_max_date") != db_max:
         raise SystemExit(f"level1_v3_targets.pkl 建於 {meta.get('db_max_date')}，DB 為 {db_max}；"
-                         "請先重跑 scripts.level1_v3_targets。")
+                         "請先重跑 scripts.level1_targets_v3。")
+
+
+def _step_changed(old_entry: dict, names: list[str], db_max_date: str) -> bool:
+    """舊 step 快取是否已過期：特徵定義、db_max_date、model_params 任一不同即算過期；
+    舊快取缺這些 key（M6 之前存的）也視為過期，不假設它們相同。"""
+    return (old_entry.get("features") != names
+            or old_entry.get("db_max_date") != db_max_date
+            or old_entry.get("model_params") != MODEL_PARAMS)
 
 
 def _mean_std(vals: list[float]) -> dict:
@@ -85,10 +93,14 @@ def main() -> None:
     args = ap.parse_args()
     steps = [s for s in STEPS if s in set(args.steps.split(","))]
     horizons = [int(h) for h in args.horizons.split(",")]
+    if not steps:
+        _log("未選任何步驟")
+        return
 
     # pickle 為本專案 scripts.level1_v3_targets（Task 3）自產的內部快取檔，非外部輸入，可信任。
     p = pickle.load(open(_DATA / "level1_v3_targets.pkl", "rb"))
     _assert_snapshot_fresh(p["meta"])
+    db_max_date = p["meta"]["db_max_date"]
     close, mask = p["close"].astype("float64"), p["universe"]
     f64 = {k: p[k].astype("float64") for k in ("open", "high", "low", "volume", "turnover")}
     con = sqlite3.connect(_DATA / "twa.db")
@@ -123,8 +135,9 @@ def main() -> None:
             names = _features_for_step(step, prev_names, available)
             results["features_by_step"][step] = names
             if step not in steps:
-                if step in hres and hres[step].get("features") != names:
-                    _log(f"⚠ {step}: 快取的舊結果特徵定義已變，未重跑，沿用舊快取")
+                if step in hres and _step_changed(hres[step], names, db_max_date):
+                    _log(f"⚠ {step}: 快取的舊結果特徵定義／db_max_date／model_params 已變，"
+                         "未重跑，沿用舊快取")
                 prev_names, prev_key = names, step if step in hres else prev_key
                 continue
             fs = fs_all.subset(names)
@@ -144,13 +157,16 @@ def main() -> None:
                 "no_entry_diff_pp": _mean_std([d["no_entry"]["diff_pp"] for d in dev]),
                 "mean_ic": _mean_std([d["mean_ic"] for d in dev]),
             }
-            entry = {"features": names, "seeds": seeds_out, "dev_summary": summ}
+            entry = {"features": names, "seeds": seeds_out, "dev_summary": summ,
+                     "db_max_date": db_max_date, "model_params": MODEL_PARAMS}
             if prev_key and prev_key in hres:
-                if hres[prev_key].get("features") != prev_names:
+                if _step_changed(hres[prev_key], prev_names, db_max_date):
                     entry["delta_vs_prev"] = {
                         "vs": prev_key, "stale": True,
-                        "reason": "previous step features differ from current definition"}
-                    _log(f"⚠ {step}: 前一步 {prev_key} 特徵定義已變，Δ 不計")
+                        "reason": "previous step is stale: features/db_max_date/model_params "
+                                  "differ from current run"}
+                    _log(f"⚠ {step}: 前一步 {prev_key} 特徵定義／db_max_date／model_params 已變，"
+                         "Δ 不計")
                 else:
                     pm = hres[prev_key]["dev_summary"]["top20_mean_net_pct"]
                     cur = summ["top20_mean_net_pct"]

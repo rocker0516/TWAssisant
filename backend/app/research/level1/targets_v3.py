@@ -40,7 +40,8 @@ def entry_and_fill(open_: pd.DataFrame, close: pd.DataFrame,
     """(Entry, fill)。兩者皆對齊決策日 t；Entry 值為 O(t+1)，未成交為 NaN。"""
     nxt_open = open_.shift(-1)
     lim_next = limit_up_from_prev(close)                 # C(t) → t+1 的漲停價
-    at_limit = nxt_open >= (lim_next - 1e-9)
+    # 相對容忍（非 1e-9 絕對容忍）：float32 快取的價格往返有 ~1e-6 級誤差，見 features_v3 同款修正。
+    at_limit = nxt_open >= (lim_next * (1 - 1e-6))
     fill = pd.DataFrame(FILLED, index=close.index, columns=close.columns, dtype="int8")
     fill = fill.mask(at_limit, LIMIT_UP_UNFILLED).mask(nxt_open.isna(), NO_TRADE)
     fill = fill.astype("int8")

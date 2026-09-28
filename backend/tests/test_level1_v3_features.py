@@ -51,6 +51,18 @@ def test_dist_limit_up_zero_when_locked_and_lockup_counts():
     assert feats["lockup_days20"].iloc[19, 0] == 0
 
 
+def test_lockup_days20_float32_tolerance():
+    """漲停判定需對 float32 快取的捨入誤差容忍（M1）：43.05 → 漲停 47.35，float32 往返後
+    約小 1.5e-6，遠大於舊版 1e-9 絕對容忍，會漏記鎖漲停日；改用相對容忍後才抓得到。"""
+    open_, _, _, close = _ohlc(n_days=30, n_stocks=1)
+    c = close.copy()
+    c.iloc[19, 0] = 43.05
+    c.iloc[20, 0] = up_limit(43.05)                          # 47.35
+    c32 = c.astype("float32").astype("float64")               # 模擬 pkl 快取以 float32 存價
+    feats = f3.build_execution_features(open_, c32)
+    assert feats["lockup_days20"].iloc[24, 0] >= 1            # 舊 1e-9 容忍下會是 0（RED）
+
+
 def test_overnight_minus_intraday_sign():
     """全部漲幅來自跳空（開盤=前收×1.01，收盤=開盤）→ 差值為正。"""
     dates = pd.Index(pd.date_range("2025-01-01", periods=30).astype(str), name="date")
@@ -115,6 +127,20 @@ def test_breadth_and_dispersion_use_universe_only():
     assert b_all != b_drop or close.shape[1] == 1
     d_drop = f3.build_market_features(close, mask_drop, mkt)["dispersion"].iloc[-1, 0]
     assert d_drop == pytest.approx(float(close.pct_change().iloc[-1, 1:].std()))
+
+
+def test_direction_features_no_future():
+    open_, high, low, close = _ohlc(n_days=70, n_stocks=4)
+    volume = pd.DataFrame(1000.0, index=close.index, columns=close.columns)
+    turnover = close * volume
+    mask = close.notna()
+    sector = pd.Series([1.0, 1.0, 2.0, np.nan], index=close.columns)
+
+    def build(c):
+        to_rank, raw = f3.build_direction_features(c, volume, turnover, mask, sector)
+        return {**to_rank, **raw}
+
+    _assert_no_future(build, close)
 
 
 def test_direction_features_sector_neutral_and_amihud():
