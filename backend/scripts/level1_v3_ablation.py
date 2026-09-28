@@ -73,6 +73,10 @@ def _mean_std(vals: list[float]) -> dict:
             if len(a) else {"mean": None, "std": None})
 
 
+def _fmt(v, spec: str) -> str:
+    return "NA" if v is None else format(v, spec)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--steps", default=",".join(STEPS))
@@ -119,6 +123,8 @@ def main() -> None:
             names = _features_for_step(step, prev_names, available)
             results["features_by_step"][step] = names
             if step not in steps:
+                if step in hres and hres[step].get("features") != names:
+                    _log(f"⚠ {step}: 快取的舊結果特徵定義已變，未重跑，沿用舊快取")
                 prev_names, prev_key = names, step if step in hres else prev_key
                 continue
             fs = fs_all.subset(names)
@@ -140,24 +146,39 @@ def main() -> None:
             }
             entry = {"features": names, "seeds": seeds_out, "dev_summary": summ}
             if prev_key and prev_key in hres:
-                pm = hres[prev_key]["dev_summary"]["top20_mean_net_pct"]
-                cur = summ["top20_mean_net_pct"]
-                floor = max(pm["std"] or 0.0, cur["std"] or 0.0)
-                delta = round(cur["mean"] - pm["mean"], 4)
-                entry["delta_vs_prev"] = {
-                    "vs": prev_key, "top20_mean_net_pct": delta,
-                    "noise_floor": round(floor, 4), "passes": bool(delta > floor)}
+                if hres[prev_key].get("features") != prev_names:
+                    entry["delta_vs_prev"] = {
+                        "vs": prev_key, "stale": True,
+                        "reason": "previous step features differ from current definition"}
+                    _log(f"⚠ {step}: 前一步 {prev_key} 特徵定義已變，Δ 不計")
+                else:
+                    pm = hres[prev_key]["dev_summary"]["top20_mean_net_pct"]
+                    cur = summ["top20_mean_net_pct"]
+                    if pm["mean"] is None or cur["mean"] is None:
+                        entry["delta_vs_prev"] = {
+                            "vs": prev_key, "top20_mean_net_pct": None,
+                            "noise_floor": None, "passes": None}
+                    else:
+                        floor = max(pm["std"] or 0.0, cur["std"] or 0.0)
+                        delta = round(cur["mean"] - pm["mean"], 4)
+                        entry["delta_vs_prev"] = {
+                            "vs": prev_key, "top20_mean_net_pct": delta,
+                            "noise_floor": round(floor, 4), "passes": bool(delta > floor)}
             hres[step] = entry
             d = entry.get("delta_vs_prev", {})
             t20, win = summ["top20_mean_net_pct"], summ["top20_day_win_rate"]
             cal, ic = summ["calibration_abs_error_pp"], summ["mean_ic"]
-            _log(f"  {step:<9} n_feat={len(names):>2} top20={t20['mean']:+.3f}%±{t20['std']:.3f} "
-                 f"win={win['mean']:.3f} cal_err={cal['mean']:.2f}pp "
-                 f"no_entry_diff={summ['no_entry_diff_pp']['mean']} ic={ic['mean']:+.4f} "
-                 f"| Δ={d.get('top20_mean_net_pct')} floor={d.get('noise_floor')} "
+            _log(f"  {step:<9} n_feat={len(names):>2} "
+                 f"top20={_fmt(t20['mean'], '+.3f')}%±{_fmt(t20['std'], '.3f')} "
+                 f"win={_fmt(win['mean'], '.3f')} cal_err={_fmt(cal['mean'], '.2f')}pp "
+                 f"no_entry_diff={_fmt(summ['no_entry_diff_pp']['mean'], '+.4f')} "
+                 f"ic={_fmt(ic['mean'], '+.4f')} "
+                 f"| Δ={_fmt(d.get('top20_mean_net_pct'), '+.4f')} "
+                 f"floor={_fmt(d.get('noise_floor'), '.4f')} "
                  f"pass={d.get('passes')} ({time.time()-t0:.0f}s)")
             prev_names, prev_key = names, step
-        out_path.write_text(json.dumps(results, ensure_ascii=False, indent=1), encoding="utf-8")
+            out_path.write_text(json.dumps(results, ensure_ascii=False, indent=1),
+                                encoding="utf-8")
     _log(f"已存 {out_path.name}")
 
 
