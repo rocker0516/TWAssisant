@@ -59,3 +59,63 @@ def build_scale_features(high: pd.DataFrame, low: pd.DataFrame, close: pd.DataFr
         "downside_vol20": downside_var.pow(0.5),
         "atr14_pct": tr.rolling(14, min_periods=7).mean() / close,
     }
+
+
+# ── C. 大盤／寬度（context-gate；raw，同日各股相同）──
+
+def _broadcast(s: pd.Series, like: pd.DataFrame) -> pd.DataFrame:
+    arr = np.broadcast_to(s.reindex(like.index).to_numpy(dtype=float)[:, None], like.shape)
+    return pd.DataFrame(arr.copy(), index=like.index, columns=like.columns)
+
+
+def build_market_features(close: pd.DataFrame, in_universe: pd.DataFrame,
+                          mkt_close: pd.Series) -> dict[str, pd.DataFrame]:
+    """mkt_ret5 / mkt_ret20 / mkt_vol20（加權指數）；breadth_ma20 / dispersion（只用 U_t 內）。
+
+    大盤特徵在橫斷面內是常數——v2 因 rank 表示而只能做交互；v3 目標是絕對報酬，
+    GBM 直接吃原始值即可（「今天不進場」主要靠這族）。
+    """
+    mkt = mkt_close.reindex(close.index).ffill()
+    mret1 = mkt.pct_change(fill_method=None)
+    ma20 = close.rolling(_W20, min_periods=_MP20).mean()
+    ret1 = close.pct_change(fill_method=None)
+    series = {
+        "mkt_ret5": mkt.pct_change(5, fill_method=None),
+        "mkt_ret20": mkt.pct_change(20, fill_method=None),
+        "mkt_vol20": mret1.rolling(_W20, min_periods=_MP20).std(),
+        "breadth_ma20": (close > ma20).astype(float).where(in_universe & ma20.notna()).mean(axis=1),
+        "dispersion": ret1.where(in_universe).std(axis=1),
+    }
+    return {k: _broadcast(v, close) for k, v in series.items()}
+
+
+# ── D 動能 / E 流動性（direction；to_rank）＋ dollar_vol20（raw）──
+
+def build_direction_features(close: pd.DataFrame, volume: pd.DataFrame, turnover: pd.DataFrame,
+                             in_universe: pd.DataFrame, sector_of: pd.Series,
+                             ) -> tuple[dict[str, pd.DataFrame], dict[str, pd.DataFrame]]:
+    """→ (to_rank, raw)。sec_neutral_ret20 = ret20 − 同日同類股（U_t 內）ret20 均值。"""
+    ret1 = close.pct_change(fill_method=None)
+    ret20 = close.pct_change(20, fill_method=None)
+    v5 = volume.rolling(5, min_periods=3).mean()
+    v60 = volume.rolling(_W60, min_periods=20).mean()
+
+    sec = sector_of.reindex(close.columns)
+    r20_u = ret20.where(in_universe)
+    # 以 columns 分組：轉置後 groupby 類股 → transform mean → 轉回。NaN 類股不分組 → NaN。
+    sec_mean = r20_u.T.groupby(sec.to_numpy()).transform("mean").T.reindex(columns=close.columns)
+
+    to_rank = {
+        "ret1": ret1,
+        "ret5": close.pct_change(5, fill_method=None),
+        "ret20": ret20,
+        "ret60": close.pct_change(60, fill_method=None),
+        "ret20_ex5": close.shift(5) / close.shift(20) - 1,
+        "bias20": close / close.rolling(_W20, min_periods=_MP20).mean() - 1,
+        "pos240": close / close.rolling(240, min_periods=60).max() - 1,
+        "vr5_60": v5 / v60,
+        "amihud20": (ret1.abs() / turnover).rolling(_W20, min_periods=_MP20).mean(),
+        "sec_neutral_ret20": ret20 - sec_mean,
+    }
+    raw = {"dollar_vol20": np.log1p(turnover.rolling(_W20, min_periods=_MP20).mean())}
+    return to_rank, raw

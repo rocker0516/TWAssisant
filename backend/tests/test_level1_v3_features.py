@@ -71,3 +71,65 @@ def test_scale_features_no_future_and_downside_only_negative():
     vol20_last = feats["vol20"].iloc[-1, 0]
     assert vol20_last > 0 or vol20_last == pytest.approx(0.0, abs=1e-6)
     assert feats["atr14_pct"].iloc[-1, 0] > 0
+
+
+def test_market_features_broadcast_and_no_future():
+    open_, high, low, close = _ohlc()
+    mask = close.notna()
+    mkt = pd.Series(100 * np.exp(np.cumsum(np.full(len(close), 0.001))), index=close.index)
+    feats = f3.build_market_features(close, mask, mkt)
+    assert set(feats) == {"mkt_ret5", "mkt_ret20", "mkt_vol20", "breadth_ma20", "dispersion"}
+    for k, m in feats.items():
+        assert m.shape == close.shape, k
+        row = m.iloc[-1].dropna()
+        assert row.nunique() == 1, k                      # 同日各股相同（情境特徵）
+
+
+def test_market_features_no_future():
+    _, _, _, close = _ohlc()
+    mask = close.notna()
+    mkt = pd.Series(100 * np.exp(np.cumsum(np.full(len(close), 0.001))), index=close.index)
+    base = f3.build_market_features(close, mask, mkt)
+    c2, m2 = close.copy(), mkt.copy()
+    c2.iloc[41:] *= 1.5
+    m2.iloc[41:] *= 1.5
+    after = f3.build_market_features(c2, mask, m2)
+    for k in base:
+        a = base[k].iloc[:41].fillna(-9).to_numpy()
+        b = after[k].iloc[:41].fillna(-9).to_numpy()
+        assert np.allclose(a, b), k
+
+
+def test_breadth_and_dispersion_use_universe_only():
+    open_, high, low, close = _ohlc(n_days=40, n_stocks=4)
+    mkt = pd.Series(1.0, index=close.index)
+    mask_all = close.notna()
+    mask_drop = mask_all.copy()
+    mask_drop.iloc[:, 0] = False                            # 第 0 檔踢出 U_t
+    b_all = f3.build_market_features(close, mask_all, mkt)["breadth_ma20"].iloc[-1, 0]
+    b_drop = f3.build_market_features(close, mask_drop, mkt)["breadth_ma20"].iloc[-1, 0]
+    # 手算：只用 U_t 內三檔
+    ma20 = close.rolling(20, min_periods=10).mean()
+    manual = float((close > ma20).iloc[-1, 1:].mean())
+    assert b_drop == pytest.approx(manual)
+    assert b_all != b_drop or close.shape[1] == 1
+    d_drop = f3.build_market_features(close, mask_drop, mkt)["dispersion"].iloc[-1, 0]
+    assert d_drop == pytest.approx(float(close.pct_change().iloc[-1, 1:].std()))
+
+
+def test_direction_features_sector_neutral_and_amihud():
+    open_, high, low, close = _ohlc(n_days=70, n_stocks=4)
+    volume = pd.DataFrame(1000.0, index=close.index, columns=close.columns)
+    turnover = close * volume
+    mask = close.notna()
+    sector = pd.Series([1.0, 1.0, 2.0, np.nan], index=close.columns)
+    to_rank, raw = f3.build_direction_features(close, volume, turnover, mask, sector)
+    assert set(raw) == {"dollar_vol20"}
+    assert {"ret20", "sec_neutral_ret20", "amihud20", "vr5_60", "pos240"} <= set(to_rank)
+    sn = to_rank["sec_neutral_ret20"].iloc[-1]
+    # 類股 1 兩檔的中性化值和為 0；無類股者 NaN
+    assert sn.iloc[0] + sn.iloc[1] == pytest.approx(0.0, abs=1e-12)
+    assert sn.iloc[2] == pytest.approx(0.0, abs=1e-12)       # 單檔類股 → 等於自己均值
+    assert np.isnan(sn.iloc[3])
+    assert (to_rank["amihud20"].iloc[-1] > 0).all()
+    assert raw["dollar_vol20"].iloc[-1, 0] == pytest.approx(np.log1p(turnover.iloc[-20:, 0].mean()))
