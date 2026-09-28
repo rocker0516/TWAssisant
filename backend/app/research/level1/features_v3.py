@@ -10,11 +10,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field  # noqa: F401 -- Task 6 uses it
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
 
+from .features import rank_transform
 from .targets_v3 import limit_up_from_prev
 
 _W20, _MP20 = 20, 10
@@ -119,3 +120,72 @@ def build_direction_features(close: pd.DataFrame, volume: pd.DataFrame, turnover
     }
     raw = {"dollar_vol20": np.log1p(turnover.rolling(_W20, min_periods=_MP20).mean())}
     return to_rank, raw
+
+
+# ── FeatureSet 與族群 ──
+
+@dataclass
+class FeatureSet:
+    """ranked：已 rank (0,1]，組裝時缺值補 0.5；raw：原始值，缺值留 NaN。欄序 = ranked 後接 raw。"""
+    ranked: dict[str, pd.DataFrame] = field(default_factory=dict)
+    raw: dict[str, pd.DataFrame] = field(default_factory=dict)
+
+    @property
+    def names(self) -> list[str]:
+        return list(self.ranked) + list(self.raw)
+
+    def subset(self, names: list[str]) -> FeatureSet:
+        want = set(names)
+        missing = want - set(self.names)
+        if missing:
+            raise KeyError(f"未知特徵：{sorted(missing)}")
+        return FeatureSet(ranked={k: v for k, v in self.ranked.items() if k in want},
+                          raw={k: v for k, v in self.raw.items() if k in want})
+
+
+FUND_NAMES = ("rev_yoy", "rev_yoy_chg", "rev_yoy3", "eps_yoy_d", "gm_chg")
+
+FAMILIES: dict[str, list[str]] = {
+    "A": ["dist_limit_up", "lockup_days20", "gap_std20", "overnight_minus_intraday20"],
+    "B": ["vol20", "vol60", "downside_vol20", "atr14_pct"],
+    "C": ["mkt_ret5", "mkt_ret20", "mkt_vol20", "breadth_ma20", "dispersion"],
+    "DE": ["ret1", "ret5", "ret20", "ret60", "ret20_ex5", "bias20", "pos240",
+           "vr5_60", "amihud20", "sec_neutral_ret20", "dollar_vol20"],
+    "F": [],   # build_feature_set 有基本面時填 FUND_NAMES
+}
+
+BASELINE: tuple[str, ...] = ("ret20", "vol20", "dollar_vol20", "mkt_ret20", "dist_limit_up")
+
+
+def build_feature_set(open_, high, low, close, volume, turnover, in_universe, mkt_close,
+                      sector_of, fund_feats: dict[str, pd.DataFrame] | None) -> FeatureSet:
+    """五族全建。fund_feats 為 features.build_fundamental_features 的輸出（或 None）。"""
+    to_rank, raw_de = build_direction_features(close, volume, turnover, in_universe, sector_of)
+    if fund_feats:
+        to_rank.update({k: fund_feats[k] for k in FUND_NAMES if k in fund_feats})
+        FAMILIES["F"] = [k for k in FUND_NAMES if k in fund_feats]
+    else:
+        FAMILIES["F"] = []
+    raw = {**build_execution_features(open_, close),
+           **build_scale_features(high, low, close),
+           **build_market_features(close, in_universe, mkt_close),
+           **raw_de}
+    raw = {k: v.where(in_universe).astype("float32") for k, v in raw.items()}
+    return FeatureSet(ranked=rank_transform(to_rank, in_universe), raw=raw)
+
+
+def assemble_v3(fs: FeatureSet, target: pd.DataFrame, dates: pd.Index,
+                ) -> tuple[np.ndarray, np.ndarray, pd.DataFrame]:
+    """(X, y, meta)。列 = (date, stock) 且 target 非 NaN。ranked 缺值 0.5、raw 缺值 NaN。"""
+    y_long = target.loc[dates].stack(future_stack=True).dropna()
+    idx = y_long.index
+    cols: list[np.ndarray] = []
+    for m in fs.ranked.values():
+        v = m.loc[dates].stack(future_stack=True).reindex(idx).to_numpy(dtype=np.float32)
+        cols.append(np.nan_to_num(v, nan=0.5))
+    for m in fs.raw.values():
+        cols.append(m.loc[dates].stack(future_stack=True).reindex(idx).to_numpy(dtype=np.float32))
+    x = np.column_stack(cols).astype(np.float32) if cols else np.empty((len(idx), 0), np.float32)
+    meta = idx.to_frame(index=False)
+    meta.columns = ["date", "stock_id"]
+    return x, y_long.to_numpy(dtype=np.float32), meta
