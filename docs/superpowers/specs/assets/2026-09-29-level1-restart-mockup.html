@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>Level 1 — 視覺 v3</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0f1115;--panel:#181b22;--panel2:#1f232c;--edge:#2a2f3a;--muted:#8b93a7;--text:#e6e8ee;
+    --up:#fb7185;--ok:#7dd3fc;--down:#34d399;--brand:#38bdf8;--warn:#fbbf24;--faint:#5b6275;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:"Noto Sans TC",-apple-system,"PingFang TC",sans-serif;font-size:14px}
+  .num{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .up{color:var(--up)}.down{color:var(--down)}.muted{color:var(--muted)}.faint{color:var(--faint)}
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 24px 64px}
+
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  h1{margin:0;font-size:22px;font-weight:700;letter-spacing:.02em}
+  .sub{margin-top:6px;color:var(--muted);font-size:13px}
+  .status{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--down);box-shadow:0 0 0 3px #34d39922}
+
+  nav{display:flex;gap:28px;margin:24px 0 20px;border-bottom:1px solid var(--edge)}
+  nav button{all:unset;cursor:pointer;padding:10px 0;color:var(--muted);font-size:14px;border-bottom:2px solid transparent;margin-bottom:-1px}
+  nav button.on{color:var(--text);border-color:var(--brand)}
+  nav .cnt{margin-left:6px;font-size:11px;background:var(--panel2);border-radius:10px;padding:1px 7px;color:var(--muted)}
+  section{display:none}section.on{display:block}
+
+  .lede{display:flex;align-items:baseline;gap:14px;margin-bottom:16px}
+  .lede b{font-size:18px}
+  .panel{background:var(--panel);border:1px solid var(--edge);border-radius:14px}
+
+  /* 交易卡 */
+  .cards{display:grid;gap:12px}
+  .card{padding:18px 20px;display:grid;grid-template-columns:44px 1fr auto;gap:4px 16px;align-items:center}
+  .rank{grid-row:span 2;font-size:24px;font-weight:700;color:var(--faint)}
+  .name{font-size:17px;font-weight:700}.name .code{color:var(--muted);font-weight:500;margin-right:8px}
+  .ev{grid-row:span 2;text-align:right}
+  .ev .v{font-size:26px;font-weight:700}
+  .ev .l{font-size:11px;color:var(--muted)}
+  .facts{display:flex;gap:28px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-top:6px}
+  .facts b{color:var(--text);font-weight:500}.facts b.down{color:var(--down)}
+  .pbar{display:inline-flex;align-items:center;gap:8px}
+  .pbar .track{position:relative;width:120px;height:6px;background:var(--panel2);border-radius:3px}
+  .pbar .fill{position:absolute;left:0;top:0;bottom:0;background:var(--brand);border-radius:3px}
+  .pbar .base{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--muted)}
+  .drivers{grid-column:2/4;margin-top:10px;padding-top:12px;border-top:1px solid var(--edge);display:flex;gap:8px;flex-wrap:wrap;font-size:12px}
+  .chip{background:var(--panel2);border-radius:999px;padding:3px 10px;color:#cbd2e0}
+  .chip i{font-style:normal;color:var(--up)}
+  .holding{margin-top:16px;padding:12px 18px;display:flex;gap:10px;align-items:center;font-size:13px;color:var(--muted)}
+  .tag{font-size:11px;border:1px solid var(--edge);border-radius:6px;padding:1px 7px;color:var(--muted)}
+
+  /* 表格 */
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{font-weight:500;color:var(--muted);text-align:left;padding:12px 16px;font-size:12px;border-bottom:1px solid var(--edge)}
+  td{padding:13px 16px;border-bottom:1px solid #22262f}
+  tr:last-child td{border-bottom:0}
+  td.r,th.r{text-align:right}
+  .rail{position:relative;width:180px;height:18px}
+  .rail .ln{position:absolute;left:0;right:0;top:8px;height:2px;background:var(--panel2);border-radius:1px}
+  .rail .rg{position:absolute;top:7px;height:4px;background:#38bdf855;border-radius:2px}
+  .rail .zero{position:absolute;top:3px;width:1px;height:12px;background:var(--faint)}
+  .rail .tp{position:absolute;right:0;top:2px;width:2px;height:14px;background:var(--up);border-radius:1px}
+  .rail .now{position:absolute;top:4px;width:10px;height:10px;border-radius:50%;background:var(--text);margin-left:-5px;box-shadow:0 0 0 3px var(--panel)}
+  .pill{font-size:11px;border-radius:999px;padding:2px 9px}
+  .p-hit{background:#fb718522;color:var(--up)}.p-exp{background:var(--panel2);color:var(--muted)}.p-lu{background:#fbbf2422;color:var(--warn)}
+  h3{font-size:13px;font-weight:500;color:var(--muted);margin:28px 0 10px;letter-spacing:.04em}
+
+  /* 體檢 */
+  .gates{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .gate{padding:16px 18px}
+  .gate .k{font-size:12px;color:var(--muted)}
+  .gate .v{font-size:15px;font-weight:700;margin-top:4px}
+  .gate .prog{height:4px;background:var(--panel2);border-radius:2px;margin-top:10px;overflow:hidden}
+  .gate .prog i{display:block;height:100%;background:var(--warn)}
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .kpi{padding:18px 20px}
+  .kpi .k{font-size:12px;color:var(--muted)}
+  .kpi .v{font-size:30px;font-weight:700;margin:6px 0 2px}
+  .kpi .ci{font-size:12px;color:var(--muted)}
+  .kpi .seg{display:grid;grid-template-columns:repeat(auto-fit,minmax(64px,1fr));gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid var(--edge);font-size:12px;color:var(--muted)}
+  .kpi .seg b{display:block;color:var(--text);font-weight:500;font-size:13px}
+  .grid2{display:grid;grid-template-columns:1.1fr 1fr;gap:12px}
+  .box{padding:18px 20px}
+  .box .t{font-size:13px;font-weight:500;margin-bottom:14px;display:flex;justify-content:space-between}
+  .bench{display:grid;grid-template-columns:96px 1fr 64px;gap:10px;align-items:center;font-size:13px;margin:10px 0}
+  .bench .bar{height:8px;border-radius:4px;background:var(--panel2);position:relative}
+  .bench .bar i{position:absolute;top:0;bottom:0;border-radius:4px}
+  .axis0{position:absolute;top:-4px;bottom:-4px;width:1px;background:var(--faint)}
+  svg text{fill:var(--muted);font-size:10px;font-family:"Noto Sans TC"}
+  .note{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6}
+  .prov{font-size:11px;color:var(--faint);margin-top:20px}
+
+  @media (max-width:760px){
+    .gates,.kpis,.grid2{grid-template-columns:1fr}
+    .card{grid-template-columns:1fr auto;padding:16px}
+    .rank{display:none}
+    .name{grid-column:1;grid-row:1}.ev{grid-column:2;grid-row:1;grid-row-end:auto}
+    .facts{grid-column:1/3;gap:10px 18px}
+    .drivers{grid-column:1/3}
+    .lede{flex-direction:column;gap:4px}
+    .rail{width:110px}
+    th,td{padding:11px 10px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>明日買進</h1>
+      <div class="sub">每晚從可交易池挑出預期淨報酬為正的股票 · 隔日開盤買 · 10 日內碰 +10% 停利，否則到期出場</div>
+    </div>
+    <div class="status"><span class="dot"></span>模型健康 · 資料至 9/29 收盤</div>
+  </header>
+
+  <nav>
+    <button class="on" onclick="go('list',this)">今日清單<span class="cnt">3</span></button>
+    <button onclick="go('open',this)">進行中<span class="cnt">12</span></button>
+    <button onclick="go('health',this)">模型體檢</button>
+  </nav>
+
+  <!-- 今日清單 -->
+  <section id="list" class="on">
+    <div class="lede"><b>9/30（二）開盤買進 3 檔</b><span class="muted">571 檔中只有 3 檔預期淨報酬為正（上限 5 檔）</span></div>
+    <div class="cards">
+      <div class="panel card">
+        <div class="rank num">1</div>
+        <div class="name"><span class="code num">2330</span>台積電</div>
+        <div class="ev"><div class="v num up">+1.8%</div><div class="l">預期淨報酬</div></div>
+        <div class="facts">
+          <span class="pbar">命中 <b class="num">38%</b><span class="track"><span class="fill" style="width:38%"></span><span class="base" style="left:22%"></span></span><span class="faint">基率 22%</span></span>
+          <span>未命中 <b class="num down">−2.9%</b></span>
+          <span>停利參考 <b class="num">1,166</b></span>
+          <span>最晚 <b class="num">10/14</b></span>
+        </div>
+        <div class="drivers"><span class="muted">主要驅動</span><span class="chip">隔夜強於盤中 <i>▲</i></span><span class="chip">營收年增加速 <i>▲</i></span><span class="chip">波動度 中等</span></div>
+      </div>
+      <div class="panel card">
+        <div class="rank num">2</div>
+        <div class="name"><span class="code num">3017</span>奇鋐</div>
+        <div class="ev"><div class="v num up">+1.2%</div><div class="l">預期淨報酬</div></div>
+        <div class="facts">
+          <span class="pbar">命中 <b class="num">41%</b><span class="track"><span class="fill" style="width:41%"></span><span class="base" style="left:22%"></span></span><span class="faint">基率 22%</span></span>
+          <span>未命中 <b class="num down">−4.6%</b></span><span>停利參考 <b class="num">1,012</b></span><span>最晚 <b class="num">10/14</b></span>
+        </div>
+        <div class="drivers"><span class="muted">主要驅動</span><span class="chip">20 日動能 <i>▲</i></span><span class="chip">量能放大 <i>▲</i></span><span class="chip">波動度 偏高</span></div>
+      </div>
+      <div class="panel card">
+        <div class="rank num">3</div>
+        <div class="name"><span class="code num">2603</span>長榮</div>
+        <div class="ev"><div class="v num up">+0.6%</div><div class="l">預期淨報酬</div></div>
+        <div class="facts">
+          <span class="pbar">命中 <b class="num">33%</b><span class="track"><span class="fill" style="width:33%"></span><span class="base" style="left:22%"></span></span><span class="faint">基率 22%</span></span>
+          <span>未命中 <b class="num down">−3.1%</b></span><span>停利參考 <b class="num">214.5</b></span><span>最晚 <b class="num">10/14</b></span>
+        </div>
+        <div class="drivers"><span class="muted">主要驅動</span><span class="chip">跌深反彈 <i>▲</i></span><span class="chip">融資減少 <i>▲</i></span></div>
+      </div>
+    </div>
+    <div class="panel holding"><span class="tag">持有中・仍看好</span><span><span class="num">6669</span> 緯穎 · 第 4 / 10 日 · 預期 <span class="num up">+0.9%</span></span></div>
+    <p class="note">停利參考價以今日收盤 ×1.10 估算；實際停利價＝明日開盤價 ×1.10。開盤即漲停者不成交、名額不遞補。</p>
+  </section>
+
+  <!-- 進行中 -->
+  <section id="open">
+    <div class="lede"><b>12 筆進行中</b><span class="muted">平均未實現 <span class="num up">+1.4%</span> · 軌道：左 −10% ／ 右 停利 +10%</span></div>
+    <div class="panel">
+      <table>
+        <tr><th>訊號日</th><th>股票</th><th class="r">進場</th><th>區間</th><th class="r">未實現</th><th class="r">剩餘</th></tr>
+        <tr><td class="num muted">9/18</td><td><span class="num muted">6669</span> 緯穎</td><td class="r num">2,815</td>
+          <td><div class="rail"><i class="ln"></i><i class="rg" style="left:50%;width:46%"></i><i class="zero" style="left:50%"></i><i class="tp"></i><i class="now" style="left:80%"></i></div></td>
+          <td class="r num up">+6.0%</td><td class="r num">2 日</td></tr>
+        <tr><td class="num muted">9/22</td><td><span class="num muted">2382</span> 廣達</td><td class="r num">298.5</td>
+          <td><div class="rail"><i class="ln"></i><i class="rg" style="left:39%;width:17%"></i><i class="zero" style="left:50%"></i><i class="tp"></i><i class="now" style="left:39%"></i></div></td>
+          <td class="r num down">−2.1%</td><td class="r num">5 日</td></tr>
+        <tr><td class="num muted">9/26</td><td><span class="num muted">3231</span> 緯創</td><td class="r num">118.0</td>
+          <td><div class="rail"><i class="ln"></i><i class="rg" style="left:48%;width:6%"></i><i class="zero" style="left:50%"></i><i class="tp"></i><i class="now" style="left:53%"></i></div></td>
+          <td class="r num up">+0.6%</td><td class="r num">8 日</td></tr>
+      </table>
+    </div>
+    <h3>近 10 日結案 · 7 筆</h3>
+    <div class="panel">
+      <table>
+        <tr><th>訊號日</th><th>股票</th><th>結果</th><th class="r">淨報酬</th><th class="r">持有</th></tr>
+        <tr><td class="num muted">9/15</td><td><span class="num muted">2345</span> 智邦</td><td><span class="pill p-hit">停利</span></td><td class="r num up">+9.4%</td><td class="r num">6 日</td></tr>
+        <tr><td class="num muted">9/12</td><td><span class="num muted">2603</span> 長榮</td><td><span class="pill p-exp">到期</span></td><td class="r num down">−3.3%</td><td class="r num">10 日</td></tr>
+        <tr><td class="num muted">9/11</td><td><span class="num muted">2454</span> 聯發科</td><td><span class="pill p-lu">漲停未成交</span></td><td class="r faint">—</td><td class="r faint">—</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- 體檢 -->
+  <section id="health">
+    <div class="gates">
+      <div class="panel gate"><div class="k">Gate A · 研發期 2022–24</div><div class="v" style="color:var(--ok)">✓ 通過</div><div class="note" style="margin-top:4px">14 次試驗，已做多重比較校正</div></div>
+      <div class="panel gate"><div class="k">Gate B · 保留期 2025–26</div><div class="v" style="color:var(--ok)">✓ 通過</div><div class="note" style="margin-top:4px">只讀 1 次，已凍結</div></div>
+      <div class="panel gate"><div class="k">Gate C · 實盤</div><div class="v" style="color:var(--warn)">累積中 23 / 60 日</div><div class="prog"><i style="width:38%"></i></div></div>
+    </div>
+
+    <h3>成功標準</h3>
+    <div class="kpis">
+      <div class="panel kpi">
+        <div class="k">每筆平均淨報酬 · 保留期</div>
+        <div class="v num up">+0.71%</div>
+        <div class="ci num">95% 區間 +0.09 ~ +1.30</div>
+        <div class="seg"><span>研發期<b class="num up">+0.62%</b></span><span>實盤<b class="num">+0.9%</b><span class="faint" style="font-size:11px">樣本不足</span></span></div>
+      </div>
+      <div class="panel kpi">
+        <div class="k">命中率是基率的幾倍 · 保留期</div>
+        <div class="v num">1.5×</div>
+        <div class="ci num">44% vs 同日基率 29%</div>
+        <div class="seg"><span>研發期<b class="num">1.6×</b></span><span>實盤<b class="num">1.6×</b></span><span>逐年<b class="num">皆&gt;1×</b></span></div>
+      </div>
+      <div class="panel kpi">
+        <div class="k">沒命中時平均虧損 · 保留期</div>
+        <div class="v num down">−4.2%</div>
+        <div class="ci">出單日 78% · 漲停買不到 1.8%</div>
+        <div class="seg"><span>研發期<b class="num down">−3.9%</b></span><span>實盤<b class="num down">−3.5%</b></span></div>
+      </div>
+    </div>
+
+    <div class="grid2" style="margin-top:12px">
+      <div class="panel box">
+        <div class="t"><span>比基準好多少（每筆淨報酬）</span><span class="faint">同流程 · 每日最多 5 檔</span></div>
+        <div class="bench"><span>本模型</span><span class="bar"><i class="axis0" style="left:56%"></i><i style="left:56%;width:30%;background:var(--brand)"></i></span><span class="num up r">+0.62%</span></div>
+        <div class="bench"><span class="muted">舊版 v2</span><span class="bar"><i class="axis0" style="left:56%"></i><i style="left:56%;width:7%;background:var(--faint)"></i></span><span class="num up">+0.15%</span></div>
+        <div class="bench"><span class="muted">只挑高波動</span><span class="bar"><i class="axis0" style="left:56%"></i><i style="left:37%;width:19%;background:var(--faint)"></i></span><span class="num down">−0.40%</span></div>
+        <div class="bench"><span class="muted">隨機</span><span class="bar"><i class="axis0" style="left:56%"></i><i style="left:18%;width:38%;background:var(--faint)"></i></span><span class="num down">−0.79%</span></div>
+        <div class="note">三個差距的 95% 區間下界皆 &gt; 0。</div>
+      </div>
+      <div class="panel box">
+        <div class="t"><span>命中率 vs 基率 · 滾動 60 日</span><span class="faint">間距＝模型貢獻</span></div>
+        <svg viewBox="0 0 320 140" width="100%">
+          <defs><linearGradient id="gap" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#38bdf8" stop-opacity=".22"/><stop offset="1" stop-color="#38bdf8" stop-opacity=".04"/></linearGradient></defs>
+          <g stroke="#22262f"><line x1="28" x2="316" y1="20" y2="20"/><line x1="28" x2="316" y1="60" y2="60"/><line x1="28" x2="316" y1="100" y2="100"/></g>
+          <text x="0" y="23">45%</text><text x="0" y="63">30%</text><text x="0" y="103">15%</text>
+          <path d="M28,58 L68,44 L108,50 L148,30 L188,40 L228,24 L268,44 L312,34 L312,78 L268,86 L228,70 L188,80 L148,74 L108,88 L68,80 L28,84 Z" fill="url(#gap)"/>
+          <polyline points="28,84 68,80 108,88 148,74 188,80 228,70 268,86 312,78" fill="none" stroke="#5b6275" stroke-width="1.5"/>
+          <polyline points="28,58 68,44 108,50 148,30 188,40 228,24 268,44 312,34" fill="none" stroke="#38bdf8" stroke-width="2"/>
+          <text x="28" y="130">2025/01</text><text x="270" y="130">2026/09</text>
+        </svg>
+        <div class="note"><span style="color:var(--brand)">━</span> 清單命中率　<span class="faint">━</span> 同日全池基率</div>
+      </div>
+    </div>
+
+    <div class="grid2" style="margin-top:12px">
+      <div class="panel box">
+        <div class="t"><span>命中機率準不準</span><span class="num" style="color:var(--ok)">最大偏差 3.8pp ✓</span></div>
+        <svg viewBox="0 0 320 130" width="100%">
+          <line x1="30" y1="110" x2="310" y2="10" stroke="#2a2f3a" stroke-dasharray="4 4"/>
+          <polyline points="50,104 90,88 130,76 170,58 210,46 250,30 290,20" fill="none" stroke="#38bdf8" stroke-width="2"/>
+          <g fill="#38bdf8"><circle cx="50" cy="104" r="3"/><circle cx="90" cy="88" r="3"/><circle cx="130" cy="76" r="3"/><circle cx="170" cy="58" r="3"/><circle cx="210" cy="46" r="3"/><circle cx="250" cy="30" r="3"/><circle cx="290" cy="20" r="3"/></g>
+          <text x="30" y="126">預測命中率 →</text><text x="232" y="126">虛線＝完美校準</text>
+        </svg>
+      </div>
+      <div class="panel box">
+        <div class="t"><span>對照：改成持有 20 日</span></div>
+        <div class="bench"><span class="muted">10 日（主）</span><span class="bar"><i style="left:0;width:62%;background:var(--brand)"></i></span><span class="num up">+0.62%</span></div>
+        <div class="bench"><span class="muted">20 日</span><span class="bar"><i style="left:0;width:55%;background:var(--faint)"></i></span><span class="num up">+0.55%</span></div>
+        <div class="note">20 日版平均多占用資金 5.7 天、每筆報酬沒有更好——<b style="color:var(--text)">多等不值得</b>。</div>
+      </div>
+    </div>
+    <div class="prov num">l1r_hit10_v1 · artifact 2026-11-02 21:41 · 以上皆示意數字</div>
+  </section>
+</div>
+<script>
+function go(id,btn){document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id===id));document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b===btn));}
+</script>
+</body>
+</html>
