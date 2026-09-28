@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 
 from .features import assemble_dataset
+from .features_v3 import FeatureSet, assemble_v3
 
 DEFAULT_FIRST_TEST = "2022-01-01"
 DEFAULT_STEP = 126
@@ -75,6 +76,39 @@ def walk_forward_scores(
 
         te_dates = dates[s:e]
         x_te, _, meta = assemble_dataset(ranked, target_pct, te_dates)
+        if not len(meta):
+            continue
+        pred = pd.Series(model.predict(x_te), name="score",
+                         index=pd.MultiIndex.from_frame(meta))
+        block = pred.unstack("stock_id")
+        score.loc[block.index, block.columns] = block.astype("float32")
+    return score
+
+
+def walk_forward_scores_v3(
+    make_model: Callable[[], object],
+    fs: FeatureSet,
+    target: pd.DataFrame,
+    *,
+    horizon: int,
+    first_test: str = DEFAULT_FIRST_TEST,
+    step: int = DEFAULT_STEP,
+    min_train_days: int = MIN_TRAIN_DAYS,
+) -> pd.DataFrame:
+    """v3 版：吃 FeatureSet（ranked 補 0.5／raw 留 NaN），標籤為 R_net。embargo 規則與 v2 同源。"""
+    dates = target.index
+    score = pd.DataFrame(np.nan, index=dates, columns=target.columns, dtype="float32")
+    for s, e in test_blocks(dates, first_test, step):
+        tr_dates = train_slice(dates, s, horizon)
+        if len(tr_dates) < min_train_days:
+            continue
+        x_tr, y_tr, _ = assemble_v3(fs, target, tr_dates)
+        if not len(y_tr):
+            continue
+        model = make_model()
+        model.fit(x_tr, y_tr)
+        te_dates = dates[s:e]
+        x_te, _, meta = assemble_v3(fs, target, te_dates)
         if not len(meta):
             continue
         pred = pd.Series(model.predict(x_te), name="score",
