@@ -8,6 +8,8 @@ import pytest
 from scipy.stats import norm
 
 from app.research.level1 import evaluation_v3 as e3
+from app.research.level1 import features_v3 as f3
+from app.research.level1 import walkforward as wf
 
 
 def _mats(n_days=300, n_stocks=200, seed=0, sigma=0.03):
@@ -67,10 +69,6 @@ def test_evaluate_v3_bundle_keys():
     assert "a" in by and "topk" in by["a"]
 
 
-from app.research.level1 import walkforward as wf
-from app.research.level1 import features_v3 as f3
-
-
 class _ConstModel:
     def fit(self, x, y):
         self.c = float(np.nanmean(y))
@@ -105,7 +103,7 @@ def test_walk_forward_v3_embargo_and_raw_nan_passthrough():
         wf.assemble_v3 = orig
 
     trains = seen[0::2]
-    for (tr, x), s in zip(trains, [40, 60]):
+    for (tr, x), s in zip(trains, [40, 60], strict=True):
         assert list(dates).index(tr[-1]) + horizon < s     # embargo 硬規則
         assert np.isnan(x).any()                              # raw NaN 沒被補成數字
     assert score.loc[dates[39]].isna().all()
