@@ -163,3 +163,33 @@ def test_legacy_run_without_diagnostics_or_audit(client, monkeypatch):
     finally:
         with session_scope() as s:
             s.query(models.MLEntryRun).filter_by(run_id=rid).delete()
+
+
+def test_health_diagnostics_frozen_and_live_gate(client, monkeypatch):
+    monkeypatch.setattr(routes_mlentry, "load_champion", lambda: None)
+    j = client.get("/api/mlentry/health?limit=5").json()
+    assert j["diagnostics_frozen"] is None                                  # 無 champion → null，不 500
+    assert j["live_gate"]["decide_at"] == 60 and j["live_gate"]["live_unlocked"] is False
+    assert isinstance(j["live_gate"]["mature_days"], int)
+
+
+def test_health_diagnostics_frozen_reads_file(client, monkeypatch, tmp_path):
+    from types import SimpleNamespace
+    ds = tmp_path / "ds_t"; (ds / "policy" / "policy_baseline_v1").mkdir(parents=True)
+    (ds / "policy" / "policy_baseline_v1" / "diagnostics_frozen.json").write_text(json.dumps({"diagnostic_only": True, "lift_at_k": {"5": {}}}), encoding="utf-8")
+    fake = SimpleNamespace(dataset_version="ds_t", policy_name="policy_baseline_v1", frozen_validation={}, promotion_check={},
+                           model_version="m", calibration_version="c", policy_version="p", feature_version="f", label_version="l",
+                           trained_through="2026-01-01", model_status="RESEARCH_SHADOW", deployment_mode="SHADOW", promotion_eligible=False)
+    monkeypatch.setattr(routes_mlentry, "load_champion", lambda: fake)
+    monkeypatch.setattr(routes_mlentry.ds_api, "latest_dataset_dir", lambda: ds)
+    j = client.get("/api/mlentry/health?limit=5").json()
+    assert j["diagnostics_frozen"]["diagnostic_only"] is True and "5" in j["diagnostics_frozen"]["lift_at_k"]
+
+
+def test_status_lifecycle_block(client, monkeypatch):
+    monkeypatch.setattr(routes_mlentry, "load_champion", lambda: None)
+    j = client.get("/api/mlentry/status").json()
+    lf = j["lifecycle"]
+    assert lf["observation_freeze"] is True and lf["auto_retrain"] is False and lf["auto_promote"] is False
+    assert lf["freeze_until_mature_days"] == 60 and isinstance(lf["mature_days"], int)
+    assert isinstance(lf["challengers_count"], int) and "previous_model_version" in lf and "last_audit_event" in lf
