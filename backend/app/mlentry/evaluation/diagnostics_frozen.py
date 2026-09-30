@@ -73,3 +73,88 @@ def timing(df: pd.DataFrame, k: int = 5) -> dict:
     for h in HORIZONS:
         out[f"p_target_le_{h}d"] = _f((hit <= h).sum() / n) if n else None
     return out
+
+
+def ranking_diagnostics(df: pd.DataFrame, k: int = 5) -> dict:
+    """Precision@K（＝Top-K target rate）、Recall@K（每日）、NDCG@K（binary relevance）、每日 rank IC（gate_pass ≥ 5 列）。"""
+    pool = df.loc[df["gate_pass"].astype(bool) & df["recommendation_score"].notna()]
+    top = topk_mask(df, k)
+    precision = _f(df.loc[top, "target"].mean()) if top.any() else None
+    recalls, ndcgs, ics = [], [], []
+    for _, g in pool.groupby("signal_date"):
+        g = g.sort_values("recommendation_score", ascending=False)
+        rel = g["target"].to_numpy(dtype=float)
+        n_t = int(rel.sum())
+        if n_t > 0:
+            recalls.append(rel[:k].sum() / n_t)
+            disc = 1 / np.log2(np.arange(2, min(k, len(rel)) + 2))
+            dcg = float((rel[:k] * disc[: len(rel[:k])]).sum())
+            idcg = float(disc[: min(k, n_t)].sum())
+            ndcgs.append(dcg / idcg if idcg > 0 else 0.0)
+        if len(g) >= 5:
+            r = g["recommendation_score"].rank().corr(g["return_10d"].rank())
+            if np.isfinite(r):
+                ics.append(float(r))
+    ic = np.array(ics, dtype=float)
+    return {"k": k, "n": int(top.sum()), "days": int(pool["signal_date"].nunique()),
+            "precision_at_k": precision,
+            "recall_at_k": _f(np.mean(recalls)) if recalls else None,
+            "ndcg_at_k": _f(np.mean(ndcgs)) if ndcgs else None,
+            "ic": {"mean": _f(ic.mean()) if len(ic) else None, "std": _f(ic.std(ddof=0)) if len(ic) else None,
+                   "positive_share": _f((ic > 0).mean()) if len(ic) else None, "days": int(len(ic))},
+            **DIAG_FLAGS}
+
+
+def _group_cell(df: pd.DataFrame, gmask: pd.Series, top: pd.Series) -> dict:
+    sel = gmask & top
+    n = int(sel.sum())
+    cell = {"lift_at_5": None, "stop_ratio_at_5": None, "n": n, "days": int(df.loc[gmask, "signal_date"].nunique())}
+    if n < MIN_N:
+        return cell
+    g = df.loc[gmask]
+    bt, bs = g["target"].mean(), g["stop"].mean()
+    s = df.loc[sel]
+    cell["lift_at_5"] = _f(s["target"].mean() / bt) if bt > 0 else None
+    cell["stop_ratio_at_5"] = _f(s["stop"].mean() / bs) if bs > 0 else None
+    return cell
+
+
+def _quantile_groups(x: pd.Series, labels: tuple[str, ...]) -> tuple[pd.Series, list[float]]:
+    """依 dev 分位切 len(labels) 組；cuts 為內部切點（len(labels)-1 個）。NaN → 無組。"""
+    qs = np.linspace(0, 1, len(labels) + 1)[1:-1]
+    cuts = [float(v) for v in np.nanquantile(x.to_numpy(dtype=float), qs)]
+    bins = [-np.inf, *cuts, np.inf]
+    grp = pd.cut(x, bins=bins, labels=list(labels), include_lowest=True).astype(object)
+    return grp, cuts
+
+
+def regime_breakdown(df: pd.DataFrame, k: int = 5) -> dict:
+    top = topk_mask(df, k)
+    out: dict = {"mcap_basis": "current_company_profile", **DIAG_FLAGS}
+    specs = (("market", "market_ret_20d", ("bear", "neutral", "bull")),
+             ("volatility", "market_volatility", ("low", "high")),
+             ("breadth", "breadth_ma20", ("low", "high")),
+             ("mcap", "mcap", ("small", "mid", "large")))
+    for key, col, labels in specs:
+        if col not in df.columns or df[col].notna().sum() == 0:
+            out[key] = {"groups": {lab: {"lift_at_5": None, "stop_ratio_at_5": None, "n": 0, "days": 0} for lab in labels},
+                        "cuts": None, "column": col}
+            continue
+        grp, cuts = _quantile_groups(df[col], labels)
+        out[key] = {"groups": {lab: _group_cell(df, grp == lab, top) for lab in labels}, "cuts": cuts, "column": col}
+    ind: dict = {}
+    if "sector_id" in df.columns:
+        for sid, gmask in ((s, df["sector_id"] == s) for s in sorted(df["sector_id"].dropna().unique())):
+            cell = _group_cell(df, gmask, top)
+            if cell["n"] >= MIN_N:
+                ind[str(int(sid))] = cell
+    out["industry"] = {"groups": dict(sorted(ind.items(), key=lambda kv: -kv[1]["n"])), "cuts": None, "column": "sector_id"}
+    return out
+
+
+def build_diagnostics(df: pd.DataFrame, policy_name: str, dataset_version: str, k: int = 5) -> dict:
+    from datetime import datetime, timezone
+    return {"generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "policy_name": policy_name,
+            "dataset_version": dataset_version, "k": k, "n_eval_rows": int(len(df)), "n_days": int(df["signal_date"].nunique()),
+            "lift_at_k": lift_at_k(df), "timing": timing(df, k), "ranking": ranking_diagnostics(df, k),
+            "regime": regime_breakdown(df, k), **DIAG_FLAGS}
