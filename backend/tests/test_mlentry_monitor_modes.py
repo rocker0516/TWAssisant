@@ -60,3 +60,32 @@ def test_load_falls_back_to_day_level_when_sidecar_missing_or_stale(tmp_path, ca
         modes2, src2 = load_monitor_modes(tmp_path, ref)
     assert src2 == "legacy_day_level_fallback" and modes2 == modes
     assert any("monitoring.json" in m for m in caplog.messages)
+
+
+def test_write_sidecar_touches_only_sidecar_and_is_idempotent(tmp_path):
+    import hashlib
+    from scripts.mlentry_feature_monitoring_sidecar import write_sidecar
+    ref = _ref(["ret_5d", "is_attention_stock"])
+    (tmp_path / "feature_reference.json").write_text(json.dumps(ref, indent=2), encoding="utf-8")
+    (tmp_path / "stack.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "target_10d.lgbm.txt").write_bytes(b"model-bytes")
+    before = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in tmp_path.iterdir()}
+    path, side = write_sidecar(tmp_path)
+    path2, side2 = write_sidecar(tmp_path)
+    after = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in tmp_path.iterdir() if p.name != SIDECAR_NAME}
+    assert path == path2 == tmp_path / SIDECAR_NAME and side == side2
+    assert before == after                                            # artifact 既有檔案逐 byte 不變
+    assert side["features"]["is_attention_stock"]["monitor_mode"] == "skip"
+
+
+def test_train_stack_reference_carries_native_monitor_mode():
+    import numpy as np
+    import pandas as pd
+    from app.mlentry.serving.train_stack import build_feature_reference
+    rng = np.random.default_rng(0)
+    n = 400
+    df = pd.DataFrame({"signal_date": np.repeat(pd.date_range("2024-01-01", periods=8).astype(str), n // 8),
+                       "ret_5d": rng.normal(size=n), "is_attention_stock": rng.integers(0, 2, n).astype(float)})
+    ref = build_feature_reference(df, ["ret_5d", "is_attention_stock"], np.ones(n, dtype=bool), sample_every=1)
+    assert ref["ret_5d"]["monitor_mode"] == "continuous"
+    assert ref["is_attention_stock"]["monitor_mode"] == "skip"
