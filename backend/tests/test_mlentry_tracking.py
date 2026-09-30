@@ -89,23 +89,88 @@ def test_ledger_event_overrides():
     assert r["status"] == "TIMEOUT"
 
 
-def test_parity_with_matured_engine():
-    """完整 10 日路徑：track_paths 的 status／hit_day／mfe 必須與 run_barriers 直接跑的成熟結果一致。"""
-    rng = np.random.default_rng(1)
+_EV_STATUS = {1: "TARGET", 2: "STOP", 3: "STOP_AMBIGUOUS", 4: "TIMEOUT"}
+
+
+def _random_path(seed: int, vol: float = 0.03) -> list[tuple[float, float, float, float]]:
+    rng = np.random.default_rng(seed)
     rows = [FLAT]
     px = 100.0
     for _ in range(10):
-        o = px * (1 + rng.normal(0, 0.01)); c = o * (1 + rng.normal(0, 0.03))
+        o = px * (1 + rng.normal(0, 0.01)); c = o * (1 + rng.normal(0, vol))
         rows.append((o, max(o, c) * 1.01, min(o, c) * 0.99, c)); px = c
     rows.append(FLAT)                                      # 第 11 列讓第 0 列在原生引擎中成熟
-    m = _mats({"A": rows}, 12)
-    direct = run_barriers(m, CFG)
+    return rows
+
+
+def _direct_expect(rows, d: int) -> dict:
+    """只保留第 0..d 列的真實資料（其後 NaN、但列數足夠讓第 0 列成熟），直接跑 run_barriers。"""
+    cut = [r if i <= d else (np.nan,) * 4 for i, r in enumerate(rows)]
+    direct = run_barriers(_mats({"A": cut}, len(rows)), CFG)
+    g = lambda k: direct[k].iloc[0, 0]
+    ev = int(g("event_type"))
+    status = _EV_STATUS[ev]
+    if status == "TIMEOUT" and d < CFG.max_horizon:
+        status = "LIVE"
+    hit = {"TARGET": g("target_first_hit_day"), "STOP_AMBIGUOUS": g("target_first_hit_day"),
+           "STOP": g("stop_first_hit_day")}.get(status)
+    return {"status": status, "hit_day": None if hit is None else int(hit),
+            "ret": float(g("return_10d")), "mfe": float(g("mfe_10d")), "mae": float(g("mae_10d"))}
+
+
+def _assert_parity(rows, d: int):
+    m = _mats({"A": rows[: d + 1]}, d + 1)
     (r,) = track_paths(m, [("2026-09-01", "A")], CFG)
-    ev = int(direct["event_type"].iloc[0, 0])
-    expect = {1: "TARGET", 2: "STOP", 3: "STOP_AMBIGUOUS", 4: "TIMEOUT"}[ev]
-    assert r["status"] == expect
-    assert r["mfe"] == pytest.approx(float(direct["mfe_10d"].iloc[0, 0]), abs=1e-6)
-    assert r["mae"] == pytest.approx(float(direct["mae_10d"].iloc[0, 0]), abs=1e-6)
+    e = _direct_expect(rows, d)
+    assert r["day_index"] == d
+    assert r["status"] == e["status"]
+    assert r["hit_day"] == e["hit_day"]
+    assert r["ret_now"] == pytest.approx(e["ret"], abs=1e-6)
+    assert r["mfe"] == pytest.approx(e["mfe"], abs=1e-6)
+    assert r["mae"] == pytest.approx(e["mae"], abs=1e-6)
+    return e
+
+
+def test_parity_with_matured_engine():
+    """完整 10 日路徑：status／hit_day／ret_now／mfe／mae 與 run_barriers 直接成熟結果一致。"""
+    seen = set()
+    for seed in range(12):
+        e = _assert_parity(_random_path(seed), 10)
+        seen.add(e["status"])
+    assert seen & {"TARGET", "STOP", "STOP_AMBIGUOUS"} and "TIMEOUT" in seen   # 兩類結局皆被驗到
+
+
+def test_parity_truncated_prefixes_exercise_padding():
+    """同一條路徑截到第 d 日（d=1..9）：補 NaN 後的結果 = 該日之後全 NaN 的直接引擎結果；
+    已含命中的前綴須回報與完整路徑相同的 hit_day 與 status。"""
+    hits = 0
+    for seed in range(20):
+        rows = _random_path(seed, vol=0.04)
+        full = _direct_expect(rows, 10)
+        for d in range(1, 10):
+            e = _assert_parity(rows, d)
+            if full["hit_day"] is not None and d >= full["hit_day"]:
+                assert e["status"] == full["status"] and e["hit_day"] == full["hit_day"]
+                hits += 1
+            elif full["hit_day"] is None:
+                assert e["status"] == "LIVE" and e["hit_day"] is None
+    assert hits > 0
+
+
+def test_ledger_override_keeps_hit_day_consistent():
+    m = _mats({"A": [FLAT, (100, 103, 99, 102), (102, 111, 101, 110)]}, 3)   # 引擎：TARGET@2
+    key = ("2026-09-01", "A")
+    (t,) = track_paths(m, [key], CFG)
+    assert t["status"] == "TARGET" and t["hit_day"] == 2
+    (r,) = track_paths(m, [key], CFG, ledger={key: 4})                     # ledger：TIMEOUT
+    assert r["status"] == "TIMEOUT" and r["hit_day"] is None
+    assert r["ret_now"] == t["ret_now"] and r["mfe"] == t["mfe"] and r["mae"] == t["mae"]
+    (r,) = track_paths(m, [key], CFG, ledger={key: 2})                     # ledger：STOP → 用引擎 stop 日（無 → None）
+    assert r["status"] == "STOP" and r["hit_day"] is None
+    (r,) = track_paths(m, [key], CFG, ledger={key: 3})                     # ledger：STOP_AMBIGUOUS → target 日
+    assert r["status"] == "STOP_AMBIGUOUS" and r["hit_day"] == 2
+    (r,) = track_paths(m, [key], CFG, ledger={key: 0})
+    assert r["status"] == "NOT_ENTERED" and r["hit_day"] is None
 
 
 def test_summarize_counts():

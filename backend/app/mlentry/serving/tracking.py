@@ -64,6 +64,8 @@ def track_paths(m: dict[str, pd.DataFrame], items: list[tuple[str, str]], cfg: L
         led = ledger.get((sd, sid))
         if led is not None and led in _EVENT_STATUS:
             status = _EVENT_STATUS[led]
+            # hit_day 必須與被覆寫後的 status 一致；ret/mfe/mae 是路徑事實，保留引擎值
+            hit = {"TARGET": tday, "STOP_AMBIGUOUS": tday, "STOP": sday}.get(status)
         rows.append({**base, "day_index": day_index, "status": status,
                      "hit_day": int(hit) if hit is not None else None,
                      "ret_now": _f(out[f"return_{K}d"].at[sd, sid]),
