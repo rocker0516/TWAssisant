@@ -1,0 +1,5 @@
+# FRS v1 §19 Purged Walk-forward。
+train_window_days: 756         # rolling 3Y（252×3）；challenger 可改 504 / null(expanding)
+fold_days: 126                 # 6 個月 validation block
+holdout_days: 252              # 最新 12 個月 Final Holdout
+min_train_days: 250

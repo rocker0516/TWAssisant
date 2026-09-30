@@ -1,0 +1,3 @@
+# FRS v1 §8 Feature Pipeline。
+large_gap_threshold: 0.05      # |gap_open| >= 此值視為 large_gap
+families: [price, volume, volatility, cross_sectional, regime, event]

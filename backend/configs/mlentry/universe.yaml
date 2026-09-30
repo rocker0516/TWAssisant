@@ -1,0 +1,5 @@
+# ML 進場推薦 FRS v1 §7 Universe。所有值皆為 config，不得在程式碼硬寫。
+history_lookback: 120          # 交易日；必須 >= feature registry 的 max_feature_lookback
+min_history_coverage: 0.95     # 有效價格日 / 期望交易日，低於即 HISTORY_GAPPED
+min_liquidity_twd: null        # ADV20 硬門檻（TWD）；null = 不啟用（§30 待驗證決定）
+research_start: "2020-01-02"   # 資料起點（calendar 第一天）
