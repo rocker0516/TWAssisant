@@ -72,6 +72,7 @@ class ValidationConfig(_Versioned):
     fold_days: int = 126
     holdout_days: int = 252
     min_train_days: int = 250
+    require_full_window: bool = True     # 第一個 fold 需有完整 train_window（§19.2 baseline）
 
 
 @dataclass(frozen=True)

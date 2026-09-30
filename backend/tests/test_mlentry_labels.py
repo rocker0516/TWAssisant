@@ -144,6 +144,7 @@ def test_long_table_uses_calendar_positions_for_dates():
     assert r["entry_date"] == "d003" and r["label_available_date"] == "d012"
     last = df.set_index("signal_date").loc["d012"]
     assert last["entry_date"] is None and last["label_available_date"] is None
+    assert last["entry_status"] == EntryStatus.PENDING and last["event_type"] == Event.PENDING
     assert set(co.OUTCOME_COLS_ORDER) <= set(df.columns) and "target_hit_5d" in df.columns
 
 

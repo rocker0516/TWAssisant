@@ -24,6 +24,7 @@ _REL_TOL = 1e-9
 
 
 class EntryStatus(IntEnum):
+    PENDING = -1                 # t+1 尚未到（calendar 最後一列）：生產當日的訊號
     FILLED = 0
     PRICE_LIMIT_CONSTRAINT = 1
     NO_MARKET_DATA = 2
@@ -47,7 +48,9 @@ def entry_and_status(open_: pd.DataFrame, close: pd.DataFrame, tol: float,
     at_limit = nxt_open >= up_next * (1 - tol)
     status = pd.DataFrame(int(EntryStatus.FILLED), index=close.index, columns=close.columns, dtype="int8")
     status = status.mask(at_limit.fillna(False), int(EntryStatus.PRICE_LIMIT_CONSTRAINT))
-    status = status.mask(nxt_open.isna(), int(EntryStatus.NO_MARKET_DATA)).astype("int8")
+    status = status.mask(nxt_open.isna(), int(EntryStatus.NO_MARKET_DATA))
+    status.iloc[-1] = int(EntryStatus.PENDING)
+    status = status.astype("int8")
     entry = nxt_open.where(status == int(EntryStatus.FILLED))
     return entry, status
 
@@ -107,6 +110,7 @@ def run_barriers(m: dict[str, pd.DataFrame], cfg: LabelConfig) -> dict[str, pd.D
     ev[(t_inf == s_inf) & (tday != 0)] = int(Event.STOP_AMBIGUOUS)
     ev[~matured & entered] = int(Event.PENDING)
     ev[~entered] = int(Event.NOT_ENTERED)
+    ev[status.to_numpy() == int(EntryStatus.PENDING)] = int(Event.PENDING)
 
     truncated = entered & matured & ~present_at_K          # 路徑末端無列（下市／長期停牌）
     nan_out = ~entered | ~matured

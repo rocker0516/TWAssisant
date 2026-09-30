@@ -70,14 +70,18 @@ def feature_version(cfg: FeatureConfig) -> str:
     return "f_" + hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:8]
 
 
-def build_all(ctx: FeatureContext, cfg: FeatureConfig) -> dict[str, pd.DataFrame]:
-    out: dict[str, pd.DataFrame] = {}
+_CS_INPUTS = tuple(dict.fromkeys(cross_sectional.RANKED + cross_sectional.MARKET_RELATIVE))
+
+
+def build_iter(ctx: FeatureContext, cfg: FeatureConfig):
+    """逐族產生 (family, {name: 矩陣})。呼叫端可即刻轉長表釋放記憶體；只保留 cs 需要的 base。"""
+    base: dict[str, pd.DataFrame] = {}
     for fam in _ORDER:
         if fam not in cfg.families:
             continue
         mod = _MODULES[fam]
         if fam == "cross_sectional":
-            got = mod.build(ctx, out)
+            got = mod.build(ctx, base)
         elif fam == "event":
             got = mod.build(ctx, large_gap_threshold=cfg.large_gap_threshold)
         else:
@@ -85,6 +89,15 @@ def build_all(ctx: FeatureContext, cfg: FeatureConfig) -> dict[str, pd.DataFrame
         declared = set(FAMILY_FEATURES[fam])
         if set(got) != declared:
             raise RuntimeError(f"{fam}: built {sorted(set(got) ^ declared)} not matching registry")
+        for n in _CS_INPUTS:
+            if n in got:
+                base[n] = got[n]
+        yield fam, got
+
+
+def build_all(ctx: FeatureContext, cfg: FeatureConfig) -> dict[str, pd.DataFrame]:
+    out: dict[str, pd.DataFrame] = {}
+    for _, got in build_iter(ctx, cfg):
         out.update(got)
     return out
 
