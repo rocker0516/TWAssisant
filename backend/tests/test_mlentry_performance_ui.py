@@ -107,3 +107,20 @@ def test_live_no_trade_null_treated_false():
     df["no_trade"] = None
     w = rolling_live_metrics(df, windows=(20,), k=5)["windows"]["20"]
     assert w["no_trade_rate"] == 0.0
+
+
+def test_build_frozen_stats_maps_b9_metrics():
+    from scripts.mlentry_frozen_stats import build_frozen_stats
+    metrics = {"policy": "policy_baseline_v1", "dataset_version": "ds_x",
+               "at_k": {"1": {"point": {"policy": {"target_lift": 1.4}}}, "3": {"point": {"policy": {"target_lift": 1.3}}},
+                        "5": {"point": {"policy": {"target_lift": 1.23, "median_mfe": 0.034, "median_mae": -0.027}}}},
+               "sensitivity": {"coverage": 0.99, "no_trade_pct": 0.008, "median_candidates_per_day": 9.5,
+                               "qualified_count_quantiles": {"0.05": 3.0, "0.95": 28.6}}}
+    out = build_frozen_stats(metrics, 0.012, "policy_baseline_v1")
+    assert out["lift_at_1"] == 1.4 and out["lift_at_3"] == 1.3
+    assert (out["candidates_median"], out["candidates_p05"], out["candidates_p95"]) == (9.5, 3.0, 28.6)
+    assert out["no_trade_rate"] == 0.008 and out["ece_target_10d"] == 0.012
+    assert out["median_mfe_10d"] == 0.034 and out["median_mae_10d"] == -0.027
+    assert out["policy_name"] == "policy_baseline_v1" and out["dataset_version"] == "ds_x"
+    with pytest.raises(ValueError):
+        build_frozen_stats(metrics, 0.012, "policy_other")
