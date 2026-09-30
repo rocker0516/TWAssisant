@@ -924,3 +924,94 @@ class PipelineRun(Base):
     status: Mapped[str] = mapped_column(String(20), default="running")  # running/success/failed
     steps: Mapped[list | None] = mapped_column(JSON)  # 各 step 結果
     error: Mapped[str | None] = mapped_column(Text)
+
+
+# ── ML 進場推薦 FRS v1（mlentry）——Production Shadow ledger（§17.6、§22.2、§27）──
+
+
+class MLEntryRun(Base):
+    """每日 production inference 的 immutable run（§22.2）。禁止日後重算覆蓋：重跑同日產生新 run_id。
+
+    status: OK / NO_TRADE / SYSTEM_NO_TRADE / FAILED。deployment_mode 固定帶 SHADOW 直到 promotion。
+    """
+
+    __tablename__ = "mlentry_runs"
+
+    run_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    signal_date: Mapped[date_] = mapped_column(Date, index=True)
+    as_of_timestamp: Mapped[datetime] = mapped_column(DateTime)
+    dataset_version: Mapped[str] = mapped_column(String(64))
+    universe_version: Mapped[str] = mapped_column(String(40))
+    feature_version: Mapped[str] = mapped_column(String(40))
+    label_version: Mapped[str] = mapped_column(String(40))
+    model_version: Mapped[str] = mapped_column(String(64))
+    calibration_version: Mapped[str] = mapped_column(String(64))
+    policy_version: Mapped[str] = mapped_column(String(64))
+    policy_name: Mapped[str] = mapped_column(String(64))
+    model_status: Mapped[str] = mapped_column(String(32))          # RESEARCH_SHADOW / PROMOTED
+    deployment_mode: Mapped[str] = mapped_column(String(16))       # SHADOW / LIVE
+    promotion_eligible: Mapped[bool] = mapped_column(Boolean, default=False)
+    code_commit: Mapped[str] = mapped_column(String(16))
+    status: Mapped[str] = mapped_column(String(24))
+    no_trade: Mapped[bool] = mapped_column(Boolean, default=False)
+    no_trade_reason: Mapped[str | None] = mapped_column(String(40))
+    universe_count: Mapped[int] = mapped_column(Integer, default=0)
+    qualified_count: Mapped[int] = mapped_column(Integer, default=0)
+    recommendation_count: Mapped[int] = mapped_column(Integer, default=0)
+    health_json: Mapped[str | None] = mapped_column(Text)          # data / feature / prediction health 明細
+    log_tail: Mapped[str | None] = mapped_column(Text)
+
+
+class MLEntryPrediction(Base):
+    """全 Universe prediction vector（§16、§17.6、§28）：raw、calibrated、gate、score、rank、recommended。
+
+    outcome 欄（§21.1 ML Outcome）於 label_available_date 後由 maturation 回填；PK=(run_id, stock_id)。
+    """
+
+    __tablename__ = "mlentry_predictions"
+
+    run_id: Mapped[str] = mapped_column(ForeignKey("mlentry_runs.run_id"), primary_key=True)
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.id"), primary_key=True)
+    signal_date: Mapped[date_] = mapped_column(Date, index=True)
+    entry_date: Mapped[date_ | None] = mapped_column(Date)
+    label_available_date: Mapped[date_ | None] = mapped_column(Date)
+    p_executable: Mapped[float | None] = mapped_column(Float)
+    p_target_3d_raw: Mapped[float | None] = mapped_column(Float)
+    p_target_5d_raw: Mapped[float | None] = mapped_column(Float)
+    p_target_10d_raw: Mapped[float | None] = mapped_column(Float)
+    p_stop_3d_raw: Mapped[float | None] = mapped_column(Float)
+    p_stop_5d_raw: Mapped[float | None] = mapped_column(Float)
+    p_stop_10d_raw: Mapped[float | None] = mapped_column(Float)
+    p_target_3d: Mapped[float | None] = mapped_column(Float)
+    p_target_5d: Mapped[float | None] = mapped_column(Float)
+    p_target_10d: Mapped[float | None] = mapped_column(Float)
+    p_stop_3d: Mapped[float | None] = mapped_column(Float)
+    p_stop_5d: Mapped[float | None] = mapped_column(Float)
+    p_stop_10d: Mapped[float | None] = mapped_column(Float)
+    pred_mfe_3d: Mapped[float | None] = mapped_column(Float)
+    pred_mfe_5d: Mapped[float | None] = mapped_column(Float)
+    pred_mfe_10d: Mapped[float | None] = mapped_column(Float)
+    atr_pct: Mapped[float | None] = mapped_column(Float)
+    p_target_vn: Mapped[float | None] = mapped_column(Float)
+    p_stop_vn: Mapped[float | None] = mapped_column(Float)
+    gate_pass: Mapped[bool] = mapped_column(Boolean, default=False)
+    gate_failure_reason: Mapped[int] = mapped_column(Integer, default=0)
+    recommendation_score: Mapped[float | None] = mapped_column(Float)
+    rank: Mapped[int | None] = mapped_column(Integer)
+    recommended: Mapped[bool] = mapped_column(Boolean, default=False)
+    # ML Outcome（成熟後回填）
+    entry_status: Mapped[int | None] = mapped_column(Integer)
+    benchmark_entry_price: Mapped[float | None] = mapped_column(Float)
+    event_type: Mapped[int | None] = mapped_column(Integer)
+    target_first_hit_day: Mapped[int | None] = mapped_column(Integer)
+    stop_first_hit_day: Mapped[int | None] = mapped_column(Integer)
+    target_hit_3d: Mapped[float | None] = mapped_column(Float)
+    target_hit_5d: Mapped[float | None] = mapped_column(Float)
+    target_hit_10d: Mapped[float | None] = mapped_column(Float)
+    stop_hit_3d: Mapped[float | None] = mapped_column(Float)
+    stop_hit_5d: Mapped[float | None] = mapped_column(Float)
+    stop_hit_10d: Mapped[float | None] = mapped_column(Float)
+    mfe_10d: Mapped[float | None] = mapped_column(Float)
+    mae_10d: Mapped[float | None] = mapped_column(Float)
+    return_10d: Mapped[float | None] = mapped_column(Float)
+    matured_at: Mapped[date_ | None] = mapped_column(Date)

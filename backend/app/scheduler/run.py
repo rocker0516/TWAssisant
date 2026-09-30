@@ -20,6 +20,7 @@ from .steps import (
     IndicatorStep,
     Level1PredictStep,
     Level2PaperStep,
+    MLEntryDailyStep,
     MLConsensusStep,
     NewsStep,
     NotifyStep,
@@ -40,7 +41,7 @@ def build_pipeline() -> DailyPipeline:
         steps=[
             FetchStep(), IndicatorStep(), SectorStep(), NewsStep(), TargetPriceStep(),
             AttentionStep(),
-            ScoringStep(), MLConsensusStep(), Level1PredictStep(), Level2PaperStep(), CornerStep(),
+            ScoringStep(), MLConsensusStep(), Level1PredictStep(), Level2PaperStep(), MLEntryDailyStep(), CornerStep(),
             SignalLogStep(), ExitStep(), NotifyStep(),
             PoppableEfficacyStep(),
         ]

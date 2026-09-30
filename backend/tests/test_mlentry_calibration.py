@@ -51,3 +51,14 @@ def test_project_monotone_horizons():
         and np.allclose(q[10], [0.20, 0.40, 0.20])
     for i in range(3):
         assert q[3][i] <= q[5][i] <= q[10][i]
+
+
+def test_calibrator_json_roundtrip_matches_sklearn():
+    p = _preds(n=2000)
+    x, y = p["pred"].to_numpy(), p["y"].to_numpy()
+    grid = np.linspace(0.01, 0.99, 50)
+    for m in ("platt", "isotonic"):
+        c = cal.Calibrator(m).fit(x, y)
+        back = cal.Calibrator.from_dict(c.to_dict())
+        assert np.allclose(c.transform(grid), back.transform(grid), atol=1e-6)
+    assert cal.Calibrator.from_dict({"method": "none"}).transform(grid).tolist() == grid.astype("float32").tolist()

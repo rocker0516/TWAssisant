@@ -1,0 +1,14 @@
+# FRS v1 §23 監控門檻與 §26 Fail-Closed（config，不硬寫）。
+data_quality:
+  min_universe_ratio: 0.8          # U_t 規模 < 0.8 × 訓練期每日中位 → DATA_HEALTH_FAIL
+  max_core_missing_rate: 0.02      # open/high/low/close/volume 在 U_t 內缺值率上限
+feature_drift:
+  psi_hard: 0.25                   # 單一特徵 PSI > 0.25 視為 drift
+  max_features_drifted: 8          # 超過此數量的特徵 drift → FEATURE_DRIFT（fail-closed）
+  max_missing_rate_shift: 0.20
+prediction_health:
+  max_mean_shift_z: 3.0            # 當日預測均值偏離 OOF 參考均值超過 3 個參考 std → MODEL_HEALTH_FAIL
+live_metrics:
+  windows: [20, 60, 120]           # 成熟交易日視窗
+  k: 5
+manual_halt: false                 # true → 每日 run 一律 MANUAL_HALT

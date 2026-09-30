@@ -228,3 +228,15 @@ class PipelineRunRepository(BaseRepository[models.PipelineRun]):
             models.PipelineRun.status == "success",
         )
         return session.execute(stmt).scalar_one() > 0
+
+
+class MLEntryRunRepository(BaseRepository[models.MLEntryRun]):
+    """mlentry immutable run：run_id 唯一，重跑同日新增列、不覆蓋。"""
+
+    model = models.MLEntryRun
+
+
+class MLEntryPredictionRepository(BaseRepository[models.MLEntryPrediction]):
+    """mlentry 全 Universe prediction vector；成熟回填以 (run_id, stock_id) upsert。"""
+
+    model = models.MLEntryPrediction

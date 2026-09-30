@@ -49,6 +49,41 @@ class Calibrator:
             return self._m.predict_proba(z[:, None])[:, 1].astype("float32")
         return self._m.predict(p).astype("float32")
 
+    # JSON 序列化（不用 pickle）：Platt 存 (coef, intercept)；Isotonic 存斷點，套用時線性插值。
+    def to_dict(self) -> dict:
+        if self.method == "none":
+            return {"method": "none"}
+        if self.method == "platt":
+            return {"method": "platt", "coef": float(self._m.coef_[0][0]), "intercept": float(self._m.intercept_[0])}
+        return {"method": "isotonic", "x": [float(v) for v in self._m.X_thresholds_],
+                "y": [float(v) for v in self._m.y_thresholds_]}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Calibrator":
+        c = cls(d["method"])
+        if d["method"] == "platt":
+            c._m = _PlattParams(d["coef"], d["intercept"])
+        elif d["method"] == "isotonic":
+            c._m = _IsoParams(np.asarray(d["x"], dtype=float), np.asarray(d["y"], dtype=float))
+        return c
+
+
+class _PlattParams:
+    def __init__(self, coef: float, intercept: float):
+        self.coef_, self.intercept_ = np.array([[coef]]), np.array([intercept])
+
+    def predict_proba(self, z):
+        p1 = 1.0 / (1.0 + np.exp(-(self.coef_[0][0] * z[:, 0] + self.intercept_[0])))
+        return np.column_stack([1 - p1, p1])
+
+
+class _IsoParams:
+    def __init__(self, x: np.ndarray, y: np.ndarray):
+        self.X_thresholds_, self.y_thresholds_ = x, y
+
+    def predict(self, p):
+        return np.interp(np.asarray(p, dtype=float), self.X_thresholds_, self.y_thresholds_)
+
 
 @dataclass
 class CalibrationRecord:

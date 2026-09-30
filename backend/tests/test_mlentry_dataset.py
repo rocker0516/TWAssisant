@@ -88,6 +88,9 @@ def _db(n_days=60, stocks=("1101", "2330", "0050", "9999")):
         ("0050", "ETF", 1, "上市", "ETF", "2003-06-30", None),
         ("9999", "新股", 0, "上櫃", "電子", "2025-01-01", 2),
     ])
+    for s in stocks:                                   # 額外股號：補普通股主檔列（類股輪流）
+        if s not in ("1101", "2330", "0050", "9999"):
+            con.execute("INSERT INTO stocks VALUES (?,?,?,?,?,?,?)", (s, s, 0, "上市", "電子", "2010-01-01", int(s[-1]) % 3 + 1))
     con.execute("CREATE TABLE daily_prices(stock_id TEXT, date TEXT, open REAL, high REAL, low REAL, close REAL, volume INT, turnover REAL)")
     con.execute("CREATE TABLE market_index(date TEXT, close REAL)")
     con.execute("CREATE TABLE attention_listings(stock_id TEXT, date TEXT, kind TEXT, times INT, begin_date TEXT, end_date TEXT, reason TEXT)")

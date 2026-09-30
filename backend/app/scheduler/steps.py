@@ -415,6 +415,34 @@ class Level1PredictStep(PipelineStep):
         return {"ok": True, "log_tail": tail}
 
 
+class MLEntryDailyStep(PipelineStep):
+    """ML 進場推薦 FRS v1（Production Shadow）每日 run + 成熟回填（scripts/mlentry_daily.py）。
+
+    與 Level1PredictStep 同慣例：子行程、先 commit 放掉 SQLite 寫鎖、required=False。
+    產出 mlentry_runs / mlentry_predictions；fail-closed 由 run 內部處理（SYSTEM_NO_TRADE 仍是成功的 run）。
+    不掛 backfill 管線（回補預測不是前瞻證據）。
+    """
+
+    name = "mlentry_daily"
+    required = False
+
+    def run(self, ctx: PipelineContext) -> dict:
+        import subprocess
+        import sys as _sys
+        from pathlib import Path
+
+        ctx.session.commit()
+        base = Path(__file__).resolve().parents[2]
+        r = subprocess.run(
+            [_sys.executable, "-m", "scripts.mlentry_daily"],
+            cwd=base, capture_output=True, text=True, timeout=1800,
+        )
+        if r.returncode != 0:
+            return {"ok": False, "reason": (r.stderr or r.stdout)[-300:]}
+        tail = [ln for ln in r.stdout.strip().splitlines() if ln][-3:]
+        return {"ok": True, "log_tail": tail}
+
+
 class Level2PaperStep(PipelineStep):
     """Level 2 live paper 帳戶（scripts/level2_paper.py，FRS v1.1 §10/§14）。
 
