@@ -11,8 +11,14 @@ import math
 
 import numpy as np
 import pandas as pd
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
-from ..config import LabelConfig
+from app.storage import models
+
+from ..config import LabelConfig, load_config
+from ..data import prices
+from ..data.calendar import TradingCalendar, load_calendar
 from ..labels.barriers import EntryStatus, Event, run_barriers
 
 _EVENT_STATUS = {int(Event.TARGET): "TARGET", int(Event.STOP): "STOP",
@@ -77,3 +83,42 @@ def summarize(rows: list[dict]) -> dict:
     s = [r["status"] for r in rows]
     return {"n": len(s), "target": s.count("TARGET"), "stop": s.count("STOP") + s.count("STOP_AMBIGUOUS"),
             "timeout": s.count("TIMEOUT"), "live": s.count("LIVE"), "pending": s.count("PENDING_ENTRY")}
+
+
+def load_tracking(con, session: Session, days: int = 10, cfg: LabelConfig | None = None) -> dict:
+    cfg = cfg or load_config().labels
+    cal = load_calendar(con)
+    if len(cal) == 0:
+        return {"as_of": None, "summary": summarize([]), "items": []}
+    window = [str(d) for d in cal.dates[-days:]]
+    R, P = models.MLEntryRun, models.MLEntryPrediction
+    runs = session.execute(select(R.run_id, R.signal_date).where(R.signal_date >= pd.Timestamp(window[0]).date())
+                           .order_by(R.signal_date, R.run_id)).all()
+    latest: dict[str, str] = {}
+    for run_id, sd in runs:                                   # 同日多 run 取 run_id 最大者
+        latest[str(sd)] = run_id
+    if not latest:
+        return {"as_of": window[-1], "summary": summarize([]), "items": []}
+    preds = session.execute(
+        select(P.run_id, P.signal_date, P.stock_id, P.rank, P.event_type, P.matured_at, models.Stock.name)
+        .outerjoin(models.Stock, models.Stock.id == P.stock_id)
+        .where(P.run_id.in_(list(latest.values())), P.recommended.is_(True))
+    ).all()
+    if not preds:
+        return {"as_of": window[-1], "summary": summarize([]), "items": []}
+    items = [(str(p.signal_date), str(p.stock_id)) for p in preds]
+    ledger = {(str(p.signal_date), str(p.stock_id)): int(p.event_type)
+              for p in preds if p.matured_at is not None and p.event_type is not None}
+    start = min(sd for sd, _ in items)
+    sub = TradingCalendar(cal.dates[cal.pos(start):])
+    cols = pd.Index(sorted({sid for _, sid in items}), name="stock_id")
+    m = prices.load_matrices(con, sub, cols)
+    rows = track_paths(m, items, cfg, ledger)
+    meta = {(str(p.signal_date), str(p.stock_id)): (p.name, p.rank) for p in preds}
+    for r in rows:
+        r["name"], rank = meta[(r["signal_date"], r["stock_id"])]
+        r["_rank"] = rank if rank is not None else 999
+    rows.sort(key=lambda r: (r["signal_date"], -r["_rank"]), reverse=True)
+    for r in rows:
+        r.pop("_rank")
+    return {"as_of": window[-1], "summary": summarize(rows), "items": rows}

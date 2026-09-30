@@ -176,3 +176,25 @@ def test_ledger_override_keeps_hit_day_consistent():
 def test_summarize_counts():
     rows = [{"status": s} for s in ("TARGET", "STOP", "STOP_AMBIGUOUS", "LIVE", "LIVE", "PENDING_ENTRY", "TIMEOUT", "NOT_ENTERED")]
     assert summarize(rows) == {"n": 8, "target": 1, "stop": 2, "timeout": 1, "live": 2, "pending": 1}
+
+
+def test_load_tracking_shape_on_real_db():
+    import sqlite3
+    from app.config import get_settings
+    from app.mlentry.serving.tracking import load_tracking
+    from app.storage.database import init_db, session_scope
+
+    init_db()
+    con = sqlite3.connect(str(get_settings().db_path))
+    try:
+        with session_scope() as s:
+            res = load_tracking(con, s, days=10)
+    finally:
+        con.close()
+    assert set(res) == {"as_of", "summary", "items"}
+    assert set(res["summary"]) == {"n", "target", "stop", "timeout", "live", "pending"}
+    assert res["summary"]["n"] == len(res["items"])
+    dates = [it["signal_date"] for it in res["items"]]
+    assert dates == sorted(dates, reverse=True)
+    for it in res["items"]:
+        assert {"signal_date", "stock_id", "name", "day_index", "status", "ret_now", "mfe", "mae", "hit_day"} <= set(it)
