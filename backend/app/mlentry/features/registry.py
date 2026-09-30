@@ -1,0 +1,98 @@
+"""Feature Registry（FRS §8、§11）：宣告式特徵清單、feature_version、max_feature_lookback。
+
+各族模組只接受 FeatureContext（PIT 截斷後），回傳 {name: 矩陣}。
+registry 驗證回傳名稱 == 宣告名稱，避免「偷加特徵」繞過版本。
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from dataclasses import dataclass
+
+import pandas as pd
+
+from ..config import FeatureConfig
+from . import cross_sectional, event, price, regime, volatility, volume
+from .context import FeatureContext
+
+
+@dataclass(frozen=True)
+class FeatureSpec:
+    name: str
+    family: str
+    lookback: int
+
+
+FAMILY_FEATURES: dict[str, tuple[str, ...]] = {
+    "price": ("ret_1d", "ret_3d", "ret_5d", "ret_10d", "ret_20d", "gap_open", "close_location",
+              "distance_from_20d_high", "distance_from_20d_low"),
+    "volume": ("turnover_1d", "turnover_5d_mean", "turnover_20d_mean", "volume_ratio_5d",
+               "volume_ratio_20d", "turnover_change", "amihud_20d"),
+    "volatility": ("realized_vol_5d", "realized_vol_10d", "realized_vol_20d", "atr_pct",
+                   "intraday_range", "downside_vol", "positive_day_ratio", "negative_day_ratio",
+                   "max_drawdown_5d", "max_drawdown_10d", "max_drawdown_20d"),
+    "cross_sectional": tuple(f"{n}_pct_rank" for n in cross_sectional.RANKED)
+                       + tuple(f"{n}_mktrel" for n in cross_sectional.MARKET_RELATIVE),
+    "regime": ("market_ret_1d", "market_ret_5d", "market_ret_20d", "market_volatility",
+               "industry_ret_5d", "industry_ret_20d", "industry_strength_rank",
+               "stock_excess_return_vs_market", "stock_excess_return_vs_industry"),
+    "event": ("is_attention_stock", "is_disposition_stock", "limit_up_today", "limit_down_today",
+              "limit_up_count_20d", "limit_down_count_20d", "large_gap", "consecutive_up_days",
+              "consecutive_down_days", "dist_limit_up", "breadth_ma20"),
+}
+
+_MODULES = {"price": price, "volume": volume, "volatility": volatility,
+            "cross_sectional": cross_sectional, "regime": regime, "event": event}
+_ORDER = ("price", "volume", "volatility", "regime", "event", "cross_sectional")   # cs 依賴前者
+
+
+def specs(cfg: FeatureConfig) -> list[FeatureSpec]:
+    out = []
+    for fam in _ORDER:
+        if fam in cfg.families:
+            for n in FAMILY_FEATURES[fam]:
+                out.append(FeatureSpec(n, fam, _MODULES[fam].LOOKBACK))
+    return out
+
+
+def feature_names(cfg: FeatureConfig) -> list[str]:
+    return [s.name for s in specs(cfg)]
+
+
+def max_feature_lookback(cfg: FeatureConfig) -> int:
+    return max((s.lookback for s in specs(cfg)), default=0)
+
+
+def feature_version(cfg: FeatureConfig) -> str:
+    payload = {"specs": [(s.name, s.family, s.lookback) for s in specs(cfg)],
+               "config": cfg.version}
+    return "f_" + hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:8]
+
+
+def build_all(ctx: FeatureContext, cfg: FeatureConfig) -> dict[str, pd.DataFrame]:
+    out: dict[str, pd.DataFrame] = {}
+    for fam in _ORDER:
+        if fam not in cfg.families:
+            continue
+        mod = _MODULES[fam]
+        if fam == "cross_sectional":
+            got = mod.build(ctx, out)
+        elif fam == "event":
+            got = mod.build(ctx, large_gap_threshold=cfg.large_gap_threshold)
+        else:
+            got = mod.build(ctx)
+        declared = set(FAMILY_FEATURES[fam])
+        if set(got) != declared:
+            raise RuntimeError(f"{fam}: built {sorted(set(got) ^ declared)} not matching registry")
+        out.update(got)
+    return out
+
+
+def snapshot(ctx: FeatureContext, cfg: FeatureConfig) -> pd.DataFrame:
+    """as_of 當日、U_t 內每檔股票一列的特徵快照（columns = registry 順序）。"""
+    feats = build_all(ctx, cfg)
+    names = feature_names(cfg)
+    row = pd.DataFrame({n: feats[n].loc[ctx.as_of] for n in names})
+    row.index.name = "stock_id"
+    return row[ctx.eligible.loc[ctx.as_of].reindex(row.index).fillna(False).astype(bool)].astype("float32")
