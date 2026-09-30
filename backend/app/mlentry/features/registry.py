@@ -13,7 +13,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from ..config import FeatureConfig
-from . import cross_sectional, event, price, regime, volatility, volume
+from . import cross_sectional, event, price, regime, relative, volatility, volume
 from .context import FeatureContext
 
 
@@ -37,14 +37,17 @@ FAMILY_FEATURES: dict[str, tuple[str, ...]] = {
     "regime": ("market_ret_1d", "market_ret_5d", "market_ret_20d", "market_volatility",
                "industry_ret_5d", "industry_ret_20d", "industry_strength_rank",
                "stock_excess_return_vs_market", "stock_excess_return_vs_industry"),
+    "relative": ("rel_ret_5d_vs_industry", "rel_vol_vs_industry", "turnover_rank_in_industry", "ret_20d_rank_in_industry",
+                 "industry_breadth_ma20", "industry_momentum_60d", "x_strength_market_breadth", "x_strength_industry_breadth",
+                 "x_vol_breadth", "x_turnover_accel_rel_strength", "x_rel_ret5_market_ret5"),
     "event": ("is_attention_stock", "is_disposition_stock", "limit_up_today", "limit_down_today",
               "limit_up_count_20d", "limit_down_count_20d", "large_gap", "consecutive_up_days",
               "consecutive_down_days", "dist_limit_up", "breadth_ma20"),
 }
 
-_MODULES = {"price": price, "volume": volume, "volatility": volatility,
+_MODULES = {"price": price, "volume": volume, "volatility": volatility, "relative": relative,
             "cross_sectional": cross_sectional, "regime": regime, "event": event}
-_ORDER = ("price", "volume", "volatility", "regime", "event", "cross_sectional")   # cs 依賴前者
+_ORDER = ("price", "volume", "volatility", "regime", "event", "relative", "cross_sectional")   # relative/cs 依賴前者
 
 
 def specs(cfg: FeatureConfig) -> list[FeatureSpec]:
@@ -70,7 +73,7 @@ def feature_version(cfg: FeatureConfig) -> str:
     return "f_" + hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:8]
 
 
-_CS_INPUTS = tuple(dict.fromkeys(cross_sectional.RANKED + cross_sectional.MARKET_RELATIVE))
+_CS_INPUTS = tuple(dict.fromkeys(cross_sectional.RANKED + cross_sectional.MARKET_RELATIVE + relative.INPUTS))
 
 
 def build_iter(ctx: FeatureContext, cfg: FeatureConfig):
@@ -80,7 +83,7 @@ def build_iter(ctx: FeatureContext, cfg: FeatureConfig):
         if fam not in cfg.families:
             continue
         mod = _MODULES[fam]
-        if fam == "cross_sectional":
+        if fam in ("cross_sectional", "relative"):
             got = mod.build(ctx, base)
         elif fam == "event":
             got = mod.build(ctx, large_gap_threshold=cfg.large_gap_threshold)

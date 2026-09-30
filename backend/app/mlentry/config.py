@@ -90,10 +90,12 @@ class MLEntryConfig:
                 "split_version": self.validation.version}
 
 
-def load_config(config_dir: Path = CONFIG_DIR) -> MLEntryConfig:
+def load_config(config_dir: Path = CONFIG_DIR, feature_set: str | None = None) -> MLEntryConfig:
+    """feature_set：None = features.yaml（v1 凍結）；"v2" = features_v2.yaml（challenger），其餘 config 不變。"""
+    fname = "features" if feature_set is None else f"features_{feature_set}"
     return MLEntryConfig(
         universe=UniverseConfig.from_dict(load_yaml("universe", config_dir)),
-        features=FeatureConfig.from_dict(load_yaml("features", config_dir)),
+        features=FeatureConfig.from_dict(load_yaml(fname, config_dir)),
         labels=LabelConfig.from_dict(load_yaml("labels", config_dir)),
         validation=ValidationConfig.from_dict(load_yaml("validation", config_dir)),
     )

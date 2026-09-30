@@ -1,0 +1,4 @@
+# Feature challenger F1（2026-09-30）：v1 六族 + relative/interaction 族。
+# 只改 feature_version；labels / folds / LightGBM / calibration / vn gate 搜尋空間 / 評估全部與 baseline 相同。
+large_gap_threshold: 0.05
+families: [price, volume, volatility, cross_sectional, regime, event, relative]
