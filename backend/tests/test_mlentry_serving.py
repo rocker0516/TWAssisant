@@ -257,9 +257,28 @@ def test_train_stack_frozen_refuses_champion_but_registers_challenger(env, tmp_p
     root = tmp_path / "serving2"
     with pytest.raises(lc.FreezeError):
         train_stack.train_stack(env["ds"], root=root, models_cfg=TINY)
-    assert any(p.name == "stack.json" for p in root.rglob("stack.json"))      # artifact 已存
+    assert not list(root.rglob("stack.json"))                                 # 凍結：訓練前即拒絕，不留 orphan
+    assert [e["action"] for e in lc.read_audit(root=root) if e["event"] == "refuse"] == ["set_champion"]
     assert not (root / "champion.json").exists()
     s = train_stack.train_stack(env["ds"], root=root, models_cfg=TINY, register_as="challenger", actor="t")
     assert not (root / "champion.json").exists()
     assert lc.list_challengers(root=root)[0]["model_version"] == s.model_version
     assert reg.load_champion(root) is None
+
+
+def test_train_stack_never_overwrites_champion_dir(env, tmp_path):
+    import hashlib
+    from app.mlentry.registry import lifecycle as lc
+    root = tmp_path / "serving"
+    sha = lambda: {str(p.relative_to(env["stack"].dir)): hashlib.sha256(p.read_bytes()).hexdigest()
+                   for p in sorted(env["stack"].dir.rglob("*")) if p.is_file()}
+    before = sha()
+    assert before
+    with pytest.raises(FileExistsError):
+        train_stack.train_stack(env["ds"], root=root, models_cfg=TINY, register_as="challenger", actor="t")
+    with pytest.raises(FileExistsError):
+        train_stack.train_stack(env["ds"], root=root, models_cfg=TINY, set_as_champion=False)
+    with pytest.raises(FileExistsError):
+        train_stack.train_stack(env["ds"], root=root, models_cfg=TINY, register_as="challenger", actor="t", overwrite=True)
+    assert sha() == before
+    assert lc.list_challengers(root=root) == []

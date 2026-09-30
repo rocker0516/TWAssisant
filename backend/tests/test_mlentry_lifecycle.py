@@ -87,10 +87,14 @@ def _stack(tmp_path, mv: str) -> reg.ServingStack:
 def test_set_champion_and_promote_refused_when_frozen(tmp_path, monkeypatch):
     _patch_yaml(monkeypatch, {"observation_freeze": True})
     s = _stack(tmp_path, "m1")
+    import hashlib
+    sha = lambda: hashlib.sha256((tmp_path / "m1" / "stack.json").read_bytes()).hexdigest()
+    before = sha()
     with pytest.raises(lc.FreezeError):
         reg.set_champion(s, tmp_path)
     with pytest.raises(lc.FreezeError):
         reg.promote(s, {"eligible": True}, "alice", tmp_path)
+    assert sha() == before                                  # 凍結 promote 不得動 stack.json
     assert not (tmp_path / "champion.json").exists()
     assert [e["action"] for e in lc.read_audit(root=tmp_path)] == ["set_champion", "promote"]
 

@@ -82,7 +82,7 @@ def main(argv=None) -> int:
         if con is not None:
             con.close()
     out = build_diagnostics(df, champ.policy_name, ds_dir.name, k=args.k)
-    (pdir / "diagnostics_frozen.json").write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+    (pdir / "diagnostics_frozen.json").write_text(json.dumps(out, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
     lk = out["lift_at_k"]
     print("Lift@K row-weighted:", {k: (v["row_weighted"]["target_lift"]) for k, v in lk.items()})
     print("timing:", {k: v for k, v in out["timing"].items() if k.startswith("p_target") or k == "median_time_to_target"})
