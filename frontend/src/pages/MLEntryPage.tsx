@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { useMLEntryBoard, useMLEntryHealth, useMLEntryStatus } from "../api/client";
+import { useMLEntryBoard, useMLEntryHealth, useMLEntryStatus, useMLEntryTracking } from "../api/client";
 import { MLEntryBoardView } from "../components/MLEntryBoard";
 import { MLEntryHealthView } from "../components/MLEntryHealth";
+import { MLEntryTrackingView } from "../components/MLEntryTracking";
 import { MLEntryStatusBanner } from "../components/MLEntryStatusBanner";
 import { MLEntrySystemView } from "../components/MLEntrySystem";
 
@@ -21,6 +22,7 @@ export default function MLEntryPage() {
   const { data: board, isLoading: boardLoading } = useMLEntryBoard();
   const { data: health, isLoading: healthLoading } = useMLEntryHealth();
   const { data: status, isLoading: statusLoading } = useMLEntryStatus();
+  const { data: tracking, isLoading: trackingLoading } = useMLEntryTracking();
   const stack = board?.stack ?? status?.stack;
   return (
     <div className="space-y-4">
@@ -40,7 +42,12 @@ export default function MLEntryPage() {
           </button>
         ))}
       </div>
-      {tab === "board" && <MLEntryBoardView board={board} isLoading={boardLoading} />}
+      {tab === "board" && (
+        <div className="space-y-6">
+          <MLEntryBoardView board={board} isLoading={boardLoading} />
+          <MLEntryTrackingView data={tracking} isLoading={trackingLoading} />
+        </div>
+      )}
       {tab === "health" && <MLEntryHealthView health={health} isLoading={healthLoading} />}
       {tab === "system" && <MLEntrySystemView status={status} health={health} isLoading={statusLoading} focusGate={focusGate} />}
     </div>
