@@ -24,6 +24,7 @@ from ..mlentry.config import load_yaml
 from ..mlentry.datasets import api as ds_api
 from ..mlentry.monitoring import performance
 from ..mlentry.registry.versions import load_champion
+from ..mlentry.serving.audit import audit_summary
 from ..mlentry.serving.presentation import build_verdict, est_barrier_prices
 from ..mlentry.serving.tracking import load_tracking, summarize
 from ..storage import models
@@ -75,6 +76,8 @@ class RunInfo(BaseModel):
     code_commit: str
     health: dict
     verdict: dict
+    diagnostics: dict | None
+    audit: dict | None
 
 
 class BoardItem(BaseModel):
@@ -157,6 +160,40 @@ def _n_drifted(r: models.MLEntryRun) -> int | None:
         return None
 
 
+_STRIP = ("error", "message", "traceback")
+
+
+def _strip_messages(obj):
+    """防呆：診斷 JSON 只允許 error_type，任何 error/message 鍵一律移除後才出 API。"""
+    if isinstance(obj, dict):
+        return {k: _strip_messages(v) for k, v in obj.items() if k not in _STRIP}
+    if isinstance(obj, list):
+        return [_strip_messages(v) for v in obj]
+    return obj
+
+
+def _diagnostics(health: dict) -> dict | None:
+    d = health.get("diagnostics")
+    return _strip_messages(d) if isinstance(d, dict) else None
+
+
+def _attention_count(r: models.MLEntryRun) -> int | None:
+    try:
+        d = (json.loads(r.health_json) if r.health_json else {}).get("diagnostics")
+    except Exception:
+        return None
+    if not isinstance(d, dict):
+        return None
+    return sum(1 for v in d.values() if isinstance(v, dict) and v.get("attention") is True)
+
+
+def _audit(r: models.MLEntryRun) -> dict | None:
+    try:
+        return audit_summary(json.loads(r.audit_json)) if getattr(r, "audit_json", None) else None
+    except Exception:
+        return None
+
+
 def _run_info(r: models.MLEntryRun, band=None) -> RunInfo:
     health = json.loads(r.health_json) if r.health_json else {}
     return RunInfo(run_id=r.run_id, signal_date=r.signal_date, status=r.status, no_trade=r.no_trade, no_trade_reason=r.no_trade_reason,
@@ -167,9 +204,10 @@ def _run_info(r: models.MLEntryRun, band=None) -> RunInfo:
                                                                           "drifted", "out_of_range_day_level", "bad", "why",
                                                                           "qualified_count", "qualified_median_60d", "no_trade_rate_60d",
                                                                           "drifted_psi", "missing_shift")}
-                           for k, v in health.items() if isinstance(v, dict)},
+                           for k, v in health.items() if isinstance(v, dict) and k != "diagnostics"},
                    verdict=build_verdict(r.status, r.no_trade_reason, NO_TRADE_TEXT.get(r.no_trade_reason or ""), r.universe_count,
-                                         r.qualified_count, r.recommendation_count, health, band))
+                                         r.qualified_count, r.recommendation_count, health, band),
+                   diagnostics=_diagnostics(health), audit=_audit(r))
 
 
 def _latest_run(session: Session, signal_date: date | None) -> models.MLEntryRun | None:
@@ -248,7 +286,8 @@ def health_page(limit: int = Query(60, ge=1, le=500), session: Session = Depends
         seen.add(r.signal_date)
         hist.append({"signal_date": r.signal_date.isoformat(), "status": r.status, "no_trade_reason": r.no_trade_reason,
                      "universe_count": r.universe_count, "qualified_count": r.qualified_count,
-                     "recommendation_count": r.recommendation_count, "n_drifted": _n_drifted(r)})
+                     "recommendation_count": r.recommendation_count, "n_drifted": _n_drifted(r),
+                     "attention_count": _attention_count(r)})
         if len(hist) >= limit:
             break
     fs = _frozen_stats(s)

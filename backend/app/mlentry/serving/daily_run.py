@@ -20,7 +20,7 @@ import pandas as pd
 from sqlalchemy.orm import Session
 
 from ..config import MLEntryConfig, load_config, load_yaml
-from ..data import quality
+from ..data import prices, quality
 from ..data.universe import build_universe
 from ..datasets import builder
 from ..features import registry
@@ -28,9 +28,11 @@ from ..features.context import FeatureContext
 from ..labels import canonical_outcome as co
 from ..labels.barriers import EntryStatus, Event
 from ..models.calibration import Calibrator, project_monotone_horizons
-from ..monitoring import health
+from ..monitoring import diagnostics, health
+from ..monitoring.monitor_modes import load_monitor_modes
 from ..recommendation.policy import apply_policy, load_policy
 from ..registry.versions import ServingStack, load_champion
+from . import audit
 from app.storage import models
 from app.storage.repositories import MLEntryPredictionRepository, MLEntryRunRepository
 
@@ -140,6 +142,32 @@ def run_daily(con, session: Session, signal_date: str | None = None, stack: Serv
         status, no_trade, reason = "OK", False, None
     gates["recommendation"] = health.recommendation_drift(day_row, _recent_days(session, as_of))
 
+    # 4b. Observation diagnostics（§23 只記錄）與 provenance audit（§22）——policy 之後；例外只寫 envelope，永不改 status
+    try:
+        diag_cfg = mon.get("diagnostics") or {}
+        modes, mode_src = load_monitor_modes(stack.dir, ref)
+        close_last = m["close"].loc[as_of]
+        shares = _issued_shares(con)
+        mcap = (close_last * shares.reindex(close_last.index)).rename("mcap")
+        liquidity = m["turnover"].iloc[-20:].mean(axis=0)
+        hard_row = quality.hard_flags({k: v.iloc[[-1]] for k, v in m.items()}).iloc[0]
+        business_dates = {"daily_prices": _last_valid_date(m["close"]), "market_index": _last_valid_date(mkt)}
+        elig_row = elig_flags.loc[as_of]
+        gates["diagnostics"] = {
+            "freshness": diagnostics.safe(diagnostics.freshness, as_of, cal, business_dates, con, diag_cfg.get("freshness")),
+            "sanity": diagnostics.safe(diagnostics.sanity_summary, elig_row, hard_row, diag_cfg.get("sanity")),
+            "feature_shift": diagnostics.safe(diagnostics.feature_shift, snap, ref, modes, mode_src, diag_cfg.get("feature_shift")),
+            "recommendation": diagnostics.safe(diagnostics.recommendation_distribution, df, sector, mcap, liquidity,
+                                               diag_cfg.get("recommendation")),
+        }
+        audit_doc = audit.safe_build_audit(as_of, str(ctx.calendar.dates[-1]), stack,
+                                           _source_views(con, as_of, m, mkt, gates["diagnostics"]["freshness"]))
+    except Exception as exc:                                   # noqa: BLE001 — 觀測層 prep 永不中斷 run（Spec §0 規則 3）
+        log.exception("observation prep failed")
+        gates["diagnostics"] = {k: diagnostics.envelope_error(exc)
+                                for k in ("freshness", "sanity", "feature_shift", "recommendation")}
+        audit_doc = {"error_type": type(exc).__name__}
+
     # 5. Immutable run + 全 universe ledger
     run_id = f"{as_of}_{stack.model_version}_{started.strftime('%H%M%S%f')}"
     entry_date = cal.next(as_of)
@@ -152,6 +180,7 @@ def run_daily(con, session: Session, signal_date: str | None = None, stack: Serv
         "status": status, "no_trade": no_trade, "no_trade_reason": reason, "universe_count": int(len(u_ids)),
         "qualified_count": int(day_row["qualified_count"]), "recommendation_count": int(df["recommended"].sum()),
         "health_json": json.dumps(gates, ensure_ascii=False, default=str), "log_tail": None,
+        "audit_json": json.dumps(audit_doc, ensure_ascii=False, default=str),
     }
     pred_rows = []
     for i, sid in enumerate(df["stock_id"]):
@@ -180,6 +209,39 @@ def run_daily(con, session: Session, signal_date: str | None = None, stack: Serv
 def _f(v) -> float | None:
     v = float(v)
     return v if np.isfinite(v) else None
+
+
+def _last_valid_date(x) -> str | None:
+    has = x.notna().any(axis=1) if isinstance(x, pd.DataFrame) else x.notna()
+    idx = has[has].index
+    return str(idx[-1]) if len(idx) else None
+
+
+def _issued_shares(con) -> pd.Series:
+    """run 當下的 company_profile 股本（非 PIT，僅供診斷）；缺表回空 Series。"""
+    try:
+        df = pd.read_sql_query("SELECT stock_id, issued_shares FROM company_profile", con)
+    except Exception:                                          # noqa: BLE001 — 合成 DB 無此表
+        return pd.Series(dtype=float)
+    return pd.Series(pd.to_numeric(df["issued_shares"], errors="coerce").to_numpy(), index=df["stock_id"].astype(str)).replace(0, np.nan)
+
+
+def _source_views(con, as_of: str, m: dict, mkt: pd.Series, fresh: dict) -> dict[str, dict]:
+    """run 實際可見的 source view metadata（PIT 語意）；無 available_at 語意者填 None。"""
+    close = m["close"]
+    wm = ((fresh.get("sources") or {}).get("attention_listings") or {}) if isinstance(fresh, dict) else {}
+    try:
+        win = prices.load_attention_windows(con)
+        seen = win[win["date"].astype(str) <= as_of]
+        att = {"max_business_date": str(seen["date"].max()) if len(seen) else None,
+               "max_available_at": wm.get("watermark_completed_at"), "rows_visible_at_as_of": int(len(seen))}
+    except Exception:                                          # noqa: BLE001 — 來源缺表：記 None，不拋
+        att = {"max_business_date": None, "max_available_at": None, "rows_visible_at_as_of": None}
+    return {"daily_prices": {"max_business_date": _last_valid_date(close), "max_available_at": None,
+                             "rows_visible_at_as_of": int(close.loc[as_of].notna().sum())},
+            "market_index": {"max_business_date": _last_valid_date(mkt), "max_available_at": None,
+                             "rows_visible_at_as_of": int(bool(pd.notna(mkt.get(as_of))))},
+            "attention_listings": att}
 
 
 def _recent_days(session: Session, as_of: str, n: int = 60) -> pd.DataFrame | None:

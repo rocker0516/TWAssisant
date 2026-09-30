@@ -23,6 +23,7 @@ from ..models import oof
 from ..models.calibration import Calibrator
 from ..models.estimators import make_model
 from ..models.tasks import all_tasks, day_weights, task_frame
+from ..monitoring.monitor_modes import monitor_mode_for
 from ..recommendation.policy import load_policy
 from ..registry.versions import STATUS_RESEARCH_SHADOW, SERVING_ROOT, ServingStack, set_champion
 from ..validation.purge import purged_train_positions
@@ -64,6 +65,7 @@ def build_feature_reference(features: pd.DataFrame, names: list[str], tr_mask: n
         nun = np.median([len(np.unique(col[idx][np.isfinite(col[idx])])) for idx in day_groups.values()])
         entry = {"missing_rate": float(np.isnan(col).mean()), "q": q, "mean": float(np.nanmean(col)), "std": float(np.nanstd(col)),
                  "day_level": bool(nun <= day_level_max)}
+        entry["monitor_mode"] = monitor_mode_for(n)                 # Spec A §2.6：新 stack 原生帶分布監控模式
         if entry["day_level"]:
             daily = np.array([np.nanmedian(col[idx]) for idx in day_groups.values()], dtype=float)
             entry["daily_q"] = {"0.005": float(np.nanquantile(daily, 0.005)), "0.995": float(np.nanquantile(daily, 0.995))}

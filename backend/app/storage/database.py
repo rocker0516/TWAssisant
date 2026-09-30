@@ -52,6 +52,7 @@ def init_db() -> None:
 
 # create_all 只補缺表、不補既有表的新欄；本機 SQLite 用輕量 ADD COLUMN 補欄（冪等）
 _COLUMN_ADDITIONS: dict[str, dict[str, str]] = {
+    "mlentry_runs": {"audit_json": "TEXT"},                       # Spec A：既有 SQLite 補欄
     "scores": {
         "coverage": "FLOAT", "confidence": "FLOAT", "stability": "FLOAT",
         "details": "JSON", "passed_styles": "JSON", "style_totals": "JSON",
