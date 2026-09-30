@@ -23,7 +23,8 @@ class FeatureContext:
     eligible: pd.DataFrame                   # U_t bool 矩陣（橫斷面統計只在 U_t 內做）
     events: dict[str, pd.DataFrame] = field(default_factory=dict)   # attention / disposition bool
     limits: dict[str, pd.DataFrame] = field(default_factory=dict)   # up / down（以前收算）
-    fundamentals: object = None              # v1 不用；介面保留
+    fundamentals: object = None              # v1 不用；F2 challenger 用（dict[str, 矩陣]）
+    flows: object = None                     # F3 challenger 用（lag-1 法人／融資矩陣）
 
     def __post_init__(self):
         idx = self.prices["close"].index

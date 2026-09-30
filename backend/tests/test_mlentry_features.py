@@ -71,7 +71,8 @@ def test_registry_declares_every_built_feature_and_lookback_bound():
     names = registry.feature_names(cfg)
     assert len(names) == len(set(names)) == 57
     v3 = registry.feature_names(FeatureConfig(families=("price", "volume", "volatility", "cross_sectional", "regime", "event", "fundamentals")))
-    assert len(v3) == 70 and registry.feature_version(cfg) != registry.feature_version(FeatureConfig(families=tuple(v3 and ("price",))))
+    assert len(v3) == 70
+    assert len(registry.feature_names(FeatureConfig(families=("price", "volume", "volatility", "cross_sectional", "regime", "event", "flows")))) == 69 and registry.feature_version(cfg) != registry.feature_version(FeatureConfig(families=tuple(v3 and ("price",))))
     assert registry.max_feature_lookback(cfg) <= UniverseConfig().history_lookback
     assert registry.feature_version(cfg).startswith("f_")
     assert registry.feature_version(cfg) != registry.feature_version(FeatureConfig(families=("price",)))
@@ -141,3 +142,23 @@ def test_fundamental_asof_matrices_respect_availability_and_lags():
     assert m["rev_yoy"].loc["2025-01-06", "A"] == 1.0 and m["rev_yoy"].loc["2025-01-07", "A"] == 2.0
     assert m["rev_yoy"].loc["2025-01-10", "A"] == 2.0                  # 202501 期 2 月才可得
     assert np.isnan(m["rev_yoy_lag1"].loc["2025-01-06", "A"]) and m["rev_yoy_lag1"].loc["2025-01-07", "A"] == 1.0
+
+
+def test_flow_matrices_are_lagged_one_day():
+    """t 日 flows 特徵只用 t−1（含）以前的公告：改動 t 日的法人資料不得改變 t 日特徵。"""
+    import sqlite3
+    from app.mlentry.data import flows as fl
+    cal = TradingCalendar([f"2025-01-{d:02d}" for d in (2, 3, 6, 7, 8)])
+    cols = pd.Index(["A"])
+    con = sqlite3.connect(":memory:")
+    con.execute("CREATE TABLE institutional(stock_id TEXT, date TEXT, foreign_net INT, trust_net INT, dealer_net INT, total_net INT)")
+    con.execute("CREATE TABLE margin(stock_id TEXT, date TEXT, margin_balance INT, margin_change INT, short_balance INT, short_change INT)")
+    for i, d in enumerate(cal.dates):
+        con.execute("INSERT INTO institutional VALUES ('A',?,?,?,?,?)", (d, 100 * (i + 1), 0, 0, 100 * (i + 1)))
+        con.execute("INSERT INTO margin VALUES ('A',?,?,?,?,?)", (d, 1000, 10, 100, 1))
+    m = fl.load_flow_matrices(con, cal, cols)
+    assert np.isnan(m["foreign_net"].loc["2025-01-02", "A"])
+    assert m["foreign_net"].loc["2025-01-03", "A"] == 100 and m["foreign_net"].loc["2025-01-08", "A"] == 400
+    con.execute("UPDATE institutional SET foreign_net = 999999 WHERE date = '2025-01-08'")
+    m2 = fl.load_flow_matrices(con, cal, cols)
+    assert m2["foreign_net"].loc["2025-01-08", "A"] == 400                     # 當日公告不可見

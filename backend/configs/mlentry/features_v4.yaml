@@ -1,0 +1,3 @@
+# Feature challenger F3（2026-09-30）：v1 六族 + flows 族（法人／融資融券，統一 lag 1）。
+large_gap_threshold: 0.05
+families: [price, volume, volatility, cross_sectional, regime, event, flows]
