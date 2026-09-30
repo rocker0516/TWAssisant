@@ -62,3 +62,11 @@ def test_guard_passes_when_unfrozen(tmp_path, monkeypatch):
     _patch_yaml(monkeypatch, {"observation_freeze": False})
     lc.guard_champion_change("promote", "alice", "m1", root=tmp_path)
     assert lc.read_audit(root=tmp_path) == []
+
+
+def test_lifecycle_config_treats_null_as_frozen(tmp_path, monkeypatch):
+    _patch_yaml(monkeypatch, {"observation_freeze": None, "auto_retrain": None})
+    c = lc.lifecycle_config()
+    assert c["observation_freeze"] is True and c["auto_retrain"] is False
+    with pytest.raises(lc.FreezeError):
+        lc.guard_champion_change("promote", "alice", "m1", root=tmp_path)

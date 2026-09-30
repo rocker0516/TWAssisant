@@ -27,12 +27,21 @@ class FreezeError(PermissionError):
 
 
 def lifecycle_config() -> dict:
-    """缺鍵一律 fail-closed：凍結、自動化關閉。"""
+    """缺鍵或 null 一律 fail-closed：凍結、自動化關閉。"""
     raw = (load_yaml("monitoring").get("lifecycle") or {})
-    return {"observation_freeze": bool(raw.get("observation_freeze", True)),
-            "freeze_until_mature_days": int(raw.get("freeze_until_mature_days", 60)),
-            "auto_retrain": bool(raw.get("auto_retrain", False)),
-            "auto_promote": bool(raw.get("auto_promote", False))}
+    # Treat None as missing (fail-closed defaults)
+    v_freeze = raw.get("observation_freeze")
+    observation_freeze = True if v_freeze is None else bool(v_freeze)
+    v_retrain = raw.get("auto_retrain")
+    auto_retrain = False if v_retrain is None else bool(v_retrain)
+    v_promote = raw.get("auto_promote")
+    auto_promote = False if v_promote is None else bool(v_promote)
+    v_mature = raw.get("freeze_until_mature_days")
+    freeze_until_mature_days = 60 if v_mature is None else int(v_mature)
+    return {"observation_freeze": observation_freeze,
+            "freeze_until_mature_days": freeze_until_mature_days,
+            "auto_retrain": auto_retrain,
+            "auto_promote": auto_promote}
 
 
 def freeze_state(session=None) -> dict:
