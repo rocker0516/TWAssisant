@@ -1367,6 +1367,17 @@ export type MLEntryStack = {
   promotion_eligible: boolean; recommendation_label: string;
 };
 export type MLEntryVerdict = { headline: string; detail: string; tone: "ok" | "quiet" | "fail" };
+export type MLEntryDiagnostic = {
+  evaluated: boolean; attention: boolean; reason?: string; error_type?: string;
+  [k: string]: unknown;
+};
+export type MLEntryDiagnostics = {
+  freshness: MLEntryDiagnostic; sanity: MLEntryDiagnostic; feature_shift: MLEntryDiagnostic; recommendation: MLEntryDiagnostic;
+};
+export type MLEntryAuditSummary = {
+  requested_as_of: string | null; feature_snapshot_as_of: string | null; data_snapshot_id: string | null;
+  serving_stack_hash: string | null; code_commit: string | null; as_of_mismatch: boolean;
+};
 export type MLEntryRun = {
   run_id: string; signal_date: string; status: string; no_trade: boolean;
   no_trade_reason: string | null; no_trade_text: string | null;
@@ -1374,6 +1385,7 @@ export type MLEntryRun = {
   model_version: string; policy_version: string; code_commit: string;
   verdict: MLEntryVerdict;
   health: Record<string, Record<string, unknown>>;
+  diagnostics: MLEntryDiagnostics | null; audit: MLEntryAuditSummary | null;
 };
 export type MLEntryItem = {
   rank: number | null; stock_id: string; name: string | null; close: number | null;
@@ -1417,7 +1429,8 @@ export type MLEntryHealth = {
   };
   live: { matured_days: number; windows: Record<string, MLEntryLiveWindow>; days: MLEntryMaturedDay[] };
   history: { signal_date: string; status: string; no_trade_reason: string | null;
-             universe_count: number; qualified_count: number; recommendation_count: number; n_drifted: number | null }[];
+             universe_count: number; qualified_count: number; recommendation_count: number; n_drifted: number | null;
+             attention_count: number | null }[];
   convergence: MLEntryConvergenceRow[];
   monitoring_thresholds: Record<string, Record<string, number>>;
 };
