@@ -135,3 +135,110 @@ def sanity_summary(elig_row: pd.Series, hard_row: pd.Series, cfg: dict | None) -
     if present == 0:
         return envelope_skip("NO_DATA", **values)
     return envelope_ok(hard_count >= int(cfg["min_hard_flag_count"]) and ratio > float(cfg["max_hard_flag_ratio"]), **values)
+
+
+# ── feature shift ───────────────────────────────────────────────────────────
+
+def quantile_cdf_gap_7pt(ref_q: dict, x: np.ndarray) -> float | None:
+    """7-point reference-quantile ECDF gap：max_i |ECDF_now(q_i) − p_i|。不是 two-sample KS，欄名固定。"""
+    x = np.asarray(x, dtype=float)
+    x = x[np.isfinite(x)]
+    if len(x) == 0:
+        return None
+    edges = np.array([ref_q[q] for q in QS], dtype=float)
+    ecdf = np.searchsorted(np.sort(x), edges, side="right") / len(x)
+    return float(np.max(np.abs(ecdf - np.array(_P))))
+
+
+def feature_shift(snapshot: pd.DataFrame, ref_full: dict, modes: dict[str, str], mode_source: str, cfg: dict | None) -> dict:
+    """只評估 monitor_mode == continuous；mean_z／std_ratio 零除回 None＋REFERENCE_STD_ZERO。"""
+    feature_ref: dict = ref_full.get("features", {})
+    cfg = cfg or {}
+    z_thr, gap_thr = cfg.get("mean_z_threshold"), cfg.get("gap_threshold")
+    rows, skipped = [], []
+    for name, ref in feature_ref.items():
+        if modes.get(name) != "continuous":
+            skipped.append(name); continue
+        if name not in snapshot.columns:
+            continue
+        x = snapshot[name].to_numpy(dtype=float)
+        xf = x[np.isfinite(x)]
+        row = {"name": name, "mean_z": None, "std_ratio": None, "quantile_cdf_gap_7pt": None}
+        if len(xf) == 0:
+            row["reason"] = "NO_DATA"; rows.append(row); continue
+        std = float(ref.get("std", 0.0) or 0.0)
+        if std < 1e-12:
+            row["reason"] = "REFERENCE_STD_ZERO"
+        else:
+            row["mean_z"] = _r((xf.mean() - float(ref["mean"])) / std)
+            row["std_ratio"] = _r(xf.std() / std)
+        row["quantile_cdf_gap_7pt"] = _r(quantile_cdf_gap_7pt(ref["q"], xf))
+        rows.append(row)
+    n_z = sum(1 for r in rows if r["mean_z"] is not None and z_thr is not None and abs(r["mean_z"]) > float(z_thr))
+    n_gap = sum(1 for r in rows if r["quantile_cdf_gap_7pt"] is not None and gap_thr is not None and r["quantile_cdf_gap_7pt"] > float(gap_thr))
+    top = sorted(rows, key=lambda r: -(r["quantile_cdf_gap_7pt"] if r["quantile_cdf_gap_7pt"] is not None else -1.0))[:10]
+    values = {"n_evaluated": len(rows), "n_mean_z_gt": n_z, "n_gap_gt": n_gap, "top": top, "skipped": skipped,
+              "monitor_mode_source": mode_source}
+    if any(k not in cfg for k in ("mean_z_threshold", "gap_threshold", "max_features_mean_shift", "max_features_gap")):
+        return envelope_skip("THRESHOLD_NOT_CONFIGURED", **values)
+    if not rows:
+        return envelope_skip("NO_DATA", **values)
+    return envelope_ok(n_z >= int(cfg["max_features_mean_shift"]) or n_gap >= int(cfg["max_features_gap"]), **values)
+
+
+# ── recommendation distribution ─────────────────────────────────────────────
+
+def _sector_counts(sec: np.ndarray, mask: np.ndarray) -> dict[str, int]:
+    v = sec[mask]
+    v = v[np.isfinite(v)]
+    u, c = np.unique(v.astype(int), return_counts=True)
+    return {str(int(k)): int(n) for k, n in zip(u, c)}
+
+
+def _terciles(series: pd.Series, sid: pd.Series, rec_mask: np.ndarray) -> dict:
+    v = series.reindex(sid.to_numpy()).to_numpy(dtype=float)
+    valid = np.isfinite(v)
+    out = {"low": 0, "mid": 0, "high": 0, "missing_count": int((~valid).sum()), "cuts": None}
+    if valid.sum() < 3:
+        return out
+    lo, hi = np.quantile(v[valid], [1 / 3, 2 / 3])
+    rv = v[rec_mask & valid]
+    out.update({"low": int((rv <= lo).sum()), "mid": int(((rv > lo) & (rv <= hi)).sum()), "high": int((rv > hi).sum()),
+                "cuts": [_r(lo, 2), _r(hi, 2)]})
+    return out
+
+
+def recommendation_distribution(df: pd.DataFrame, sector_map: pd.Series, mcap: pd.Series, liquidity: pd.Series, cfg: dict | None) -> dict:
+    """推薦相對全 U_t 的分布：score 分位、類股集中（相對 universe 佔比）、市值／流動性三分位。只記錄。"""
+    sid = df["stock_id"].astype(str)
+    q_mask = df["gate_pass"].to_numpy(dtype=bool); rec_mask = df["recommended"].to_numpy(dtype=bool)
+    n_q, n_rec = int(q_mask.sum()), int(rec_mask.sum())
+    score_q = None
+    if n_q:
+        s = pd.to_numeric(df.loc[q_mask, "recommendation_score"], errors="coerce").dropna()
+        if len(s):
+            score_q = {"p10": _r(s.quantile(0.10)), "p50": _r(s.quantile(0.50)), "p90": _r(s.quantile(0.90))}
+    sec = sector_map.reindex(sid.to_numpy()).to_numpy(dtype=float)
+    uni = _sector_counts(sec, np.ones(len(df), dtype=bool)); n_u = sum(uni.values())
+    universe_share = {k: _r(v / n_u) for k, v in uni.items()} if n_u else {}
+    rec_counts = _sector_counts(sec, rec_mask)
+    max_sector = None
+    if rec_counts:
+        k = max(rec_counts, key=rec_counts.get)
+        rs = rec_counts[k] / n_rec; us = (uni.get(k, 0) / n_u) if n_u else 0.0
+        max_sector = {"sector_id": k, "recommendation_share": _r(rs), "universe_share": _r(us),
+                      "overweight": _r(rs / us) if us > 0 else None}
+    mcap_t = _terciles(mcap, sid, rec_mask)
+    mcap_t.update({"mcap_basis": "current_company_profile_at_run_time",
+                   "issued_shares_missing_count": int(mcap.reindex(sid.to_numpy()).isna().sum())})
+    values = {"qualified_count": n_q, "recommendation_count": n_rec, "score_q": score_q,
+              "sector": {"recommended": rec_counts, "qualified": _sector_counts(sec, q_mask), "universe_share": universe_share,
+                         "max_sector": max_sector},
+              "mcap_tercile": mcap_t, "liquidity_tercile": _terciles(liquidity, sid, rec_mask)}
+    cfg = cfg or {}
+    if any(k not in cfg for k in ("min_recommendations_for_concentration", "max_sector_share", "min_sector_overweight")):
+        return envelope_skip("THRESHOLD_NOT_CONFIGURED", **values)
+    att = bool(max_sector and n_rec >= int(cfg["min_recommendations_for_concentration"])
+               and max_sector["recommendation_share"] > float(cfg["max_sector_share"])
+               and max_sector["overweight"] is not None and max_sector["overweight"] > float(cfg["min_sector_overweight"]))
+    return envelope_ok(att, **values)

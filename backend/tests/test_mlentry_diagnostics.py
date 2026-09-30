@@ -118,3 +118,90 @@ def test_sanity_no_data_and_no_threshold():
     e, h = _rows(10, 0)
     out = dg.sanity_summary(e, h, {})
     assert out["reason"] == "THRESHOLD_NOT_CONFIGURED" and out["hard_flag_count"] == 0
+
+
+FS_CFG = {"mean_z_threshold": 3.0, "gap_threshold": 0.2, "max_features_mean_shift": 8, "max_features_gap": 8}
+
+
+def _ref_from(x: np.ndarray, day_level=False):
+    return {"q": {q: float(np.quantile(x, float(q))) for q in ("0.01", "0.05", "0.25", "0.5", "0.75", "0.95", "0.99")},
+            "mean": float(x.mean()), "std": float(x.std()), "day_level": day_level, "missing_rate": 0.0}
+
+
+def test_gap_near_zero_for_same_distribution_and_large_for_shift():
+    rng = np.random.default_rng(0)
+    base = rng.normal(0, 1, 20000)
+    ref = _ref_from(base)
+    assert dg.quantile_cdf_gap_7pt(ref["q"], rng.normal(0, 1, 3000)) < 0.05
+    assert dg.quantile_cdf_gap_7pt(ref["q"], rng.normal(1, 1, 3000)) > 0.2
+    assert dg.quantile_cdf_gap_7pt(ref["q"], np.array([np.nan])) is None
+
+
+def test_feature_shift_skips_and_counts_and_source_label():
+    rng = np.random.default_rng(1)
+    base = rng.normal(0, 1, 20000)
+    ref_full = {"features": {"ret_5d": _ref_from(base), "shifted": _ref_from(base), "is_attention_stock": _ref_from(rng.integers(0, 2, 20000).astype(float), day_level=True)}}
+    snap = pd.DataFrame({"ret_5d": rng.normal(0, 1, 2000), "shifted": rng.normal(4, 1, 2000), "is_attention_stock": rng.integers(0, 2, 2000).astype(float)})
+    modes = {"ret_5d": "continuous", "shifted": "continuous", "is_attention_stock": "skip"}
+    out = dg.feature_shift(snap, ref_full, modes, "explicit", FS_CFG)
+    assert out["evaluated"] and not out["attention"]                 # 1 個位移 < 8
+    assert out["n_evaluated"] == 2 and out["n_mean_z_gt"] == 1 and out["n_gap_gt"] == 1
+    assert out["skipped"] == ["is_attention_stock"] and out["monitor_mode_source"] == "explicit"
+    assert out["top"][0]["name"] == "shifted" and out["top"][0]["quantile_cdf_gap_7pt"] > 0.2
+    assert all(r["name"] != "is_attention_stock" for r in out["top"])
+
+
+def test_feature_shift_reference_std_zero_and_thresholds():
+    ref_full = {"features": {"const": {"q": {q: 1.0 for q in ("0.01", "0.05", "0.25", "0.5", "0.75", "0.95", "0.99")}, "mean": 1.0, "std": 0.0, "day_level": False}}}
+    snap = pd.DataFrame({"const": np.ones(50)})
+    out = dg.feature_shift(snap, ref_full, {"const": "continuous"}, "explicit", FS_CFG)
+    row = out["top"][0]
+    assert row["mean_z"] is None and row["std_ratio"] is None and row["reason"] == "REFERENCE_STD_ZERO"
+    assert dg.feature_shift(snap, ref_full, {"const": "continuous"}, "explicit", {})["reason"] == "THRESHOLD_NOT_CONFIGURED"
+
+
+def test_feature_shift_attention_uses_ge_count():
+    rng = np.random.default_rng(2)
+    base = rng.normal(0, 1, 20000)
+    names = [f"f{i}" for i in range(8)]
+    ref_full = {"features": {n: _ref_from(base) for n in names}}
+    snap = pd.DataFrame({n: rng.normal(4, 1, 500) for n in names})       # 恰 8 個位移 → >= 8 亮
+    out = dg.feature_shift(snap, ref_full, {n: "continuous" for n in names}, "explicit", FS_CFG)
+    assert out["attention"] and out["n_gap_gt"] == 8
+
+
+REC_CFG = {"min_recommendations_for_concentration": 3, "max_sector_share": 0.60, "min_sector_overweight": 2.0}
+
+
+def _policy_df(n=100, rec_ids=(), qual_ids=()):
+    ids = [f"S{i:03d}" for i in range(n)]
+    return pd.DataFrame({"stock_id": ids, "gate_pass": [i in qual_ids or i in rec_ids for i in ids],
+                         "recommended": [i in rec_ids for i in ids],
+                         "recommendation_score": np.linspace(0, 1, n)})
+
+
+def test_recommendation_distribution_sector_overweight_needs_all_three_conditions():
+    df = _policy_df(100, rec_ids=("S000", "S001", "S002", "S003"), qual_ids=("S010", "S011"))
+    sector = pd.Series([1.0] * 5 + [2.0] * 95, index=df["stock_id"])          # 類股 1 佔 universe 5%
+    mcap = pd.Series(np.arange(100, dtype=float), index=df["stock_id"]); liq = mcap.copy()
+    out = dg.recommendation_distribution(df, sector, mcap, liq, REC_CFG)
+    assert out["evaluated"] and out["attention"]                            # 4 檔全在類股 1：share 1.0、overweight 20
+    assert out["sector"]["max_sector"]["sector_id"] == "1" and out["sector"]["max_sector"]["overweight"] == pytest.approx(20.0)
+    assert out["qualified_count"] == 6 and out["recommendation_count"] == 4
+    assert out["score_q"]["p50"] == pytest.approx(np.median(df.loc[df["gate_pass"], "recommendation_score"]), abs=1e-4)
+    assert out["mcap_tercile"]["mcap_basis"] == "current_company_profile_at_run_time"
+    assert out["mcap_tercile"] == {**out["mcap_tercile"], "low": 4, "mid": 0, "high": 0, "missing_count": 0}
+    sector_big = pd.Series([1.0] * 60 + [2.0] * 40, index=df["stock_id"])   # 類股 1 佔 60%：share 1.0 但 overweight 1.67 → 不亮
+    assert not dg.recommendation_distribution(df, sector_big, mcap, liq, REC_CFG)["attention"]
+    df2 = _policy_df(100, rec_ids=("S000", "S001"))                          # 只有 2 檔 < 3 → 不亮
+    assert not dg.recommendation_distribution(df2, sector, mcap, liq, REC_CFG)["attention"]
+
+
+def test_recommendation_distribution_edge_cases():
+    df = _policy_df(10)                                                      # 無 qualified、無推薦
+    sector = pd.Series(1.0, index=df["stock_id"]); mcap = pd.Series(np.nan, index=df["stock_id"])
+    out = dg.recommendation_distribution(df, sector, mcap, mcap, REC_CFG)
+    assert out["evaluated"] and not out["attention"]
+    assert out["score_q"] is None and out["sector"]["recommended"] == {} and out["sector"]["max_sector"] is None
+    assert out["mcap_tercile"]["missing_count"] == 10 and out["mcap_tercile"]["issued_shares_missing_count"] == 10
+    assert dg.recommendation_distribution(df, sector, mcap, mcap, {})["reason"] == "THRESHOLD_NOT_CONFIGURED"
