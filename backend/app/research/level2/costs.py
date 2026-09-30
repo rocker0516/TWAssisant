@@ -56,6 +56,16 @@ def _round_up_tick(price: float) -> float:
     return round(math.ceil(price / t - 1e-9) * t, 2)
 
 
+def round_down_tick(price: float) -> float:
+    """公開版：向下貼齊升降單位（UI 估算價等唯讀用途；與 _round_down_tick 同一實作）。"""
+    return _round_down_tick(price)
+
+
+def round_up_tick(price: float) -> float:
+    """公開版：向上貼齊升降單位。"""
+    return _round_up_tick(price)
+
+
 def up_limit(prev_close: float) -> float:
     """漲停價：prev_close × 1.1 向下貼 tick。tick 以漲停價位所在區間為準。"""
     raw = prev_close * 1.10
