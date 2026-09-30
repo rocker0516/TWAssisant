@@ -153,3 +153,17 @@ def test_challenger_task_frames_direction_and_multiclass():
     assert e3["y"].tolist() == [0.0, 1.0, 2.0, 2.0]                                  # a 第 3 日 TARGET 仍在 3 日內
     e2 = task_frame(all_tasks(horizons=(2,))["event_2d"], o)
     assert e2["y"].tolist() == [2.0, 1.0, 2.0, 2.0]                                  # 2 日內 a 尚未觸 → TIMEOUT
+
+
+def test_oof_predicts_every_universe_row_in_validation(tmp_path):
+    """訓練只用任務合法列，但 validation 段對全部列都預測（direction 只有已解決列有 y）。"""
+    dev = _dev_slice()
+    dev.outcomes["target_first_hit_day"] = np.where(dev.outcomes["target_hit_10d"] == 1, 3, np.nan)
+    dev.outcomes["stop_first_hit_day"] = np.where(dev.outcomes["event_type"] == 4, np.nan, np.nan)
+    dev.outcomes.loc[dev.outcomes.index[::5], ["event_type", "stop_first_hit_day"]] = [2, 4]
+    task = all_tasks()["direction_10d"]
+    preds, meta = oof.run_oof(dev, task, "prevalence", ["f1", "f2"], CFG, out_root=tmp_path)
+    n_val_rows = (dev.features["signal_date"].between("d0200", "d0389")).sum()
+    assert len(preds) == n_val_rows                       # 全部列
+    assert preds["y"].isna().sum() > 0 and preds["pred"].notna().all()
+    assert meta.folds[0].n_train < 190 * 30               # 訓練只用已解決列

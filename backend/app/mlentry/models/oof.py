@@ -1,7 +1,7 @@
 """B3 OOF Prediction Store：依 Split 的 dev fold 逐一 fit(train) → predict(validation)，存 Parquet + meta。
 
 data/mlentry/<dataset_version>/oof/<task>__<model>/
-  predictions.parquet   (sample_id, stock_id, signal_date, fold, y, w, pred)
+  predictions.parquet   (sample_id, stock_id, signal_date, fold, y, w, pred)；y/w 在非任務合法列為 NaN
   meta.json             (task, model, params, feature_version, code_commit, per-fold n_train/n_val/cap…)
 
 硬規則：只讀 development 分區；MFE winsorization cap 由該 fold 的 training 樣本估（附錄 B-4）。
@@ -76,13 +76,16 @@ def run_oof(dev: DatasetSlice, task: TaskSpec, model_name: str, feature_names: l
     split = _split_from_dict(dev.splits)
     tf = task_frame(task, dev.outcomes)
     X_all = dev.features.set_index("sample_id")
-    tf = tf[tf["sample_id"].isin(X_all.index)].reset_index(drop=True)
     stock = X_all["stock_id"]
     Xf = X_all[feature_names].to_numpy(dtype="float32")
     pos = pd.Series(np.arange(len(X_all)), index=X_all.index)
+    # 訓練：只用任務合法列；驗證：對該段「全部」U_t 列預測（§17.6 全 universe 預測；避免選樣偏誤）
+    tf = tf[tf["sample_id"].isin(X_all.index)].reset_index(drop=True)
     tf["row"] = pos.loc[tf["sample_id"]].to_numpy()
     tf["w"] = (tf["w_task"].to_numpy() * day_weights(tf["signal_date"])).astype("float32")
-
+    all_rows = pd.DataFrame({"sample_id": X_all.index, "signal_date": X_all["signal_date"].to_numpy(),
+                             "row": np.arange(len(X_all))})
+    all_rows = all_rows.merge(tf[["sample_id", "y", "w"]], on="sample_id", how="left")
     meta = RunMeta(task.name, task.kind, model_name, dev.dataset_version,
                    dev.manifest["versions"]["feature_version"], dev.manifest["versions"]["label_version"],
                    split.split_version,
@@ -92,7 +95,7 @@ def run_oof(dev: DatasetSlice, task: TaskSpec, model_name: str, feature_names: l
     import time
     for f in split.dev_folds:
         tr = _mask(tf["signal_date"], f.train_start, f.train_end)
-        va = _mask(tf["signal_date"], f.val_start, f.val_end)
+        va = _mask(all_rows["signal_date"], f.val_start, f.val_end)
         if tr.sum() == 0 or va.sum() == 0:
             log.warning("%s/%s %s: empty fold", task.name, model_name, f.name)
             continue
@@ -105,9 +108,9 @@ def run_oof(dev: DatasetSlice, task: TaskSpec, model_name: str, feature_names: l
         t0 = time.time()
         model = make_model(model_name, task.kind, models_cfg)
         model.fit(Xf[tf.loc[tr, "row"].to_numpy()], ytr, tf.loc[tr, "w"].to_numpy())
-        p = model.predict(Xf[tf.loc[va, "row"].to_numpy()])
+        p = model.predict(Xf[all_rows.loc[va, "row"].to_numpy()])
         dt = time.time() - t0
-        sub = tf.loc[va, ["sample_id", "signal_date", "y", "w"]].copy()
+        sub = all_rows.loc[va, ["sample_id", "signal_date", "y", "w"]].copy()
         sub["stock_id"] = stock.loc[sub["sample_id"]].to_numpy()
         sub["fold"] = f.name
         if task.kind == "multiclass":

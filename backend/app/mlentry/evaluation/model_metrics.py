@@ -89,6 +89,7 @@ def by_fold(preds: pd.DataFrame, kind: str, day_weighted: bool = True) -> pd.Dat
     """每個 fold 一列（含 day-weighted / row-weighted 指標），最後附 summary 列。"""
     fn = binary_metrics if kind == "binary" else regression_metrics
     rows = []
+    preds = preds[preds["y"].notna() & (preds["w"].fillna(0) > 0)]
     for name, g in preds.groupby("fold", sort=True):
         m = fn(g["y"].to_numpy(), g["pred"].to_numpy(), g["w"].to_numpy() if day_weighted else None)
         m["fold"] = name

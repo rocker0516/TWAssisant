@@ -80,12 +80,15 @@ def compare_methods_by_fold(preds: pd.DataFrame, task: str, model_version: str,
     """
     folds = sorted(preds["fold"].unique())
     out = preds.copy()
+    lab = preds["y"].notna() & (preds["w"].fillna(0) > 0)
+    preds = preds[lab]
     rows, records = [], []
     for m in methods:
         out[f"pred_{m}"] = np.nan
     for i, f in enumerate(folds):
         cur = preds["fold"] == f
         prev = preds["fold"].isin(folds[:i])
+        cur_all = out["fold"] == f
         y, w, p = preds.loc[cur, "y"].to_numpy(), preds.loc[cur, "w"].to_numpy(), preds.loc[cur, "pred"].to_numpy()
         before = binary_metrics(y, p, w)
         for m in methods:
@@ -95,7 +98,7 @@ def compare_methods_by_fold(preds: pd.DataFrame, task: str, model_version: str,
             if m != "none":
                 cal.fit(preds.loc[prev, "pred"].to_numpy(), preds.loc[prev, "y"].to_numpy(), preds.loc[prev, "w"].to_numpy())
             q = cal.transform(p)
-            out.loc[cur, f"pred_{m}"] = q
+            out.loc[cur_all, f"pred_{m}"] = cal.transform(out.loc[cur_all, "pred"].to_numpy())
             after = binary_metrics(y, q, w)
             rows.append({"fold": f, "method": m, **_keep(after)})
             if m != "none":
