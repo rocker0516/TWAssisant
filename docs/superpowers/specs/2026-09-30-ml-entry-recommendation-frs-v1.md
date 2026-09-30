@@ -1822,3 +1822,25 @@ existing validation / backtest code
   5. Final Holdout 物理隔離：`development/` 與 `holdout/` 分區，讀 holdout 只能走 `datasets.api.load_final_holdout(reason, actor)` 並落地稽核；B 的超參、calibration、Gate、ranking weights、K_max 不得讀它。
 - Execution model：FILLED 99.5%，須與 prevalence baseline 比；若 LightGBM ≈ 常數，保留欄位與介面但 V1 Policy 不依賴它。
 - B 順序：B1 baselines → B2 獨立 LightGBM（1+3+3+3）→ B3 OOF store → B4 calibration（raw / Platt / Isotonic 逐 fold 比）→ B5 horizon consistency → B6 model-level 評估（AUC、PR-AUC、Brier、ECE、decile lift、fold 穩定性）→ B7 Gate → B8 Ranking / Dynamic Top-K（percentile 線性組合，不做 meta model）→ B9 推薦評估 → B10 freeze → B11 Final Holdout。
+
+# 附錄 C. Prospective Shadow Observation（2026-09-30 定案）
+
+```
+A Data Foundation        = FROZEN
+B Model / Policy         = FROZEN BASELINE（policy_baseline_v1，Lift@5 1.23 / StopRatio 0.75，promotion FAIL）
+C Production Shadow      = ACTIVE
+
+model_status             = RESEARCH_SHADOW
+deployment_mode          = SHADOW
+promotion_eligible       = false
+final_holdout            = SEALED
+```
+
+- 本階段停止所有模型／Feature／Gate／超參／Policy 權重／Promotion 門檻／Holdout／RL 調整（含 `flow_regime_interactions`），避免前瞻資料退化成另一個 validation set。
+- 每日自動累積：run health、prediction 分布、candidate count、shadow Top-K、NO_TRADE、3D/5D/10D outcome。觀察腳本 `scripts/mlentry_observe.py`（唯讀）。
+- 第一階段看 production contract 穩定性：零漏跑、SYSTEM_NO_TRADE 只在合理情況、drift 無誤報、prediction 分布正常、candidate count ≈ OOF 分布、ledger 完整、maturity 正確。
+- **20 個 10D 成熟日**（≈ 30 個交易日）：只做觀察，對照 Frozen OOF（Lift@1/3/5、StopRatio、Coverage、Candidates/day、MFE/MAE、Net10、Calibration、NO_TRADE rate），不做 promotion 決策、不因 20D 差改模型。
+- **60 個成熟日**：真正判斷點——Lift@5 > 1？StopRatio@5 < 1？前瞻行為 ≈ OOF 的 1.23 / 0.75？重現與否決定整條 PIT→Feature→Model→Calibration→Gate→Ledger 方法論是否成立。
+- 任何未來 promotion 一律：Development PASS → Final Holdout PASS → Shadow prospective observation → 才考慮 PROMOTED。
+- 首個 FEATURE_DRIFT fail run（2026-09-29）保留於 `mlentry_runs`，作為 immutable/audit 有效的證據，區分「模型失效」與「監控規格演進」。
+- 排程語意：cron 21:30（非交易日跳過）、啟動時對「應完成的最近交易日」catch-up。2026-09-30 21:30 前重啟 8000 → 首個前瞻 run 即 2026-09-30。

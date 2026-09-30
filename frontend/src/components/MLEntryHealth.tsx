@@ -70,10 +70,13 @@ export function MLEntryHealthView({ health, isLoading }: { health: HealthT | und
 
       <section>
         <h2 className="mb-2 text-base font-semibold">Live Forward Performance</h2>
-        <p className="mb-2 text-xs text-gray-500">
-          前瞻資料：policy 凍結後每日照規則出訊號，成熟（10 個交易日）後回填。已成熟 {health.live.matured_days} 個交易日。
-          與 Frozen Validation 同定義；累積 20 / 60 個成熟日後才有意義。
-        </p>
+        <div className="mb-2 flex flex-wrap items-center gap-3 text-xs text-gray-500">
+          <span>前瞻資料：policy 凍結後每日照規則出訊號，每個 signal 需再等 10 個交易日才成熟，與 Frozen Validation 同定義。</span>
+          <span className="rounded bg-gray-800 px-2 py-0.5 font-mono text-gray-200">
+            mature_days = {health.live.matured_days} / 20
+          </span>
+          <span>（20 個成熟日 ≈ 30 個交易日；首個觀察點 20D、判斷點 60D）</span>
+        </div>
         <div className="overflow-x-auto rounded-lg border border-gray-800">
           <table className="w-full text-sm">
             <thead className="bg-gray-900 text-left text-xs text-gray-400">
