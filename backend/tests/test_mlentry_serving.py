@@ -137,3 +137,20 @@ def test_health_gates_units():
     assert "mkt" in health.feature_health_gate(snap3, ref, cfg).details["out_of_range_day_level"]
     pr = health.prediction_health_gate({"t": np.full(10, 0.5)}, {"t": {"mean": 0.15, "std": 0.1}}, {"max_mean_shift_z": 3})
     assert not pr.ok and pr.reason == "MODEL_HEALTH_FAIL"
+
+
+def test_feature_health_gate_records_drifted_psi():
+    rng = np.random.default_rng(0)
+    ref_q = {str(q): float(v) for q, v in zip(("0.01", "0.05", "0.25", "0.5", "0.75", "0.95", "0.99"),
+                                               np.quantile(rng.normal(0, 1, 5000), (0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99)))}
+    feature_ref = {"f_ok": {"q": ref_q, "missing_rate": 0.0, "psi_p99": 0.1},
+                   "f_shift": {"q": ref_q, "missing_rate": 0.0, "psi_p99": 0.1}}
+    snap = pd.DataFrame({"f_ok": rng.normal(0, 1, 2000), "f_shift": rng.normal(3, 1, 2000)})
+    cfg = {"psi_hard": 0.25, "max_features_drifted": 8, "max_missing_rate_shift": 0.2}
+    res = health.feature_health_gate(snap, feature_ref, cfg)
+    d = res.details
+    assert d["drifted"] == ["f_shift"]
+    assert set(d["drifted_psi"]) == {"f_shift"}
+    assert d["drifted_psi"]["f_shift"]["thr"] == 0.25
+    assert d["drifted_psi"]["f_shift"]["psi"] > 0.25
+    assert res.ok is True                      # 1 個漂移 ≤ 8：判定不變

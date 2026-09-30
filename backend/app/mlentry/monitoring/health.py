@@ -60,6 +60,7 @@ def feature_health_gate(snapshot: pd.DataFrame, feature_ref: dict, cfg: dict) ->
     日／類股層級特徵：當日中位值超出訓練期每日值的 [0.5%, 99.5%] → drift。
     drift 特徵數或缺值率位移特徵數 > max_features_drifted → FEATURE_DRIFT（fail-closed）。"""
     drifted, miss_shift, psis, out_of_range = [], [], {}, []
+    drifted_psi: dict[str, dict] = {}
     for name, ref in feature_ref.items():
         if name not in snapshot.columns:
             continue
@@ -78,8 +79,11 @@ def feature_health_gate(snapshot: pd.DataFrame, feature_ref: dict, cfg: dict) ->
         thr = max(cfg["psi_hard"], ref.get("psi_p99", cfg["psi_hard"]))
         if np.isfinite(v) and v > thr:
             drifted.append(name)
+            if len(drifted_psi) < 20:
+                drifted_psi[name] = {"psi": round(float(v), 4), "thr": round(float(thr), 4)}
     det = {"n_drifted": len(drifted), "drifted": drifted[:20], "out_of_range_day_level": out_of_range[:20],
-           "missing_shift": miss_shift[:20], "psi_max": max((v for v in psis.values() if v is not None), default=0.0)}
+           "missing_shift": miss_shift[:20], "psi_max": max((v for v in psis.values() if v is not None), default=0.0),
+           "drifted_psi": drifted_psi}
     if len(drifted) > cfg["max_features_drifted"] or len(miss_shift) > cfg["max_features_drifted"]:
         return GateResult(False, "FEATURE_DRIFT", det)
     return GateResult(True, None, det)
