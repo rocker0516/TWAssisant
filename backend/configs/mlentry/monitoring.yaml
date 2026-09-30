@@ -12,3 +12,20 @@ live_metrics:
   windows: [20, 60, 120]           # 成熟交易日視窗
   k: 5
 manual_halt: false                 # true → 每日 run 一律 MANUAL_HALT
+diagnostics:                      # Spec A §23 只記錄不阻擋；缺鍵 → evaluated:false；attention 只換 UI 顏色
+  freshness:
+    daily_prices:       {mode: business_date,       max_lag_days: 0}
+    market_index:       {mode: business_date,       max_lag_days: 0}
+    attention_listings: {mode: ingestion_watermark, max_lag_days: 1, step: attention}   # 看上一輪已完成 pipeline，落後 1 日為常態
+  sanity:
+    min_hard_flag_count: 5
+    max_hard_flag_ratio: 0.005
+  feature_shift:
+    mean_z_threshold: 3.0
+    gap_threshold: 0.2
+    max_features_mean_shift: 8
+    max_features_gap: 8
+  recommendation:
+    min_recommendations_for_concentration: 3
+    max_sector_share: 0.60
+    min_sector_overweight: 2.0
