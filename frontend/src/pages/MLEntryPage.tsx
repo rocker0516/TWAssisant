@@ -17,6 +17,7 @@ const TABS: { key: Tab; label: string }[] = [
 
 export default function MLEntryPage() {
   const [tab, setTab] = useState<Tab>("board");
+  const [focusGate, setFocusGate] = useState<string | null>(null);
   const { data: board, isLoading: boardLoading } = useMLEntryBoard();
   const { data: health, isLoading: healthLoading } = useMLEntryHealth();
   const { data: status, isLoading: statusLoading } = useMLEntryStatus();
@@ -29,7 +30,8 @@ export default function MLEntryPage() {
           +10% / −5% barrier・3D / 5D / 10D・全市場 U_t・Gate → Rank → Dynamic Top-K・允許 NO_TRADE
         </span>
       </div>
-      <MLEntryStatusBanner stack={stack} run={board?.run ?? status?.last_run} />
+      <MLEntryStatusBanner stack={stack} run={board?.run ?? status?.last_run} progress={status?.live_progress}
+                           onGateClick={(g) => { setFocusGate(g); setTab("system"); }} />
       <div className="flex gap-1 border-b border-gray-800">
         {TABS.map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
@@ -40,7 +42,7 @@ export default function MLEntryPage() {
       </div>
       {tab === "board" && <MLEntryBoardView board={board} isLoading={boardLoading} />}
       {tab === "health" && <MLEntryHealthView health={health} isLoading={healthLoading} />}
-      {tab === "system" && <MLEntrySystemView status={status} health={health} isLoading={statusLoading} />}
+      {tab === "system" && <MLEntrySystemView status={status} health={health} isLoading={statusLoading} focusGate={focusGate} />}
     </div>
   );
 }

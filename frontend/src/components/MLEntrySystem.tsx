@@ -27,7 +27,7 @@ function Gate({ name, g }: { name: string; g: Record<string, unknown> | undefine
   );
 }
 
-export function MLEntrySystemView({ status, health, isLoading }: { status: MLEntryStatus | undefined; health: HealthT | undefined; isLoading: boolean }) {
+export function MLEntrySystemView({ status, health, isLoading }: { status: MLEntryStatus | undefined; health: HealthT | undefined; isLoading: boolean; focusGate?: string | null }) {
   if (isLoading || !status) return <div className="py-8 text-center text-gray-500">載入中…</div>;
   const s = status.stack;
   const r = status.last_run;
