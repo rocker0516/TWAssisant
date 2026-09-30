@@ -59,8 +59,8 @@ def test_audit_summary_whitelist_and_mismatch():
 
 def test_safe_build_audit_returns_error_type_only(caplog):
     with caplog.at_level("ERROR"):
-        out = audit.safe_build_audit("2026-09-29", "2026-09-29", SimpleNamespace(dir=None, policy_name="p", code_commit="c"), {})
-    assert out == {"error_type": "TypeError"}                    # Path(None) 拋 TypeError；訊息只在 log
+        out = audit.safe_build_audit("2026-09-29", "2026-09-29", SimpleNamespace(dir=None, policy_name="p", code_commit="c"), None)
+    assert out == {"error_type": "AttributeError"}               # sources=None → .items() 拋 AttributeError；訊息只在 log
     assert any("build_audit failed" in m for m in caplog.messages)
 
 
