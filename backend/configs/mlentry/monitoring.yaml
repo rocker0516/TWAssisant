@@ -29,3 +29,8 @@ diagnostics:                      # Spec A §23 只記錄不阻擋；缺鍵 → 
     min_recommendations_for_concentration: 3
     max_sector_share: 0.60
     min_sector_overweight: 2.0
+lifecycle:                        # Spec B §24：觀察期 lifecycle 骨架，全部 disabled；解凍只由人改 observation_freeze
+  observation_freeze: true        # true → set_champion / promote / rollback 一律拒絕並寫 promotion_audit.jsonl
+  freeze_until_mature_days: 60    # 宣告用，不自動解凍
+  auto_retrain: false
+  auto_promote: false
