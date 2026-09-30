@@ -70,6 +70,8 @@ def test_registry_declares_every_built_feature_and_lookback_bound():
     cfg = FeatureConfig()
     names = registry.feature_names(cfg)
     assert len(names) == len(set(names)) == 57
+    v3 = registry.feature_names(FeatureConfig(families=("price", "volume", "volatility", "cross_sectional", "regime", "event", "fundamentals")))
+    assert len(v3) == 70 and registry.feature_version(cfg) != registry.feature_version(FeatureConfig(families=tuple(v3 and ("price",))))
     assert registry.max_feature_lookback(cfg) <= UniverseConfig().history_lookback
     assert registry.feature_version(cfg).startswith("f_")
     assert registry.feature_version(cfg) != registry.feature_version(FeatureConfig(families=("price",)))
@@ -125,3 +127,17 @@ def test_event_and_limit_features_semantics():
     assert np.isnan(f["industry_ret_5d"].loc[as_of, "D"])       # 無類股
     ranks = f["ret_5d_pct_rank"].loc[as_of].dropna()
     assert ranks.max() == 1.0 and 0 < ranks.min() <= 1
+
+
+def test_fundamental_asof_matrices_respect_availability_and_lags():
+    from app.mlentry.data import fundamentals as fd
+    cal = TradingCalendar([f"2025-01-{d:02d}" for d in (2, 3, 6, 7, 8, 9, 10)])
+    cols = pd.Index(["A"])
+    rows = pd.DataFrame({"stock_id": ["A", "A", "A"], "period_key": [202411, 202412, 202501],
+                         "avail": pd.to_datetime(["2025-01-04", "2025-01-07", "2025-02-10"]),   # 01-04 非交易日 → 01-06
+                         "rev_yoy": [1.0, 2.0, 3.0]})
+    m = fd.asof_matrices(rows, ("rev_yoy",), cal, cols, lags={"rev_yoy": (1,)})
+    assert np.isnan(m["rev_yoy"].loc["2025-01-03", "A"])
+    assert m["rev_yoy"].loc["2025-01-06", "A"] == 1.0 and m["rev_yoy"].loc["2025-01-07", "A"] == 2.0
+    assert m["rev_yoy"].loc["2025-01-10", "A"] == 2.0                  # 202501 期 2 月才可得
+    assert np.isnan(m["rev_yoy_lag1"].loc["2025-01-06", "A"]) and m["rev_yoy_lag1"].loc["2025-01-07", "A"] == 1.0

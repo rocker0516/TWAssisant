@@ -1,0 +1,3 @@
+# Feature challenger F2（2026-09-30）：v1 六族 + fundamentals 族（PIT 走 mlentry 契約）。F1 relative 族未帶來增益，不納入。
+large_gap_threshold: 0.05
+families: [price, volume, volatility, cross_sectional, regime, event, fundamentals]

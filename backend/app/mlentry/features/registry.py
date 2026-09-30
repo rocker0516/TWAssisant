@@ -13,7 +13,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from ..config import FeatureConfig
-from . import cross_sectional, event, price, regime, relative, volatility, volume
+from . import cross_sectional, event, fundamentals, price, regime, relative, volatility, volume
 from .context import FeatureContext
 
 
@@ -40,14 +40,17 @@ FAMILY_FEATURES: dict[str, tuple[str, ...]] = {
     "relative": ("rel_ret_5d_vs_industry", "rel_vol_vs_industry", "turnover_rank_in_industry", "ret_20d_rank_in_industry",
                  "industry_breadth_ma20", "industry_momentum_60d", "x_strength_market_breadth", "x_strength_industry_breadth",
                  "x_vol_breadth", "x_turnover_accel_rel_strength", "x_rel_ret5_market_ret5"),
+    "fundamentals": ("rev_yoy", "rev_yoy_3m", "rev_accel", "rev_mom", "rev_surprise", "net_margin", "gross_margin_chg",
+                     "op_margin_chg", "eps_ttm_growth", "pe_rank_in_industry", "pb_rank_in_industry", "dividend_yield",
+                     "earnings_yield"),
     "event": ("is_attention_stock", "is_disposition_stock", "limit_up_today", "limit_down_today",
               "limit_up_count_20d", "limit_down_count_20d", "large_gap", "consecutive_up_days",
               "consecutive_down_days", "dist_limit_up", "breadth_ma20"),
 }
 
-_MODULES = {"price": price, "volume": volume, "volatility": volatility, "relative": relative,
+_MODULES = {"price": price, "volume": volume, "volatility": volatility, "relative": relative, "fundamentals": fundamentals,
             "cross_sectional": cross_sectional, "regime": regime, "event": event}
-_ORDER = ("price", "volume", "volatility", "regime", "event", "relative", "cross_sectional")   # relative/cs 依賴前者
+_ORDER = ("price", "volume", "volatility", "regime", "event", "relative", "fundamentals", "cross_sectional")   # relative/cs 依賴前者
 
 
 def specs(cfg: FeatureConfig) -> list[FeatureSpec]:

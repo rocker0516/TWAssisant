@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 
 from ..config import MLEntryConfig
+from ..data import fundamentals as fund
 from ..data import pit, prices, quality
 from ..data.calendar import TradingCalendar, load_calendar
 from ..data.universe import build_universe
@@ -49,11 +50,12 @@ def load_inputs(con, cfg: MLEntryConfig, as_of: str | None = None):
     windows = prices.load_attention_windows(con)
     events = {"attention": pit.event_mask(windows, cal, cols, "notice"),
               "disposition": pit.event_mask(windows, cal, cols, "punish")}
-    return cal, m, mkt, sector, events
+    fundamentals = fund.load_fundamental_matrices(con, cal, cols) if "fundamentals" in cfg.features.families else None
+    return cal, m, mkt, sector, events, fundamentals
 
 
 def build(con, cfg: MLEntryConfig, as_of: str | None = None) -> BuiltDataset:
-    cal, m, mkt, sector, events = load_inputs(con, cfg, as_of)
+    cal, m, mkt, sector, events, fundamentals = load_inputs(con, cfg, as_of)
     as_of = cal.dates[-1]
     log.info("inputs loaded: %d dates × %d stocks, as_of=%s", len(cal), m["close"].shape[1], as_of)
 
@@ -78,7 +80,7 @@ def build(con, cfg: MLEntryConfig, as_of: str | None = None) -> BuiltDataset:
 
     # features：逐族轉長表
     ctx = FeatureContext(as_of=as_of, calendar=cal, prices=m, market_close=mkt, sector_map=sector,
-                         eligible=eligible, events=events, limits={"up": up, "down": dn})
+                         eligible=eligible, events=events, limits={"up": up, "down": dn}, fundamentals=fundamentals)
     feat_cols: dict[str, np.ndarray] = {}
     for fam, got in registry.build_iter(ctx, cfg.features):
         for name, mat in got.items():
