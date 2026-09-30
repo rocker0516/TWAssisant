@@ -1,0 +1,19 @@
+# policy_baseline_v1（B9 凍結，2026-09-30）。定位：正式 baseline，不是 production champion。
+# 之後所有 feature challenger 必須用完全相同的 harness 與這一版比較；本檔不得修改，改動即新 policy 名稱。
+name: policy_baseline_v1
+volatility_neutralization:
+  method: daily_atr_decile_percentile     # 同日 × ATR 十分位內百分位
+  vol_col: atr_pct
+  n_buckets: 10
+gate:
+  alpha_col: p_target_10d
+  risk_col: p_stop_10d
+  theta_alpha_pct: 0.95                   # p_target_vn >= 0.95
+  theta_risk_pct: 0.20                    # p_stop_vn   <= 0.20
+  theta_exec: null                        # V1 不依賴 execution gate（保留欄位）
+ranking:
+  method: vn_diff                         # p_target_vn - p_stop_vn
+  k_max: 5
+no_trade:
+  policy_no_candidate: qualified_count == 0
+cost_rt: 0.00585                          # 來回顯性成本（Level 2 costs），只用於 NetReturn 報表

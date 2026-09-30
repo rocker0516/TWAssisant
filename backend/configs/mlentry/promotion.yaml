@@ -1,0 +1,19 @@
+# Promotion contract（2026-09-30 凍結）：Development policy 必須同時滿足以下條件，才有資格讀 Final Holdout。
+# 所有指標以 dev 4 個 validation fold 的 OOF 計算，K = 5，policy 自身的 Top-K。
+final_holdout_eligibility:
+  target_lift_at_5_min: 1.5          # TargetRate@5 / 同期市場基率
+  stop_ratio_at_5_max: 0.8           # StopRate@5 / 同期市場 Stop 基率
+  worst_fold_lift_at_5_min: 1.0      # 嚴格大於
+  coverage_min: 0.8                  # C_min（2026-09-30 凍結）：baseline 0.99；0.42%-列的小角落 0.74 → 排除。之後不再改
+bootstrap:
+  method: trading_day_block          # 不做 row bootstrap（候選與 10D outcome 高度時間相依）
+  block_length_main: 20
+  block_lengths_robustness: [10, 20, 40]
+  n_resamples: 2000
+  ci: 0.95
+  no_edge_reference: {target_lift: 1.0, stop_ratio: 1.0, net_return_10d: 0.0}
+challenger_rules:
+  fixed: [labels, folds, lightgbm_config, calibration, vn_gate_search_space, evaluation]
+  variable: [feature_version]
+  stage_a: [conditional_target_lift, conditional_stop_reduction]   # 未改善即淘汰
+  stage_b: [target_lift, stop_ratio, coverage, worst_fold_lift, net_return]
