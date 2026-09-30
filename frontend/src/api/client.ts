@@ -1356,3 +1356,81 @@ export function useLevel2Orders() {
     retry: false,
   });
 }
+
+// ── ML 進場推薦 FRS v1（Production Shadow；真相來源 backend/app/api/routes_mlentry.py）──
+// 狀態 RESEARCH_SHADOW：頁面一律呈現「Research Recommendation」，不是正式進場推薦。
+export type MLEntryStack = {
+  model_version: string | null; calibration_version: string | null; policy_version: string | null;
+  policy_name: string | null; feature_version: string | null; label_version: string | null;
+  dataset_version: string | null; trained_through: string | null;
+  model_status: string; model_status_label: string; deployment_mode: string;
+  promotion_eligible: boolean; recommendation_label: string;
+};
+export type MLEntryRun = {
+  run_id: string; signal_date: string; status: string; no_trade: boolean;
+  no_trade_reason: string | null; no_trade_text: string | null;
+  universe_count: number; qualified_count: number; recommendation_count: number;
+  model_version: string; policy_version: string; code_commit: string;
+  health: Record<string, Record<string, unknown>>;
+};
+export type MLEntryItem = {
+  rank: number | null; stock_id: string; name: string | null; close: number | null;
+  recommended: boolean; gate_pass: boolean; gate_failure_reason: number;
+  recommendation_score: number | null;
+  p_target_3d: number | null; p_target_5d: number | null; p_target_10d: number | null;
+  p_stop_3d: number | null; p_stop_5d: number | null; p_stop_10d: number | null;
+  pred_mfe_10d: number | null; p_executable: number | null;
+  p_target_vn: number | null; p_stop_vn: number | null; atr_pct: number | null;
+};
+export type MLEntryBoard = {
+  stack: MLEntryStack; run: MLEntryRun | null; items: MLEntryItem[]; candidates: MLEntryItem[];
+  market_base: { market_target_rate: number | null; market_stop_rate: number | null;
+                 p_target_10d_mean: number | null; p_stop_10d_mean: number | null };
+};
+export type MLEntryCheck = { value: number; op: string; threshold: number; pass: boolean };
+export type MLEntryLiveWindow = {
+  days: number; n_rec: number; market_target_rate: number; market_stop_rate: number; ece_target_10d: number;
+  target_rate?: number; target_lift?: number | null; stop_rate?: number; stop_ratio?: number | null;
+  timeout_rate?: number; mean_net10?: number; median_mae?: number; median_mfe?: number;
+};
+export type MLEntryHealth = {
+  stack: MLEntryStack;
+  frozen_validation: {
+    metrics: Record<string, number | number[] | string[] | string>;
+    thresholds: Record<string, number | null>;
+    promotion_check: Record<string, MLEntryCheck | boolean>;
+    promotion_result: "PASS" | "FAIL"; note: string;
+  };
+  live: { matured_days: number; windows: Record<string, MLEntryLiveWindow> };
+  history: { signal_date: string; status: string; no_trade_reason: string | null;
+             universe_count: number; qualified_count: number; recommendation_count: number }[];
+  monitoring_thresholds: Record<string, Record<string, number>>;
+};
+export type MLEntryStatus = {
+  stack: MLEntryStack; last_run: MLEntryRun | null;
+  promotion_check: Record<string, MLEntryCheck | boolean>;
+  promotion_contract: Record<string, number | null>; final_holdout_access: boolean;
+};
+
+export function useMLEntryBoard(signalDate?: string) {
+  const q = signalDate ? `?signal_date=${signalDate}` : "";
+  return useQuery({
+    queryKey: ["mlentry-board", signalDate ?? "latest"],
+    queryFn: () => getJson<MLEntryBoard>(`/mlentry/board${q}`),
+    staleTime: 5 * 60_000,
+  });
+}
+export function useMLEntryHealth() {
+  return useQuery({
+    queryKey: ["mlentry-health"],
+    queryFn: () => getJson<MLEntryHealth>("/mlentry/health?limit=60"),
+    staleTime: 5 * 60_000,
+  });
+}
+export function useMLEntryStatus() {
+  return useQuery({
+    queryKey: ["mlentry-status"],
+    queryFn: () => getJson<MLEntryStatus>("/mlentry/status"),
+    staleTime: 60_000,
+  });
+}

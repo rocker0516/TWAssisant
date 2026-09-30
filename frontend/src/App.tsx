@@ -6,6 +6,7 @@ import HoldingsPage from "./pages/HoldingsPage";
 import IntelPage from "./pages/IntelPage";
 import CtxMatrixPage from "./pages/CtxMatrixPage";
 import Level1Page from "./pages/Level1Page";
+import MLEntryPage from "./pages/MLEntryPage";
 import Level2Page from "./pages/Level2Page";
 import LabPage from "./pages/LabPage";
 import OverviewPage from "./pages/OverviewPage";
@@ -32,7 +33,8 @@ export default function App() {
         <Route path="/watchlists" element={<WatchlistsPage />} />
         <Route path="/lab" element={<LabPage />} />
         <Route path="/ctx-matrix" element={<CtxMatrixPage />} />
-        <Route path="/level1" element={<Level1Page />} />
+        <Route path="/level1" element={<MLEntryPage />} />
+        <Route path="/level1/legacy" element={<Level1Page />} />
         <Route path="/level2" element={<Level2Page />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/stocks/:id" element={<StockDetailPage />} />

@@ -1,0 +1,73 @@
+"""mlentry API：status / board / health / runs 的形狀與 shadow 定位欄位；空 DB 也不得 500。"""
+
+from __future__ import annotations
+
+import json
+from datetime import date, datetime
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app import auth, main
+from app.api import routes_mlentry
+from app.storage import models
+from app.storage.database import init_db, session_scope
+
+RUN_ID = "2019-01-02_test_stack_000000000000"
+SIGNAL = date(2019, 1, 2)                       # 遠早於真實資料
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _db():
+    init_db()
+    with session_scope() as s:
+        s.merge(models.MLEntryRun(run_id=RUN_ID, signal_date=SIGNAL, as_of_timestamp=datetime(2019, 1, 2, 21, 30),
+                                  dataset_version="ds_t", universe_version="u", feature_version="f", label_version="l",
+                                  model_version="test_stack", calibration_version="c", policy_version="p", policy_name="policy_baseline_v1",
+                                  model_status="RESEARCH_SHADOW", deployment_mode="SHADOW", promotion_eligible=False, code_commit="abc",
+                                  status="OK", no_trade=False, no_trade_reason=None, universe_count=3, qualified_count=2,
+                                  recommendation_count=1, health_json=json.dumps({"data_quality": {"ok": True}, "feature_health": {"ok": True, "n_drifted": 0}})))
+        s.flush()                                   # 無 ORM relationship：先落 run 列再寫 FK 子列
+        for sid, rec, rank, gp in (("2330", True, 1, True), ("1101", False, 2, True), ("2317", False, None, False)):
+            s.merge(models.MLEntryPrediction(run_id=RUN_ID, stock_id=sid, signal_date=SIGNAL, p_target_10d=0.2, p_stop_10d=0.3,
+                                             p_target_vn=0.96, p_stop_vn=0.1, gate_pass=gp, gate_failure_reason=0 if gp else 8,
+                                             recommendation_score=0.9, rank=rank, recommended=rec))
+    yield
+    with session_scope() as s:
+        s.query(models.MLEntryPrediction).filter_by(run_id=RUN_ID).delete()
+        s.query(models.MLEntryRun).filter_by(run_id=RUN_ID).delete()
+
+
+@pytest.fixture
+def client(monkeypatch):
+    monkeypatch.setattr(auth, "auth_enabled", lambda: False)
+    return TestClient(main.app)
+
+
+def test_status_carries_shadow_positioning(client, monkeypatch):
+    monkeypatch.setattr(routes_mlentry, "load_champion", lambda: None)
+    r = client.get("/api/mlentry/status"); assert r.status_code == 200
+    j = r.json()
+    assert j["stack"]["recommendation_label"] == "Research Recommendation" and j["final_holdout_access"] is False
+    assert "target_lift_at_5_min" in j["promotion_contract"]
+
+
+def test_board_returns_recommended_and_candidates(client, monkeypatch):
+    monkeypatch.setattr(routes_mlentry, "load_champion", lambda: None)
+    r = client.get(f"/api/mlentry/board?signal_date={SIGNAL.isoformat()}"); assert r.status_code == 200
+    j = r.json()
+    assert j["run"]["run_id"] == RUN_ID and j["run"]["status"] == "OK"
+    assert [i["stock_id"] for i in j["items"]] == ["2330"] and j["items"][0]["rank"] == 1
+    assert [c["stock_id"] for c in j["candidates"]] == ["1101"]           # 通過 gate 未推薦；2317 未過 gate 不列
+    assert j["run"]["health"]["feature_health"]["ok"] is True
+
+
+def test_health_and_runs_shape(client, monkeypatch):
+    monkeypatch.setattr(routes_mlentry, "load_champion", lambda: None)
+    r = client.get("/api/mlentry/health?limit=5"); assert r.status_code == 200
+    j = r.json()
+    assert j["frozen_validation"]["promotion_result"] == "FAIL" and "thresholds" in j["frozen_validation"]
+    assert "windows" in j["live"] and any(h["signal_date"] == SIGNAL.isoformat() for h in j["history"])
+    r = client.get("/api/mlentry/runs?limit=5"); assert r.status_code == 200
+    assert any(x["run_id"] == RUN_ID for x in r.json())
+    assert client.get("/api/mlentry/runs/nope").status_code == 404

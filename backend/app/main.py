@@ -27,6 +27,7 @@ from .api.routes_flow import router as flow_router
 from .api.routes_holdings import router as holdings_router
 from .api.routes_intel import router as intel_router
 from .api.routes_level1 import router as level1_router
+from .api.routes_mlentry import router as mlentry_router
 from .api.routes_level2 import router as level2_router
 from .api.routes_lab import router as lab_router
 from .api.routes_overview import router as overview_router
@@ -73,6 +74,7 @@ app.include_router(corners_router, prefix=_API)
 app.include_router(ctx_router, prefix=_API)
 app.include_router(lab_router, prefix=_API)
 app.include_router(level1_router, prefix=_API)
+app.include_router(mlentry_router, prefix=_API)
 app.include_router(level2_router, prefix=_API)
 # 公開頁：無前綴。命名空間約定見 web/routes_public.py 檔頭。
 app.include_router(public_router)
