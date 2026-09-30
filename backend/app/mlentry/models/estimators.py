@@ -17,15 +17,23 @@ MODEL_NAMES = ("prevalence", "logreg", "lgbm")
 class Prevalence:
     """歷史盛行率 / 平均值常數模型（§13-1）。"""
 
-    def __init__(self):
+    def __init__(self, kind: str = "binary"):
+        self.kind = kind
         self.value_ = float("nan")
 
     def fit(self, X, y, w=None):
         w = np.ones(len(y)) if w is None else np.asarray(w, dtype=float)
-        self.value_ = float(np.average(np.asarray(y, dtype=float), weights=w))
+        y = np.asarray(y, dtype=float)
+        if self.kind == "multiclass":
+            k = int(y.max()) + 1
+            self.value_ = np.array([np.sum(w[y == c]) / w.sum() for c in range(k)], dtype="float32")
+        else:
+            self.value_ = float(np.average(y, weights=w))
         return self
 
     def predict(self, X):
+        if self.kind == "multiclass":
+            return np.tile(self.value_, (len(X), 1))
         return np.full(len(X), self.value_, dtype="float32")
 
 
@@ -56,7 +64,9 @@ class _LGBM:
     def __init__(self, kind: str, params: dict[str, Any]):
         import lightgbm as lgb
         self.kind = kind
-        self.model = (lgb.LGBMClassifier(**params) if kind == "binary" else lgb.LGBMRegressor(**params))
+        if kind == "multiclass":
+            params = {**params, "objective": "multiclass"}
+        self.model = (lgb.LGBMClassifier(**params) if kind in ("binary", "multiclass") else lgb.LGBMRegressor(**params))
 
     def fit(self, X, y, w=None):
         self.model.fit(X, y, sample_weight=w)
@@ -65,6 +75,8 @@ class _LGBM:
     def predict(self, X):
         if self.kind == "binary":
             return self.model.predict_proba(X)[:, 1].astype("float32")
+        if self.kind == "multiclass":
+            return self.model.predict_proba(X).astype("float32")          # (n, n_class)
         return self.model.predict(X).astype("float32")
 
     def feature_importance(self, names) -> pd.Series:
@@ -73,9 +85,11 @@ class _LGBM:
 
 def make_model(name: str, kind: str, cfg: dict[str, Any]):
     if name == "prevalence":
-        return Prevalence()
+        return Prevalence(kind)
     if name == "logreg":
+        if kind == "multiclass":
+            raise ValueError("logreg multiclass not supported in v1")
         return _linear(kind, cfg.get("logreg", {}))
     if name == "lgbm":
-        return _LGBM(kind, dict(cfg["lgbm_binary" if kind == "binary" else "lgbm_regression"]))
+        return _LGBM(kind, dict(cfg["lgbm_regression" if kind == "regression" else "lgbm_binary"]))
     raise ValueError(f"unknown model {name}")

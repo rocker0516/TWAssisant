@@ -110,7 +110,12 @@ def run_oof(dev: DatasetSlice, task: TaskSpec, model_name: str, feature_names: l
         sub = tf.loc[va, ["sample_id", "signal_date", "y", "w"]].copy()
         sub["stock_id"] = stock.loc[sub["sample_id"]].to_numpy()
         sub["fold"] = f.name
-        sub["pred"] = p.astype("float32")
+        if task.kind == "multiclass":
+            for c in range(p.shape[1]):
+                sub[f"pred_{c}"] = p[:, c].astype("float32")
+            sub["pred"] = p[:, 0].astype("float32")                    # 主欄 = P(TARGET)
+        else:
+            sub["pred"] = p.astype("float32")
         preds.append(sub)
         meta.folds.append(FoldMeta(f.name, int(tr.sum()), int(va.sum()),
                                    float(np.average(ytr, weights=tf.loc[tr, "w"])) if task.kind == "binary" else None,

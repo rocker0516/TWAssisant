@@ -131,3 +131,25 @@ def test_metric_helpers():
     assert mm.top_pct_rate(y, p, 0.2) == 1.0
     rel = mm.reliability(y, p, bins=5)
     assert rel["n"].sum() == 10
+
+
+def test_challenger_task_frames_direction_and_multiclass():
+    t = all_tasks()
+    o = pd.DataFrame({
+        "sample_id": list("abcdef"), "signal_date": ["d1"] * 6,
+        "entry_status": [0, 0, 0, 0, 0, 1], "entry_executable": [1, 1, 1, 1, 1, 0], "matured": [1, 1, 1, 1, 0, 1],
+        "event_type": [Event.TARGET, Event.STOP, Event.TIMEOUT, Event.STOP_AMBIGUOUS, Event.PENDING, Event.NOT_ENTERED],
+        "target_first_hit_day": [3, np.nan, np.nan, 4, np.nan, np.nan],
+        "stop_first_hit_day": [7, 2, np.nan, 4, np.nan, np.nan],
+    })
+    d = task_frame(t["direction_10d"], o)
+    assert list(d["sample_id"]) == ["a", "b"] and d["y"].tolist() == [1.0, 0.0]     # 只用已解決列
+    d5 = task_frame(t["direction_5d"], o)
+    assert list(d5["sample_id"]) == ["a", "b"]                                       # 5 日內：a 第 3 日 TARGET、b 第 2 日 STOP
+    e = task_frame(t["event_10d"], o)
+    assert list(e["sample_id"]) == ["a", "b", "c", "d"] and e["y"].tolist() == [0.0, 1.0, 2.0, 2.0]
+    assert e["w_task"].tolist() == [1.0, 1.0, 1.0, 0.0]                              # AMBIGUOUS weight 0
+    e3 = task_frame(t["event_3d"], o)
+    assert e3["y"].tolist() == [0.0, 1.0, 2.0, 2.0]                                  # a 第 3 日 TARGET 仍在 3 日內
+    e2 = task_frame(all_tasks(horizons=(2,))["event_2d"], o)
+    assert e2["y"].tolist() == [2.0, 1.0, 2.0, 2.0]                                  # 2 日內 a 尚未觸 → TIMEOUT
