@@ -155,3 +155,24 @@ def test_ranking_ic_ignores_nan_returns():
              "event_type": TIMEOUT, "return_10d": (i * 0.01 if i < 4 else np.nan), "mfe_10d": 0.0, "mae_10d": 0.0,
              "target_first_hit_day": np.nan} for i in range(6)]
     assert dfz.ranking_diagnostics(pd.DataFrame(rows), k=3)["ic"]["days"] == 0   # 只 4 列有效報酬 < 5
+
+
+def test_script_refuses_policy_mismatch_and_writes_only_diagnostics(tmp_path, monkeypatch):
+    import hashlib, json as _json
+    from types import SimpleNamespace
+    from scripts import mlentry_frozen_diagnostics as sc
+    pdir = tmp_path / "policy" / "policy_baseline_v1"; pdir.mkdir(parents=True)
+    (pdir / "metrics.json").write_text(_json.dumps({"policy": "policy_other"}), encoding="utf-8")
+    monkeypatch.setattr(sc, "load_champion", lambda: SimpleNamespace(policy_name="policy_baseline_v1", dataset_version=tmp_path.name))
+    monkeypatch.setattr(sc, "DEFAULT_ROOT", tmp_path.parent)
+    assert sc.main(["--dataset", str(tmp_path)]) == 1                   # policy 不符 → 拒絕
+    (pdir / "metrics.json").write_text(_json.dumps({"policy": "policy_baseline_v1"}), encoding="utf-8")
+    monkeypatch.setattr(sc, "assemble_frame", lambda ds_dir, policy_name, con: _regime_frame())
+    monkeypatch.setattr(sc, "_connect", lambda: None)
+    before = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in pdir.iterdir()}
+    assert sc.main(["--dataset", str(tmp_path)]) == 0
+    out = _json.loads((pdir / "diagnostics_frozen.json").read_text(encoding="utf-8"))
+    assert out["policy_name"] == "policy_baseline_v1" and out["dataset_version"] == tmp_path.name and out["diagnostic_only"] is True
+    after = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in pdir.iterdir() if p.name != "diagnostics_frozen.json"}
+    assert before == after
+    assert not (tmp_path / "holdout_access.log").exists()
