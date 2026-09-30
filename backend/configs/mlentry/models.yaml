@@ -1,0 +1,30 @@
+# FRS v1 §12–§13 模型堆疊。超參為 baseline（§30 待 OOF 決定）；改動即 model_version 變更。
+lgbm_binary:
+  n_estimators: 300
+  learning_rate: 0.05
+  num_leaves: 63
+  min_child_samples: 200
+  subsample: 0.8
+  subsample_freq: 1
+  colsample_bytree: 0.8
+  reg_lambda: 1.0
+  random_state: 42
+  n_jobs: 4
+  verbose: -1
+lgbm_regression:
+  objective: huber
+  n_estimators: 300
+  learning_rate: 0.05
+  num_leaves: 63
+  min_child_samples: 200
+  subsample: 0.8
+  subsample_freq: 1
+  colsample_bytree: 0.8
+  reg_lambda: 1.0
+  random_state: 42
+  n_jobs: 4
+  verbose: -1
+logreg:
+  C: 1.0
+  max_iter: 200
+mfe_winsor_quantile: 0.99      # 只由各 training fold 估；cap 存進 artifact metadata
