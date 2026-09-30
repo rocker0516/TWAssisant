@@ -1419,8 +1419,27 @@ export type MLEntryMaturedDay = {
   signal_date: string; n_rec: number; target: number; stop: number; timeout: number;
   lift: number | null; net10: number | null;
 };
+export type MLEntryDiagCell = { lift_at_5: number | null; stop_ratio_at_5: number | null; n: number; days: number };
+export type MLEntryRegimeBlock = { groups: Record<string, MLEntryDiagCell>; cuts: number[] | null; column: string };
+export type MLEntryFrozenDiagnostics = {
+  generated_at: string; policy_name: string; dataset_version: string; k: number; n_eval_rows: number; n_days: number;
+  diagnostic_only: boolean; not_used_for_policy: boolean;
+  lift_at_k: Record<string, { row_weighted: Record<string, number | null>; day_weighted: Record<string, number | null> }>;
+  timing: Record<string, number | null | boolean>;
+  ranking: { precision_at_k: number | null; recall_at_k: number | null; ndcg_at_k: number | null; n: number; days: number;
+             ic: { mean: number | null; std: number | null; positive_share: number | null; days: number } };
+  regime: { market: MLEntryRegimeBlock; volatility: MLEntryRegimeBlock; breadth: MLEntryRegimeBlock; mcap: MLEntryRegimeBlock;
+            industry: MLEntryRegimeBlock; mcap_basis: string };
+};
+export type MLEntryLifecycle = {
+  observation_freeze: boolean; freeze_until_mature_days: number; mature_days: number; auto_retrain: boolean; auto_promote: boolean;
+  challengers_count: number; previous_model_version: string | null;
+  last_audit_event: { at: string | null; event: string | null; action: string | null; model_version: string | null } | null;
+};
 export type MLEntryHealth = {
   stack: MLEntryStack;
+  diagnostics_frozen: MLEntryFrozenDiagnostics | null;
+  live_gate: { mature_days: number; decide_at: number; live_unlocked: boolean };
   frozen_validation: {
     metrics: Record<string, number | number[] | string[] | string>;
     thresholds: Record<string, number | null>;
@@ -1439,6 +1458,7 @@ export type MLEntryStatus = {
   promotion_check: Record<string, MLEntryCheck | boolean>;
   promotion_contract: Record<string, number | null>; final_holdout_access: boolean;
   live_progress: { matured_days: number; observe_at: number; decide_at: number };
+  lifecycle: MLEntryLifecycle;
 };
 
 export function useMLEntryBoard(signalDate?: string) {
