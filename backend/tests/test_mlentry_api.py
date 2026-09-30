@@ -26,7 +26,8 @@ def _db():
                                   model_version="test_stack", calibration_version="c", policy_version="p", policy_name="policy_baseline_v1",
                                   model_status="RESEARCH_SHADOW", deployment_mode="SHADOW", promotion_eligible=False, code_commit="abc",
                                   status="OK", no_trade=False, no_trade_reason=None, universe_count=3, qualified_count=2,
-                                  recommendation_count=1, health_json=json.dumps({"data_quality": {"ok": True}, "feature_health": {"ok": True, "n_drifted": 0}})))
+                                  recommendation_count=1, health_json=json.dumps({"data_quality": {"ok": True}, "feature_health": {"ok": True, "n_drifted": 0, "drifted_psi": {}},
+                                                                   "recommendation": {"qualified_count": 2}})))
         s.flush()                                   # 無 ORM relationship：先落 run 列再寫 FK 子列
         for sid, rec, rank, gp in (("2330", True, 1, True), ("1101", False, 2, True), ("2317", False, None, False)):
             s.merge(models.MLEntryPrediction(run_id=RUN_ID, stock_id=sid, signal_date=SIGNAL, p_target_10d=0.2, p_stop_10d=0.3,
@@ -71,3 +72,37 @@ def test_health_and_runs_shape(client, monkeypatch):
     r = client.get("/api/mlentry/runs?limit=5"); assert r.status_code == 200
     assert any(x["run_id"] == RUN_ID for x in r.json())
     assert client.get("/api/mlentry/runs/nope").status_code == 404
+
+
+def test_board_new_fields(client, monkeypatch):
+    monkeypatch.setattr(routes_mlentry, "load_champion", lambda: None)
+    j = client.get(f"/api/mlentry/board?signal_date={SIGNAL.isoformat()}").json()
+    it = j["items"][0]
+    assert "est_target_price" in it and "est_stop_price" in it and "pred_mfe_5d" in it
+    assert set(j["gate_thresholds"]) == {"target_vn_min", "stop_vn_max"}
+    v = j["run"]["verdict"]
+    assert v["tone"] == "ok" and v["headline"] == "正常出單 1 檔"
+    assert "drifted_psi" in j["run"]["health"]["feature_health"]
+
+
+def test_status_live_progress(client, monkeypatch):
+    monkeypatch.setattr(routes_mlentry, "load_champion", lambda: None)
+    j = client.get("/api/mlentry/status").json()
+    assert j["live_progress"]["observe_at"] == 20 and j["live_progress"]["decide_at"] == 60
+    assert isinstance(j["live_progress"]["matured_days"], int)
+    assert j["last_run"]["verdict"]["headline"]
+
+
+def test_health_convergence_and_days(client, monkeypatch):
+    monkeypatch.setattr(routes_mlentry, "load_champion", lambda: None)
+    j = client.get("/api/mlentry/health?limit=5").json()
+    keys = [r["key"] for r in j["convergence"]]
+    assert keys[:3] == ["lift_at_1", "lift_at_3", "lift_at_5"]
+    assert isinstance(j["live"]["days"], list)
+    assert all("n_drifted" in h for h in j["history"])
+
+
+def test_tracking_shape(client):
+    r = client.get("/api/mlentry/tracking?days=10"); assert r.status_code == 200
+    j = r.json()
+    assert set(j) == {"as_of", "summary", "items"} and j["summary"]["n"] == len(j["items"])
