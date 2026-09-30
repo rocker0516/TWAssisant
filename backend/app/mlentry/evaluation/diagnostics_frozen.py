@@ -91,8 +91,9 @@ def ranking_diagnostics(df: pd.DataFrame, k: int = 5) -> dict:
             dcg = float((rel[:k] * disc[: len(rel[:k])]).sum())
             idcg = float(disc[: min(k, n_t)].sum())
             ndcgs.append(dcg / idcg if idcg > 0 else 0.0)
-        if len(g) >= 5:
-            r = g["recommendation_score"].rank().corr(g["return_10d"].rank())
+        gg = g.dropna(subset=["return_10d", "recommendation_score"])
+        if len(gg) >= 5:
+            r = gg["recommendation_score"].rank().corr(gg["return_10d"].rank())
             if np.isfinite(r):
                 ics.append(float(r))
     ic = np.array(ics, dtype=float)
@@ -123,6 +124,9 @@ def _quantile_groups(x: pd.Series, labels: tuple[str, ...]) -> tuple[pd.Series, 
     """依 dev 分位切 len(labels) 組；cuts 為內部切點（len(labels)-1 個）。NaN → 無組。"""
     qs = np.linspace(0, 1, len(labels) + 1)[1:-1]
     cuts = [float(v) for v in np.nanquantile(x.to_numpy(dtype=float), qs)]
+    if any(b <= a for a, b in zip(cuts, cuts[1:])):
+        # 切點重合（大量 tie／常數欄）＝分組退化：不硬分，全部無組（各格 n=0 → None），cuts 仍照實輸出
+        return pd.Series([None] * len(x), index=x.index, dtype=object), cuts
     bins = [-np.inf, *cuts, np.inf]
     grp = pd.cut(x, bins=bins, labels=list(labels), include_lowest=True).astype(object)
     return grp, cuts

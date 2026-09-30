@@ -139,3 +139,19 @@ def test_build_diagnostics_shape():
     assert {"generated_at", "policy_name", "dataset_version", "k", "n_eval_rows", "n_days", "lift_at_k", "timing", "ranking", "regime"} <= set(out)
     assert out["diagnostic_only"] is True and out["not_used_for_policy"] is True
     assert set(out["lift_at_k"]) == {"1", "3", "5", "10"} and out["n_days"] == 40
+
+
+def test_regime_breakdown_degenerate_cuts_do_not_raise():
+    df = _regime_frame()
+    df["market_ret_20d"] = 0.0                                   # 常數欄 → 兩個切點重合
+    out = dfz.regime_breakdown(df, k=5)
+    assert len(out["market"]["cuts"]) == 2
+    assert all(g["lift_at_5"] is None and g["n"] == 0 for g in out["market"]["groups"].values())
+    assert dfz.build_diagnostics(df, "p", "d", k=5)["regime"]["market"]["cuts"] == out["market"]["cuts"]
+
+
+def test_ranking_ic_ignores_nan_returns():
+    rows = [{"signal_date": "d", "stock_id": f"s{i}", "gate_pass": True, "recommendation_score": i, "target": 0.0, "stop": 0.0,
+             "event_type": TIMEOUT, "return_10d": (i * 0.01 if i < 4 else np.nan), "mfe_10d": 0.0, "mae_10d": 0.0,
+             "target_first_hit_day": np.nan} for i in range(6)]
+    assert dfz.ranking_diagnostics(pd.DataFrame(rows), k=3)["ic"]["days"] == 0   # 只 4 列有效報酬 < 5
