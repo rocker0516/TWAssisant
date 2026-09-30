@@ -15,6 +15,7 @@
 6. 不額外讀 `daily_prices` 全表；診斷只用 `run_daily` 已載入的矩陣與一次 `company_profile` 查詢。
 7. 所有 content fingerprint 統一 `sha256(canonical_json).hexdigest()[:12]`；`code_commit` 沿用 git hash。
 8. 例外訊息只進 log；API／UI 只看得到 `error_type`。
+9. **不得原地修改被觀測的 frozen champion artifact 目錄內任何既有檔案**（`stack.json`、`artifacts.json`、`feature_reference.json`、模型與 calibrator 檔）。新增 metadata 一律用 sidecar 新檔；只有未來新訓練的 stack 才原生帶新 schema。
 
 ## 1. Diagnostic envelope（四個診斷共用）
 
@@ -42,7 +43,9 @@
 
 - `ingestion_watermark` 用 1 的理由：`pipeline_runs.steps` 在整條 pipeline 結束才落地，MLEntry step 執行時看不到自己這一輪，落後 1 個交易日是常態，2 以上代表前一日 ingest 失敗。不改 scheduler。
 - `fundamentals`／`flows` 只在 champion feature families 含這些家族時才列（目前不含 → 不列）。
-- 回傳：`{"evaluated", "attention", "sources": {name: {"mode", "max_date", "lag_days", "attention"}}}`；任一來源 `lag_days > max_lag_days` → 整體 attention。
+- 回傳：`{"evaluated", "attention", "sources": {name: {...}}}`；任一來源 `lag_days > max_lag_days` → 整體 attention。每來源欄位：
+  - `business_date` 模式：`{"mode", "max_date", "lag_days", "attention"}`。
+  - `ingestion_watermark` 模式：`{"mode", "watermark_pipeline_run_id", "watermark_business_date", "watermark_completed_at", "lag_trading_days", "attention"}`（`lag_days` 即 `lag_trading_days`，欄名保留後者），讓 `attention=true` 時能直接指出是哪一次 ingest 落後。
 - 來源查不到（空表）→ 該來源 `max_date: null, lag_days: null, attention: true`（缺資料本身值得提醒）。
 
 ### 2.2 `sanity_summary(elig_flags_row, hard_flags_row, cfg) -> dict`
@@ -54,7 +57,7 @@
 
 ### 2.3 `feature_shift(snapshot, feature_ref, cfg) -> dict`
 
-- 只評估 `feature_ref[name]["monitor_mode"] == "continuous"` 的特徵；`"skip"` 者列入 `skipped`。`monitor_mode` 缺鍵時退回 `not day_level`（向後相容）。
+- 只評估 `monitor_mode == "continuous"` 的特徵；`"skip"` 者列入 `skipped`。`monitor_mode` 由 §2.6 的 loader 提供，並在輸出附 `"monitor_mode_source": "explicit" | "legacy_day_level_fallback"`。
 - 每特徵：
   - `mean_z = (mean_now − ref.mean) / ref.std`；`ref.std < 1e-12` → `mean_z: null, reason: "REFERENCE_STD_ZERO"`，不用 epsilon。
   - `std_ratio = std_now / ref.std`（同樣零除 → null）。
@@ -94,11 +97,24 @@ diagnostics:                      # §23 只記錄不阻擋；缺鍵 → evaluat
     min_sector_overweight: 2.0
 ```
 
-### 2.6 `feature_reference.json` 的 `monitor_mode`
+### 2.6 `monitor_mode`：sidecar 為正式來源，`day_level` 只是 legacy fallback
 
-- `train_stack.build_feature_reference` 每個特徵多寫 `monitor_mode`：`"skip"` 若 `day_level`（涵蓋所有 binary event 特徵與日級／類股級特徵），否則 `"continuous"`。規則與讀端的向後相容退回完全一致；未來若要把某個 stock-level binary 特徵改成 skip，只改 metadata，不改規則。
-- 新增唯讀腳本 `scripts/mlentry_annotate_feature_reference.py`：對 champion 的 `feature_reference.json` 冪等補 `monitor_mode`（已有則不動），其他欄位逐 byte 不變。這是 metadata，不改 feature、不改 version、不改模型。
-- 預期結果：38 continuous、19 skip（含 6 個 binary event 特徵與所有 day_level）。
+`monitor_mode ∈ {continuous, skip}` 是 distribution-monitoring 語意；`day_level` 是資料粒度。兩者不同維度，不得互相定義。
+
+- **Frozen champion 不動**（規則 9）。新增 sidecar `feature_reference.monitoring.json` 於 stack 目錄：
+  ```json
+  {"monitoring_schema_version": 1,
+   "source_feature_reference_hash": "<sha256/12 of canonical feature_reference.json>",
+   "features": {"ret_5d": {"monitor_mode": "continuous"}, "is_attention_stock": {"monitor_mode": "skip"}, ...}}
+  ```
+- 新增腳本 `scripts/mlentry_feature_monitoring_sidecar.py`（唯讀於 artifact；只寫 sidecar，冪等）：對 champion 每個特徵產生**明確**的 `monitor_mode`。mapping 來源 = 腳本內固定的 validated 名單 `SKIP_FEATURES`（19 個，依語意分三組）：
+  - binary（5）：`is_attention_stock, is_disposition_stock, limit_up_today, limit_down_today, large_gap`
+  - 離散計數／比例（6）：`limit_up_count_20d, limit_down_count_20d, consecutive_up_days, consecutive_down_days, positive_day_ratio, negative_day_ratio`
+  - 日級／類股級（8）：`market_ret_1d, market_ret_5d, market_ret_20d, market_volatility, industry_ret_5d, industry_ret_20d, industry_strength_rank, breadth_ma20`
+
+  任何未列入的特徵為 continuous（38 個，含 `dist_limit_up`）。名單以語意判定，恰與現行 champion 的 `day_level` 集合相同是巧合而非規則。腳本印出完整 mapping 供人工檢視，測試釘住兩組具體名單。
+- Loader（`diagnostics.load_monitor_modes(stack_dir, feature_ref)`）：sidecar 存在且 `source_feature_reference_hash` 與現行 `feature_reference.json` 相符 → 用 sidecar，`monitor_mode_source="explicit"`；sidecar 不存在或 hash 不符 → `day_level → skip, 否則 continuous`，`monitor_mode_source="legacy_day_level_fallback"`，並 log warning。fallback 只為向後相容，不是分類規則。
+- 未來新 stack：`train_stack.build_feature_reference` 原生在 `feature_reference.json` 每個特徵寫 `monitor_mode`（同一 validated 規則），loader 優先讀 artifact 內建值（`monitor_mode_source="explicit"`），其次 sidecar，最後 fallback。
 
 ## 3. `serving/audit.py`
 
@@ -165,7 +181,8 @@ diagnostics:                      # §23 只記錄不阻擋；缺鍵 → evaluat
   - `health_json.diagnostics` 四鍵齊、每鍵有 `evaluated`／`attention`；`audit_json` 可 parse 且含 `data_snapshot_id`。
   - monkeypatch `diagnostics.feature_shift` 拋 `ValueError("secret path")` → run status 不變、該鍵 `{"evaluated": false, "attention": false, "error_type": "ValueError"}`、JSON 內不含 "secret path"。
 - `tests/test_mlentry_api.py`：新欄位出現；舊 run（`audit_json` NULL、`health_json` 無 diagnostics）→ `audit: null, diagnostics: null, attention_count: null`，200。
-- `scripts/mlentry_annotate_feature_reference.py` 測試：冪等；其他欄位逐 byte 不變；38/19。
+- `scripts/mlentry_feature_monitoring_sidecar.py` 測試：只寫 sidecar、artifact 目錄其他檔案逐 byte 不變（改前後 sha256 比對）；冪等；`source_feature_reference_hash` 正確；38 continuous／19 skip 的具體名單釘住。
+- `load_monitor_modes` 測試：sidecar 存在且 hash 符 → explicit；hash 不符或缺檔 → legacy fallback＋warning；artifact 內建 `monitor_mode` 優先於 sidecar。
 - 前端 `npm run build`＋瀏覽器實測（:8001 backend-verify）。
 
 ## 8. 檔案清單
@@ -176,8 +193,9 @@ diagnostics:                      # §23 只記錄不阻擋；缺鍵 → evaluat
 | `backend/app/mlentry/monitoring/diagnostics.py` | 新增 |
 | `backend/app/mlentry/serving/audit.py` | 新增 |
 | `backend/app/mlentry/serving/daily_run.py` | policy 後掛 diagnostics／audit；`audit_json` 寫入 |
-| `backend/app/mlentry/serving/train_stack.py` | `build_feature_reference` 寫 `monitor_mode` |
-| `backend/scripts/mlentry_annotate_feature_reference.py` | 新增（冪等 metadata 補寫） |
+| `backend/app/mlentry/serving/train_stack.py` | `build_feature_reference` 為**未來新 stack** 原生寫 `monitor_mode`（不觸碰現行 champion） |
+| `backend/scripts/mlentry_feature_monitoring_sidecar.py` | 新增：只寫 `feature_reference.monitoring.json` sidecar，artifact 既有檔案不動 |
+| `backend/data/mlentry/serving/<champion>/feature_reference.monitoring.json` | 執行腳本產生（gitignored data 目錄） |
 | `backend/app/storage/models.py`、`database.py` | `MLEntryRun.audit_json`；`_COLUMN_ADDITIONS` |
 | `backend/app/api/routes_mlentry.py` | `RunInfo.diagnostics/audit`（AuditSummary 白名單）、`history[].attention_count` |
 | `frontend/src/api/client.ts`、`components/MLEntrySystem.tsx` | 型別、診斷區、audit 摘要、提醒數欄 |
@@ -188,5 +206,6 @@ diagnostics:                      # §23 只記錄不阻擋；缺鍵 → evaluat
 - 任何新的 fail-closed 條件；任何 gate 門檻調整。
 - 完整樣本 two-sample KS；discrete 特徵的 value_rate 診斷（下版）。
 - PIT 市值；scheduler 改動（in-process watermark）。
+- 任何對 frozen champion artifact 既有檔案的寫入（含「只加 metadata」）。
 - 歷史 run 回填診斷。
 - §18 evaluation diagnostics 與 §24 lifecycle（Spec B）。
