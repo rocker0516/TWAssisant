@@ -82,3 +82,28 @@ def test_convergence_missing_frozen_stats_is_none():
     rows = convergence({"target_lift_at_5": 1.23, "ci_target_lift": [1.07, 1.40]}, {"matured_days": 0, "windows": {}})
     assert _row(rows, "lift_at_1")["frozen"] is None
     assert _row(rows, "lift_at_5")["frozen"] == 1.23
+
+
+def test_live_no_trade_day_reflected():
+    df = _df(4)
+    m = df["signal_date"] == df["signal_date"].max()
+    df.loc[m, ["status", "no_trade", "recommended"]] = ["SYSTEM_NO_TRADE", True, False]
+    w = rolling_live_metrics(df, windows=(20,), k=5)["windows"]["20"]
+    assert w["no_trade_rate"] == pytest.approx(0.25)
+    assert w["coverage"] == pytest.approx(0.75)
+    # lift 分母仍為整窗市場基率 (2/10)；rank1 每個有推薦日命中 → 5
+    assert w["lift"]["1"] == pytest.approx(5.0)
+
+
+def test_live_qualified_count_null_gives_none():
+    df = _df(3)
+    df["qualified_count"] = None
+    w = rolling_live_metrics(df, windows=(20,), k=5)["windows"]["20"]
+    assert w["candidates_median"] is None
+
+
+def test_live_no_trade_null_treated_false():
+    df = _df(3)
+    df["no_trade"] = None
+    w = rolling_live_metrics(df, windows=(20,), k=5)["windows"]["20"]
+    assert w["no_trade_rate"] == 0.0
