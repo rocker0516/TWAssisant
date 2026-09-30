@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -154,3 +155,60 @@ def test_feature_health_gate_records_drifted_psi():
     assert d["drifted_psi"]["f_shift"]["thr"] == 0.25
     assert d["drifted_psi"]["f_shift"]["psi"] > 0.25
     assert res.ok is True                      # 1 個漂移 ≤ 8：判定不變
+
+
+GATE_KEYS = ("data_quality", "feature_health", "prediction_health", "recommendation")
+BASELINE = Path(__file__).parent / "fixtures" / "mlentry_gates_baseline.json"
+
+
+def _gates_canonical(health: dict) -> str:
+    from app.mlentry.fingerprint import canonical_json
+    return canonical_json({k: health.get(k) for k in GATE_KEYS})
+
+
+def test_four_health_gates_unchanged_by_observation_layer(env):
+    """Spec A 規則 1：加 diagnostics／audit 前後，四個 gate 子樹語意與內容完全相同（canonical JSON 比對）。"""
+    con, Session, cfg, dates = env["con"], env["Session"], env["cfg"], env["dates"]
+    with Session() as session:
+        r = daily_run.run_daily(con, session, dates[60], cfg=cfg, monitoring=_lenient_mon())
+    got = _gates_canonical(r.health)
+    if not BASELINE.exists():                                     # 只在基準尚不存在時寫入（改 daily_run 前跑一次）
+        BASELINE.parent.mkdir(exist_ok=True)
+        BASELINE.write_text(got, encoding="utf-8")
+    assert got == BASELINE.read_text(encoding="utf-8")
+
+
+def test_daily_run_writes_diagnostics_and_audit(env):
+    con, Session, cfg, dates = env["con"], env["Session"], env["cfg"], env["dates"]
+    with Session() as session:
+        r = daily_run.run_daily(con, session, dates[60], cfg=cfg, monitoring=_lenient_mon())
+        from app.storage import models
+        row = session.query(models.MLEntryRun).filter_by(run_id=r.run_id).one()
+    health = json.loads(row.health_json)
+    diag = health["diagnostics"]
+    assert set(diag) == {"freshness", "sanity", "feature_shift", "recommendation"}
+    for v in diag.values():
+        assert {"evaluated", "attention"} <= set(v)
+    assert diag["feature_shift"]["monitor_mode_source"] == "explicit"          # 新 stack 原生 monitor_mode
+    assert diag["sanity"]["evaluated"] and diag["freshness"]["sources"]["daily_prices"]["lag_days"] == 0
+    a = json.loads(row.audit_json)
+    assert a["requested_as_of"] == dates[60] and a["feature_snapshot_as_of"] == dates[60]
+    assert len(a["data_snapshot_id"]) == 12 and a["serving_stack_hash"] and "daily_prices" in a["sources"]
+    assert a["sources"]["daily_prices"]["rows_visible_at_as_of"] >= r.universe_count       # 有價格檔數 ≥ eligible 檔數
+
+
+def test_diagnostic_exception_never_changes_status_or_leaks_message(env, monkeypatch):
+    from app.mlentry.monitoring import diagnostics
+    con, Session, cfg, dates = env["con"], env["Session"], env["cfg"], env["dates"]
+
+    def boom(*a, **k):
+        raise ValueError("secret path C:/db")
+    monkeypatch.setattr(diagnostics, "feature_shift", boom)
+    with Session() as session:
+        r = daily_run.run_daily(con, session, dates[61], cfg=cfg, monitoring=_lenient_mon())
+        from app.storage import models
+        row = session.query(models.MLEntryRun).filter_by(run_id=r.run_id).one()
+    assert r.status in ("OK", "NO_TRADE")
+    d = json.loads(row.health_json)["diagnostics"]["feature_shift"]
+    assert d == {"evaluated": False, "attention": False, "error_type": "ValueError"}
+    assert "secret path" not in row.health_json

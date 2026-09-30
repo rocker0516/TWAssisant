@@ -960,6 +960,7 @@ class MLEntryRun(Base):
     recommendation_count: Mapped[int] = mapped_column(Integer, default=0)
     health_json: Mapped[str | None] = mapped_column(Text)          # data / feature / prediction health 明細
     log_tail: Mapped[str | None] = mapped_column(Text)
+    audit_json: Mapped[str | None] = mapped_column(Text)          # Spec A §3 provenance（API 只透出白名單）
 
 
 class MLEntryPrediction(Base):
