@@ -157,3 +157,13 @@ def test_rollback_frozen_refused_and_unfrozen_switches_back(tmp_path, monkeypatc
     with pytest.raises(ValueError):                              # previous 不存在
         (tmp_path / "champion.json").write_text(json.dumps({"model_version": "m1", "previous_model_version": None}), encoding="utf-8")
         lc.rollback("alice", "x", root=tmp_path)
+
+
+def test_promote_same_version_keeps_previous_so_rollback_still_works(tmp_path, monkeypatch):
+    _patch_yaml(monkeypatch, {"observation_freeze": False})
+    s1, s2 = _stack(tmp_path, "m1"), _stack(tmp_path, "m2")
+    reg.set_champion(s1, tmp_path); reg.set_champion(s2, tmp_path)
+    reg.promote(s2, {"eligible": True}, "alice", tmp_path)
+    c = json.loads((tmp_path / "champion.json").read_text(encoding="utf-8"))
+    assert c["model_version"] == "m2" and c["previous_model_version"] == "m1"
+    assert lc.rollback("alice", "x", root=tmp_path).model_version == "m1"

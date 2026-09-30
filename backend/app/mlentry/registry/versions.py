@@ -72,13 +72,15 @@ def set_champion(stack: ServingStack, root: Path = SERVING_ROOT, *, actor: str |
     guard_champion_change("set_champion", actor, stack.model_version, root)
     root.mkdir(parents=True, exist_ok=True)
     p = root / "champion.json"
-    previous = json.loads(p.read_text(encoding="utf-8")).get("model_version") if p.exists() else None
+    existing = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+    previous = existing.get("model_version")
+    keep_previous = existing.get("previous_model_version") if previous == stack.model_version else previous
     p.write_text(json.dumps({
         "model_version": stack.model_version, "calibration_version": stack.calibration_version,
         "policy_version": stack.policy_version, "policy_name": stack.policy_name,
         "model_status": stack.model_status, "deployment_mode": stack.deployment_mode,
         "promotion_eligible": stack.promotion_eligible, "set_at": datetime.now(timezone.utc).isoformat(),
-        "previous_model_version": previous if previous != stack.model_version else None,
+        "previous_model_version": keep_previous,
     }, ensure_ascii=False, indent=2), encoding="utf-8")
     append_audit({"event": "set_champion", "action": "set_champion", "actor": actor, "model_version": stack.model_version,
                   "from_model_version": previous, "reason": None}, root=root)
