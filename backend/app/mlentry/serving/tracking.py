@@ -86,6 +86,7 @@ def summarize(rows: list[dict]) -> dict:
 
 
 def load_tracking(con, session: Session, days: int = 10, cfg: LabelConfig | None = None) -> dict:
+    """近 days 個交易日、每個 signal_date 最後一個 run 的推薦追蹤列。as_of = 日曆最後一個交易日。"""
     cfg = cfg or load_config().labels
     cal = load_calendar(con)
     if len(cal) == 0:
@@ -93,9 +94,9 @@ def load_tracking(con, session: Session, days: int = 10, cfg: LabelConfig | None
     window = [str(d) for d in cal.dates[-days:]]
     R, P = models.MLEntryRun, models.MLEntryPrediction
     runs = session.execute(select(R.run_id, R.signal_date).where(R.signal_date >= pd.Timestamp(window[0]).date())
-                           .order_by(R.signal_date, R.run_id)).all()
+                           .order_by(R.signal_date, R.as_of_timestamp, R.run_id)).all()
     latest: dict[str, str] = {}
-    for run_id, sd in runs:                                   # 同日多 run 取 run_id 最大者
+    for run_id, sd in runs:                                   # 同日多 run 取 as_of_timestamp 最晚者（run_id 為 tiebreak）
         latest[str(sd)] = run_id
     if not latest:
         return {"as_of": window[-1], "summary": summarize([]), "items": []}
@@ -110,14 +111,17 @@ def load_tracking(con, session: Session, days: int = 10, cfg: LabelConfig | None
     ledger = {(str(p.signal_date), str(p.stock_id)): int(p.event_type)
               for p in preds if p.matured_at is not None and p.event_type is not None}
     start = min(sd for sd, _ in items)
-    sub = TradingCalendar(cal.dates[cal.pos(start):])
+    i0 = int(cal.dates.searchsorted(start))                   # signal_date 不在日曆時取其後第一個交易日
+    if i0 >= len(cal):
+        return {"as_of": window[-1], "summary": summarize([]), "items": []}
+    sub = TradingCalendar(cal.dates[i0:])
     cols = pd.Index(sorted({sid for _, sid in items}), name="stock_id")
     m = prices.load_matrices(con, sub, cols)
     rows = track_paths(m, items, cfg, ledger)
     meta = {(str(p.signal_date), str(p.stock_id)): (p.name, p.rank) for p in preds}
     for r in rows:
         r["name"], rank = meta[(r["signal_date"], r["stock_id"])]
-        r["_rank"] = rank if rank is not None else 999
+        r["_rank"] = rank if rank is not None else float("inf")
     rows.sort(key=lambda r: (r["signal_date"], -r["_rank"]), reverse=True)
     for r in rows:
         r.pop("_rank")

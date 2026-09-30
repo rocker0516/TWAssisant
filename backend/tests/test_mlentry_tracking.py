@@ -198,3 +198,74 @@ def test_load_tracking_shape_on_real_db():
     assert dates == sorted(dates, reverse=True)
     for it in res["items"]:
         assert {"signal_date", "stock_id", "name", "day_index", "status", "ret_now", "mfe", "mae", "hit_day"} <= set(it)
+
+
+def test_load_tracking_in_memory(monkeypatch):
+    import sqlite3
+    from datetime import date, datetime
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from app.mlentry.data.calendar import TradingCalendar
+    from app.mlentry.labels.barriers import Event
+    from app.mlentry.serving import tracking
+    from app.storage import models
+
+    dates = [f"2026-09-{d:02d}" for d in range(1, 11)]
+    monkeypatch.setattr(tracking, "load_calendar", lambda con: TradingCalendar(dates))
+
+    def fake_matrices(con, cal, cols):
+        return {k: pd.DataFrame(100.0, index=cal.dates, columns=cols) for k in ("open", "high", "low", "close")}
+    monkeypatch.setattr(tracking.prices, "load_matrices", fake_matrices)
+
+    eng = create_engine("sqlite://")
+    models.Base.metadata.create_all(eng)
+
+    def run(rid, sd, ts, mv):
+        return models.MLEntryRun(
+            run_id=rid, signal_date=sd, as_of_timestamp=ts, dataset_version="d", universe_version="u",
+            feature_version="f", label_version="l", model_version=mv, calibration_version="c",
+            policy_version="p", policy_name="pn", model_status="RESEARCH_SHADOW", deployment_mode="SHADOW",
+            code_commit="x", status="OK")
+
+    def pred(rid, sd, sid, rank, rec=True, **kw):
+        return models.MLEntryPrediction(run_id=rid, stock_id=sid, signal_date=sd, rank=rank, recommended=rec, **kw)
+
+    d2, d3 = date(2026, 9, 2), date(2026, 9, 3)
+    with Session(eng) as s:
+        s.add_all([models.Stock(id=i, name=f"N{i}") for i in ("1101", "1102", "1103", "1104")])
+        s.add_all([
+            run("2026-09-02_zzz_100000", d2, datetime(2026, 9, 2, 10), "zzz"),   # 較早、run_id 字典序較大
+            run("2026-09-02_aaa_150000", d2, datetime(2026, 9, 2, 15), "aaa"),   # 較晚 -> 應被選
+            run("2026-09-03_m_150000", d3, datetime(2026, 9, 3, 15), "m"),
+        ])
+        s.flush()
+        s.add_all([
+            pred("2026-09-02_zzz_100000", d2, "1101", 1),                          # 舊 run，不應出現
+            pred("2026-09-02_aaa_150000", d2, "1102", 2),
+            pred("2026-09-02_aaa_150000", d2, "1103", 1, event_type=int(Event.TARGET), matured_at=date(2026, 9, 12)),
+            pred("2026-09-02_aaa_150000", d2, "1104", 3, rec=False),               # 未推薦
+            pred("2026-09-03_m_150000", d3, "1101", 1),
+        ])
+        s.commit()
+        res = tracking.load_tracking(sqlite3.connect(":memory:"), s, days=10)
+        got = [(it["signal_date"], it["stock_id"]) for it in res["items"]]
+        assert got == [("2026-09-03", "1101"), ("2026-09-02", "1103"), ("2026-09-02", "1102")]
+        by = {(it["signal_date"], it["stock_id"]): it for it in res["items"]}
+        assert by[("2026-09-02", "1103")]["status"] == "TARGET"          # ledger 覆蓋
+        assert by[("2026-09-02", "1103")]["name"] == "N1103"
+        assert res["as_of"] == "2026-09-10" and res["summary"]["n"] == 3
+
+        s.query(models.MLEntryPrediction).delete()
+        s.query(models.MLEntryRun).delete()
+        s.commit()
+        assert tracking.load_tracking(sqlite3.connect(":memory:"), s, days=10) == {
+            "as_of": "2026-09-10", "summary": summarize([]), "items": []}
+        # signal_date 不在日曆且晚於最後交易日：不得拋例外，回空結構
+        d11 = date(2026, 9, 11)
+        s.add(run("2026-09-11_m_150000", d11, datetime(2026, 9, 11, 15), "m"))
+        s.flush()
+        s.add(pred("2026-09-11_m_150000", d11, "1101", 1))
+        s.commit()
+        assert tracking.load_tracking(sqlite3.connect(":memory:"), s, days=10)["items"] == []
