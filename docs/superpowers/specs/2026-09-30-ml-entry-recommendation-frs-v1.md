@@ -1809,3 +1809,16 @@ existing validation / backtest code
 - Feature 函式只接受 `FeatureContext`，不得讀 DB（架構測試）；`max_feature_lookback` 由 registry 推導。
 - 基本面 PIT：`first_seen` 為入庫觀測日，側表 2026-08-27 啟用；正確規則 `available_at = max(法定期限, first_seen)`，回補列退回法定期限並標 `pit_assumed`。v1 特徵不吃基本面、法人、融資。
 - Barrier：k=1 為進場日本身；同日雙觸 = `STOP_AMBIGUOUS`；漲停開盤 = `PRICE_LIMIT_CONSTRAINT`，列保留、outcome NaN；`label_available_date` = 第 10 個路徑日。
+
+# 附錄 B. 子專案 A 封版（frozen baseline，2026-09-30）
+
+- 資料層以 commit `584f685` 之後的修訂封版：`dataset_version = ds_2026-09-29_6613b41a35737d0ca763aaa2`（universe 6613b41a / feature f_35737d0c / label l_a763aaa2）。基準數字：U_t 每日中位 1,671、10D 命中基率 15.5%、STOP 34.7%、TIMEOUT 49.4%。
+- 之後資料層若修 bug，必須產生新的 dataset / label / feature version，`write_dataset` 拒絕覆蓋既有目錄；**不得為了 B 的模型分數反向修改 Universe / Label 定義**。
+- B 開始前的五條硬規則：
+  1. dev fold 的評分段稱 validation（`val_*`）；`test` 只指 12M Final Holdout。
+  2. Target / Stop / MFE 模型只用 `entry_executable == 1` 且成熟的樣本；Execution model 用全樣本。
+  3. `STOP_AMBIGUOUS` 在 Target / Stop 監督式 loss 中 weight = 0；推薦評估中算「非成功」。
+  4. MFE winsorization / cap 只能由各 training fold 自己估，cap 值存進該 model artifact metadata。
+  5. Final Holdout 物理隔離：`development/` 與 `holdout/` 分區，讀 holdout 只能走 `datasets.api.load_final_holdout(reason, actor)` 並落地稽核；B 的超參、calibration、Gate、ranking weights、K_max 不得讀它。
+- Execution model：FILLED 99.5%，須與 prevalence baseline 比；若 LightGBM ≈ 常數，保留欄位與介面但 V1 Policy 不依賴它。
+- B 順序：B1 baselines → B2 獨立 LightGBM（1+3+3+3）→ B3 OOF store → B4 calibration（raw / Platt / Isotonic 逐 fold 比）→ B5 horizon consistency → B6 model-level 評估（AUC、PR-AUC、Brier、ECE、decile lift、fold 穩定性）→ B7 Gate → B8 Ranking / Dynamic Top-K（percentile 線性組合，不做 meta model）→ B9 推薦評估 → B10 freeze → B11 Final Holdout。

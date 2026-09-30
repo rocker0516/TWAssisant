@@ -124,7 +124,10 @@ def build(con, cfg: MLEntryConfig, as_of: str | None = None) -> BuiltDataset:
 def build_and_write(con, cfg: MLEntryConfig, as_of: str | None = None,
                     root: Path = DEFAULT_ROOT) -> Path:
     ds = build(con, cfg, as_of)
-    d = write_dataset(root, ds.manifest, ds.sample_index, ds.features, ds.outcomes)
+    # holdout_start 起（含其後未成熟列）全部進 holdout 分區：dev 分區不得含任何晚於 dev_end 的列
+    hs = ds.split.holdout_start
+    hold = (ds.features["signal_date"].astype(str) >= hs) if hs else None
+    d = write_dataset(root, ds.manifest, ds.sample_index, ds.features, ds.outcomes, hold)
     (d / "splits.json").write_text(ds.split.to_json(), encoding="utf-8")
     log.info("dataset written: %s", d)
     return d

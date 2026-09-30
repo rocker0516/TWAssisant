@@ -43,20 +43,20 @@ def test_build_split_isolates_holdout_and_purges():
     cfg = ValidationConfig(train_window_days=300, fold_days=100, holdout_days=200, min_train_days=100)
     sp = build_split(dates, cfg, max_horizon=10)
     check_split_integrity(sp, dates)
-    assert sp.holdout.test_start == "d0790" and sp.holdout.test_end == "d0989"   # 最後 10 日未成熟
+    assert sp.holdout.val_start == "d0790" and sp.holdout.val_end == "d0989"   # 最後 10 日未成熟
     assert sp.holdout.n_train_days == 300
     assert len(sp.dev_folds) == 5                       # 完整 300 日窗 + purge 後才開第一個 fold
-    assert sp.dev_folds[0].test_start == "d0311"
+    assert sp.dev_folds[0].val_start == "d0311"
     for f in sp.dev_folds:
-        assert f.test_end < sp.holdout.test_start
-        assert int(f.train_end[1:]) + 10 < int(f.test_start[1:])
+        assert f.val_end < sp.holdout.val_start
+        assert int(f.train_end[1:]) + 10 < int(f.val_start[1:])
         assert f.n_train_days == 300
     relaxed = build_split(dates, ValidationConfig(train_window_days=300, fold_days=100, holdout_days=200,
                                                   min_train_days=100, require_full_window=False), 10)
     assert len(relaxed.dev_folds) > 5 and relaxed.dev_folds[0].n_train_days < 300
     # 連續 fold 的 test 區塊接續、不重疊
     for a, b in zip(sp.dev_folds, sp.dev_folds[1:]):
-        assert int(b.test_start[1:]) == int(a.test_end[1:]) + 1
+        assert int(b.val_start[1:]) == int(a.val_end[1:]) + 1
     assert sp.split_version.startswith("s_")
     assert sp.is_holdout(pd.Series(["d0500", "d0800"])).tolist() == [False, True]
 
@@ -152,10 +152,20 @@ def test_builder_end_to_end(tmp_path):
     assert m.row_counts["features"] == len(ft) and len(m.feature_names) == 57
     assert set(m.versions) == {"universe_version", "feature_config_version", "label_version", "split_version", "feature_version"}
     # 寫出再讀回
-    d = store.write_dataset(tmp_path, m, si, ft, oc)
+    hold = ft["signal_date"] >= ds.split.holdout_start
+    d = store.write_dataset(tmp_path, m, si, ft, oc, hold)
     (d / "splits.json").write_text(ds.split.to_json(), encoding="utf-8")
-    back = store.read_table(d, "features", columns=["sample_id", "ret_5d"])
-    assert len(back) == len(ft) and "year" not in back.columns
+    with pytest.raises(FileExistsError):                      # frozen：不得覆蓋
+        store.write_dataset(tmp_path, m, si, ft, oc, hold)
+    from app.mlentry.datasets import api
+    dev = api.load_development(d, feature_columns=["ret_5d"])
+    assert len(dev.features) == int((~hold).sum()) and "year" not in dev.features.columns
+    assert (dev.features["signal_date"] < ds.split.holdout_start).all()
+    assert len(dev.outcomes) == len(dev.features)
+    with pytest.raises(ValueError):
+        api.load_final_holdout(d, reason="", actor="")
+    ho = api.load_final_holdout(d, reason="unit test", actor="pytest", feature_columns=["ret_5d"])
+    assert len(ho.features) == int(hold.sum()) and (d / "holdout_access.log").exists()
     assert store.read_manifest(d)["dataset_version"] == ds.dataset_version
     idx = store.read_table(d, "sample_index")
     assert idx["eligibility_flags"].dtype == "uint16"

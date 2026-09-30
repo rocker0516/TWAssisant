@@ -1,7 +1,8 @@
 """§19 Purged Walk-forward：rolling 訓練窗（config）、固定長度 validation fold、Final Holdout 程式層隔離。
 
-Split 只定義「哪些 signal_date 屬於哪個 fold 的 train / test」，不碰特徵或模型。
-dev 與 holdout 是同一個 Split 物件的兩個欄位，holdout 的 test 日期絕不出現在任何 dev fold。
+Split 只定義「哪些 signal_date 屬於哪個 fold 的 train / validation」，不碰特徵或模型。
+命名規則：dev fold 的評分區段叫 validation（val_*）；「test」只保留給 12M Final Holdout，
+避免把 dev fold 誤當泛化結果。holdout 的日期絕不出現在任何 dev fold。
 """
 
 from __future__ import annotations
@@ -22,10 +23,10 @@ class Fold:
     name: str
     train_start: str
     train_end: str
-    test_start: str
-    test_end: str
+    val_start: str
+    val_end: str
     n_train_days: int
-    n_test_days: int
+    n_val_days: int
 
 
 @dataclass(frozen=True)
@@ -47,7 +48,7 @@ class Split:
         if self.holdout is None:
             return pd.Series(False, index=signal_date.index)
         sd = signal_date.astype(str)
-        return (sd >= self.holdout.test_start) & (sd <= self.holdout.test_end)
+        return (sd >= self.holdout.val_start) & (sd <= self.holdout.val_end)
 
 
 def matured_dates(dates: pd.Index, max_horizon: int) -> pd.Index:
@@ -73,8 +74,8 @@ def build_split(dates: pd.Index, cfg: ValidationConfig, max_horizon: int,
         need = cfg.min_train_days
         if cfg.require_full_window and cfg.train_window_days:
             need = max(need, cfg.train_window_days)
-        first_test = need + max_horizon + 1
-        for i, s in enumerate(range(first_test, len(dev), cfg.fold_days)):
+        first_val = need + max_horizon + 1
+        for i, s in enumerate(range(first_val, len(dev), cfg.fold_days)):
             e = min(s + cfg.fold_days, len(dev))
             tr = purged_train_positions(s, max_horizon, cfg.train_window_days)
             if len(tr) < cfg.min_train_days:
@@ -98,7 +99,7 @@ def build_split(dates: pd.Index, cfg: ValidationConfig, max_horizon: int,
 def fold_masks(fold: Fold, signal_date: pd.Series) -> tuple[pd.Series, pd.Series]:
     sd = signal_date.astype(str)
     return ((sd >= fold.train_start) & (sd <= fold.train_end),
-            (sd >= fold.test_start) & (sd <= fold.test_end))
+            (sd >= fold.val_start) & (sd <= fold.val_end))
 
 
 def check_split_integrity(split: Split, dates: pd.Index) -> None:
@@ -106,11 +107,11 @@ def check_split_integrity(split: Split, dates: pd.Index) -> None:
     dates = pd.Index(dates).astype(str)
     pos = {d: i for i, d in enumerate(dates)}
     for f in list(split.dev_folds) + ([split.holdout] if split.holdout else []):
-        if pos[f.train_end] + split.max_horizon >= pos[f.test_start]:
+        if pos[f.train_end] + split.max_horizon >= pos[f.val_start]:
             raise AssertionError(f"{f.name}: purge violated")
-        if split.holdout and f.name != "holdout" and f.test_end >= split.holdout.test_start:
+        if split.holdout and f.name != "holdout" and f.val_end >= split.holdout.val_start:
             raise AssertionError(f"{f.name}: dev fold overlaps holdout")
     if split.holdout:
         for f in split.dev_folds:
-            if f.train_end >= split.holdout.test_start:
+            if f.train_end >= split.holdout.val_start:
                 raise AssertionError(f"{f.name}: dev training touches holdout")
