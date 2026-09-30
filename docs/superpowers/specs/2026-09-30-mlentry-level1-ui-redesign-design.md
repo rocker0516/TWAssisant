@@ -57,7 +57,7 @@
 
 `RunInfo` 新增 `verdict: {headline: str, detail: str, tone: "ok"|"quiet"|"fail"}`，由 `routes_mlentry._verdict(run, health)` 產生：
 
-- OK：detail = `Universe {u} → 通過 Gate {q} → Top-K {r}`，若 `health.recommendation` 顯示 qualified_count 超出近 60 日常態，附加「候選數偏離常態」，否則「候選數在常態範圍內」。
+- OK：detail = `Universe {u} → 通過 Gate {q} → Top-K {r}`，並比對 Frozen OOF 候選數 p5–p95：落在區間內附「候選數在 OOF 常態範圍內」，否則附「候選數超出 OOF 常態範圍（p5–p95 a–b）」。
 - 市場面 NO_TRADE：沿用 `NO_TRADE_TEXT`。
 - SYSTEM_NO_TRADE：依 reason 組句；`FEATURE_DRIFT` 時列出前 3 個漂移特徵（有 PSI 時附數值與門檻）。
 
@@ -83,7 +83,7 @@
 
 - 點列展開一行：`時序 T 3D→5D→10D ｜ S 3D→5D→10D ｜ ATR% ｜ Score ｜ P exec ｜ 個股頁 →`。
 - 表下註：`* 以收盤估算；實際 barrier 從明日開盤 ×1.10／×0.95 起算`。
-- **估算價由後端計算**（`BoardItem.est_target_price / est_stop_price`）：`close×1.10` 向下取整至台股升降單位、`close×0.95` 向上取整（兩者皆取保守側）。升降單位：<10 → 0.01；10–50 → 0.05；50–100 → 0.1；100–500 → 0.5；500–1000 → 1；≥1000 → 5。實作為 `app/mlentry/serving/ticks.py`（純函式、單元測試）。
+- **估算價由後端計算**（`BoardItem.est_target_price / est_stop_price`）：`close×1.10` 向下取整至台股升降單位、`close×0.95` 向上取整（兩者皆取保守側）。升降單位：<10 → 0.01；10–50 → 0.05；50–100 → 0.1；100–500 → 0.5；500–1000 → 1；≥1000 → 5。重用 `app/research/level2/costs` 的 round_down_tick／round_up_tick，函式 est_barrier_prices 置於 `app/mlentry/serving/presentation.py`。
 - NO_TRADE／SYSTEM_NO_TRADE 當日：表格不渲染，健康條已說明；下方追蹤中照常顯示。
 - 表頭摘要行保留：`基率 Target 14.8%・Stop 34.4%（Frozen 期間）`。
 
@@ -135,7 +135,7 @@
 |---|---|
 | 指標 | |
 | Frozen OOF | 點估計 |
-| Frozen CI | 區塊 bootstrap CI 或 p10–p90 分布區間（依指標） |
+| Frozen CI | 區塊 bootstrap CI 或 p5–p95 分布區間（依指標） |
 | Live 20D | `live.windows["20"]`；不足時顯示「累積中（n/20）」 |
 | Live 60D | 同上 |
 | 收斂 | 後端判定籤：`CI 內`／`CI 外`／`分布內`／`分布外`／`參考`／`累積中` |
@@ -146,20 +146,18 @@
 2. StopRatio@5（有 CI）
 3. Net10／筆（扣 0.585%，有 CI）
 4. Coverage
-5. 候選數／日（Frozen 中位數 + p10–p90）
+5. 候選數／日（Frozen 中位數 + p5–p95）
 6. NO_TRADE 率
 7. ECE Target 10D
 8. Median MFE 10D／Median MAE 10D（Top-5）
 
-收斂判定（後端 `performance.convergence(frozen, live)`）：有 CI 的指標比對 Live 值是否落在 CI；分布型指標比對 p10–p90；其餘標 `參考`。**20D 期間判定只顯示，不寫入任何狀態、不觸發任何動作**。表下固定註：`「收斂」為描述性比對；20 成熟日只看不決策，60 成熟日為判斷點（附錄 C）`。
+收斂判定（後端 `performance.convergence(frozen, live)`）：有 CI 的指標比對 Live 值是否落在 CI；分布型指標比對 p5–p95；其餘標 `參考`。**20D 期間判定只顯示，不寫入任何狀態、不觸發任何動作**。表下固定註：`「收斂」為描述性比對；20 成熟日只看不決策，60 成熟日為判斷點（附錄 C）`。
 
 ### 3.3 Frozen 描述統計補算
 
-現有 `frozen_validation` 缺：Lift@1／@3、候選數／日分布、NO_TRADE 率、ECE、Median MFE／MAE。
-
-- 新增唯讀腳本 `scripts/mlentry_frozen_stats.py`：讀 `data/mlentry/<ds>/policy/policy_baseline_v1/{per_day,per_row}.parquet`，計算上述統計，寫入 `data/mlentry/<ds>/policy/policy_baseline_v1/frozen_stats.json`。
+- 新增唯讀腳本 `scripts/mlentry_frozen_stats.py`：讀 `data/mlentry/<ds>/policy/policy_baseline_v1/metrics.json`（B9 報告，已含 Lift@1/3/5、Median MFE/MAE、coverage、NO_TRADE 率、候選數分位），另以 OOF prediction_vector＋development outcomes 計算 ECE（成熟可評估列、p_target_10d vs target_hit_10d），寫入同目錄 `frozen_stats.json`。
 - `/mlentry/health` 讀此 JSON 合併進 `frozen_validation.metrics`；檔案不存在時對應列 Frozen 欄顯示 `—`，不報錯。
-- **不寫回 champion.json**，不重跑 OOF、不重算 policy：只從既有 per_day／per_row 做描述統計。腳本需斷言讀到的 policy_name 與 champion 相同。
+- **不寫回 champion.json**，不重跑 OOF、不重算 policy：只從既有 metrics.json 與 development outcomes 做描述統計。腳本需斷言讀到的 policy_name 與 champion 相同。
 
 ### 3.4 逐日成熟紀錄
 
@@ -216,7 +214,8 @@
 | `frontend/src/pages/MLEntryPage.tsx` | 新增 tracking query；健康條燈號切頁 |
 | `frontend/src/api/client.ts`／`types.ts` | 新型別與 `useMLEntryTracking` |
 | `backend/app/api/routes_mlentry.py` | verdict、估算價、gate_thresholds、live_progress、`/tracking`、frozen_stats 合併、白名單 |
-| `backend/app/mlentry/serving/ticks.py` | 新增：升降單位取整 |
+| `backend/app/mlentry/serving/presentation.py` | 新增：est_barrier_prices、build_verdict |
+| `backend/app/research/level2/costs.py` | 公開取整別名 |
 | `backend/app/mlentry/serving/tracking.py` | 新增：追蹤路徑計算（共用 labels barrier） |
 | `backend/app/mlentry/monitoring/performance.py` | `convergence()`、日級成熟彙總 |
 | `backend/app/mlentry/monitoring/health.py` | `drifted_psi` 明細 |
@@ -231,7 +230,7 @@
 
 ## 7. 測試
 
-- `ticks.py`：各價位區間邊界（9.99、10、49.95、50、99.9、100、499.5、500、999、1000）向上／向下取整。
+- `est_barrier_prices`：各價位區間邊界（9.99、10、49.95、50、99.9、100、499.5、500、999、1000）向上／向下取整。
 - `tracking.py`：用合成日線驗證 TARGET／STOP／STOP_AMBIGUOUS／TIMEOUT／待進場／無法進場；並與 labels 層 canonical outcome 對同一路徑結果一致（parity test）。
 - `convergence()`：CI 內／外、分布內／外、樣本不足 → 累積中。
 - `_verdict()`：三種 status × 有無 `drifted_psi`。
