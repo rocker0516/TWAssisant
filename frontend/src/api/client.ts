@@ -1366,11 +1366,13 @@ export type MLEntryStack = {
   model_status: string; model_status_label: string; deployment_mode: string;
   promotion_eligible: boolean; recommendation_label: string;
 };
+export type MLEntryVerdict = { headline: string; detail: string; tone: "ok" | "quiet" | "fail" };
 export type MLEntryRun = {
   run_id: string; signal_date: string; status: string; no_trade: boolean;
   no_trade_reason: string | null; no_trade_text: string | null;
   universe_count: number; qualified_count: number; recommendation_count: number;
   model_version: string; policy_version: string; code_commit: string;
+  verdict: MLEntryVerdict;
   health: Record<string, Record<string, unknown>>;
 };
 export type MLEntryItem = {
@@ -1381,17 +1383,29 @@ export type MLEntryItem = {
   p_stop_3d: number | null; p_stop_5d: number | null; p_stop_10d: number | null;
   pred_mfe_10d: number | null; p_executable: number | null;
   p_target_vn: number | null; p_stop_vn: number | null; atr_pct: number | null;
+  pred_mfe_3d: number | null; pred_mfe_5d: number | null; est_target_price: number | null; est_stop_price: number | null;
 };
 export type MLEntryBoard = {
   stack: MLEntryStack; run: MLEntryRun | null; items: MLEntryItem[]; candidates: MLEntryItem[];
   market_base: { market_target_rate: number | null; market_stop_rate: number | null;
                  p_target_10d_mean: number | null; p_stop_10d_mean: number | null };
+  gate_thresholds: { target_vn_min: number | null; stop_vn_max: number | null };
 };
 export type MLEntryCheck = { value: number; op: string; threshold: number; pass: boolean };
 export type MLEntryLiveWindow = {
   days: number; n_rec: number; market_target_rate: number; market_stop_rate: number; ece_target_10d: number;
   target_rate?: number; target_lift?: number | null; stop_rate?: number; stop_ratio?: number | null;
   timeout_rate?: number; mean_net10?: number; median_mae?: number; median_mfe?: number;
+  lift?: Record<string, number | null>; coverage?: number; candidates_median?: number; no_trade_rate?: number;
+};
+export type MLEntryConvergenceRow = {
+  key: string; label: string; fmt: "x" | "ratio" | "pct" | "num" | "num3";
+  frozen: number | null; band: [number, number] | null; band_kind: "ci" | "dist" | null;
+  live: Record<string, number | null>; verdict: Record<string, string>;
+};
+export type MLEntryMaturedDay = {
+  signal_date: string; n_rec: number; target: number; stop: number; timeout: number;
+  lift: number | null; net10: number | null;
 };
 export type MLEntryHealth = {
   stack: MLEntryStack;
@@ -1401,15 +1415,17 @@ export type MLEntryHealth = {
     promotion_check: Record<string, MLEntryCheck | boolean>;
     promotion_result: "PASS" | "FAIL"; note: string;
   };
-  live: { matured_days: number; windows: Record<string, MLEntryLiveWindow> };
+  live: { matured_days: number; windows: Record<string, MLEntryLiveWindow>; days: MLEntryMaturedDay[] };
   history: { signal_date: string; status: string; no_trade_reason: string | null;
-             universe_count: number; qualified_count: number; recommendation_count: number }[];
+             universe_count: number; qualified_count: number; recommendation_count: number; n_drifted: number | null }[];
+  convergence: MLEntryConvergenceRow[];
   monitoring_thresholds: Record<string, Record<string, number>>;
 };
 export type MLEntryStatus = {
   stack: MLEntryStack; last_run: MLEntryRun | null;
   promotion_check: Record<string, MLEntryCheck | boolean>;
   promotion_contract: Record<string, number | null>; final_holdout_access: boolean;
+  live_progress: { matured_days: number; observe_at: number; decide_at: number };
 };
 
 export function useMLEntryBoard(signalDate?: string) {
@@ -1432,5 +1448,24 @@ export function useMLEntryStatus() {
     queryKey: ["mlentry-status"],
     queryFn: () => getJson<MLEntryStatus>("/mlentry/status"),
     staleTime: 60_000,
+  });
+}
+export type MLEntryTrackingStatus =
+  "PENDING_ENTRY" | "LIVE" | "TARGET" | "STOP" | "STOP_AMBIGUOUS" | "TIMEOUT" | "NOT_ENTERED" | "DATA_MISSING";
+export type MLEntryTrackingItem = {
+  signal_date: string; stock_id: string; name: string | null; day_index: number; horizon: number;
+  status: MLEntryTrackingStatus; hit_day: number | null;
+  ret_now: number | null; mfe: number | null; mae: number | null;
+};
+export type MLEntryTracking = {
+  as_of: string | null;
+  summary: { n: number; target: number; stop: number; timeout: number; live: number; pending: number };
+  items: MLEntryTrackingItem[];
+};
+export function useMLEntryTracking() {
+  return useQuery({
+    queryKey: ["mlentry-tracking"],
+    queryFn: () => getJson<MLEntryTracking>("/mlentry/tracking?days=10"),
+    staleTime: 5 * 60_000,
   });
 }
