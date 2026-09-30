@@ -62,3 +62,22 @@ def test_safe_build_audit_returns_error_type_only(caplog):
         out = audit.safe_build_audit("2026-09-29", "2026-09-29", SimpleNamespace(dir=None, policy_name="p", code_commit="c"), {})
     assert out == {"error_type": "TypeError"}                    # Path(None) 拋 TypeError；訊息只在 log
     assert any("build_audit failed" in m for m in caplog.messages)
+
+
+def test_config_hashes_malformed_yaml_degrades_per_key(tmp_path):
+    (tmp_path / "monitoring.yaml").write_text("a: [unclosed", encoding="utf-8")
+    h = audit.config_hashes("policy_baseline_v1", config_dir=tmp_path)
+    assert h == {"monitoring": None, "policy": None, "features": None}
+
+
+def test_serving_stack_hash_malformed_json_is_none(tmp_path):
+    _stack(tmp_path)
+    (tmp_path / "stack.json").write_text("{not json", encoding="utf-8")
+    assert audit.serving_stack_hash(tmp_path) is None
+
+
+def test_build_audit_survives_malformed_stack(tmp_path):
+    s = _stack(tmp_path)
+    (tmp_path / "stack.json").write_text("{not json", encoding="utf-8")
+    a = audit.build_audit("2026-09-29", "2026-09-29", s, {})
+    assert "error_type" not in a and len(a) == 8 and a["serving_stack_hash"] is None

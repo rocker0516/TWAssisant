@@ -24,13 +24,17 @@ _SOURCE_KEYS = ("max_business_date", "max_available_at", "rows_visible_at_as_of"
 
 def serving_stack_hash(stack_dir: Path) -> str | None:
     """stack.json＋artifacts.json 解析後的 canonical hash（縮排／key 順序不影響）。"""
-    parts = []
-    for name in ("stack.json", "artifacts.json"):
-        p = Path(stack_dir) / name
-        if not p.exists():
-            return None
-        parts.append(json.loads(p.read_text(encoding="utf-8")))
-    return canonical_hash(parts)
+    try:
+        parts = []
+        for name in ("stack.json", "artifacts.json"):
+            p = Path(stack_dir) / name
+            if not p.exists():
+                return None
+            parts.append(json.loads(p.read_text(encoding="utf-8")))
+        return canonical_hash(parts)
+    except Exception:                                         # noqa: BLE001 — 單欄位降級為 None
+        log.warning("serving_stack_hash failed for %s", stack_dir, exc_info=True)
+        return None
 
 
 def config_hashes(policy_name: str, config_dir: Path = CONFIG_DIR) -> dict[str, str | None]:
@@ -38,7 +42,8 @@ def config_hashes(policy_name: str, config_dir: Path = CONFIG_DIR) -> dict[str, 
     for key, name in (("monitoring", "monitoring"), ("policy", policy_name), ("features", "features")):
         try:
             out[key] = canonical_hash(load_yaml(name, config_dir))
-        except (OSError, ValueError):
+        except Exception:                                     # noqa: BLE001 — 含 yaml.YAMLError；單 key 降級
+            log.warning("config_hashes failed for key %s", key, exc_info=True)
             out[key] = None
     return out
 
