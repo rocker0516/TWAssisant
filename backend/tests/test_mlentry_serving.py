@@ -44,7 +44,16 @@ def env(tmp_path, monkeypatch):
     hold = ds.features["signal_date"] >= ds.split.holdout_start
     d = store.write_dataset(tmp_path / "ds", ds.manifest, ds.sample_index, ds.features, ds.outcomes, hold)
     (d / "splits.json").write_text(ds.split.to_json(), encoding="utf-8")
-    monkeypatch.setattr(train_stack, "load_yaml", lambda name: {"validation": {"train_window_days": None}}.get(name, load_yaml(name)))
+    def _yaml(name):
+        if name == "validation":
+            return {"train_window_days": None}
+        base = load_yaml(name)
+        if name == "monitoring":
+            base = {**base, "lifecycle": {**(base.get("lifecycle") or {}), "observation_freeze": False}}
+        return base
+    monkeypatch.setattr(train_stack, "load_yaml", _yaml)
+    from app.mlentry.registry import lifecycle as _lc
+    monkeypatch.setattr(_lc, "load_yaml", _yaml)
     stack = train_stack.train_stack(d, root=tmp_path / "serving", models_cfg=TINY)
     engine = create_engine(f"sqlite:///{path}")
     Base.metadata.create_all(engine)
@@ -237,3 +246,20 @@ def test_diagnostic_exception_never_changes_status_or_leaks_message(env, monkeyp
     d = json.loads(row.health_json)["diagnostics"]["feature_shift"]
     assert d == {"evaluated": False, "attention": False, "error_type": "ValueError"}
     assert "secret path" not in row.health_json
+
+
+def test_train_stack_frozen_refuses_champion_but_registers_challenger(env, tmp_path, monkeypatch):
+    from app.mlentry.registry import lifecycle as lc
+    from app.mlentry.registry import versions as reg
+    frozen = lambda name: {**load_yaml(name), "lifecycle": {"observation_freeze": True}} if name == "monitoring" \
+        else ({"train_window_days": None} if name == "validation" else load_yaml(name))
+    monkeypatch.setattr(train_stack, "load_yaml", frozen); monkeypatch.setattr(lc, "load_yaml", frozen)
+    root = tmp_path / "serving2"
+    with pytest.raises(lc.FreezeError):
+        train_stack.train_stack(env["ds"], root=root, models_cfg=TINY)
+    assert any(p.name == "stack.json" for p in root.rglob("stack.json"))      # artifact 已存
+    assert not (root / "champion.json").exists()
+    s = train_stack.train_stack(env["ds"], root=root, models_cfg=TINY, register_as="challenger", actor="t")
+    assert not (root / "champion.json").exists()
+    assert lc.list_challengers(root=root)[0]["model_version"] == s.model_version
+    assert reg.load_champion(root) is None

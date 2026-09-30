@@ -94,7 +94,8 @@ def refresh_feature_reference(stack: ServingStack, ds_dir: Path | None = None) -
 
 
 def train_stack(ds_dir: Path | None = None, policy_name: str = "policy_baseline_v1", root: Path = SERVING_ROOT,
-                models_cfg: dict | None = None, set_as_champion: bool = True) -> ServingStack:
+                models_cfg: dict | None = None, set_as_champion: bool = True,
+                register_as: str | None = None, actor: str | None = None) -> ServingStack:
     ds_dir = ds_dir or api.latest_dataset_dir()
     models_cfg = models_cfg or load_yaml("models")
     vcfg = load_yaml("validation")
@@ -183,7 +184,10 @@ def train_stack(ds_dir: Path | None = None, policy_name: str = "policy_baseline_
                          model_status=STATUS_RESEARCH_SHADOW, deployment_mode="SHADOW",
                          promotion_eligible=bool(promo.get("eligible", False)), promotion_check=promo, frozen_validation=frozen)
     stack.save(root)
-    if set_as_champion:
-        set_champion(stack, root)
+    if register_as == "challenger":
+        from ..registry.lifecycle import register_challenger
+        register_challenger(stack, evaluation=frozen, actor=actor, root=root)       # 不碰 champion（Spec B §24）
+    elif set_as_champion:
+        set_champion(stack, root, actor=actor)
     log.info("stack saved: %s (status=%s, promotion_eligible=%s)", model_version, stack.model_status, stack.promotion_eligible)
     return stack

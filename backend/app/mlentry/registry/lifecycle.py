@@ -86,3 +86,76 @@ def guard_champion_change(action: str, actor: str | None, model_version: str | N
         append_audit({"event": "refuse", "action": action, "actor": actor, "model_version": model_version,
                       "from_model_version": None, "reason": "observation_freeze"}, root=root)
         raise FreezeError(f"observation freeze active: {action} refused for {model_version}")
+
+
+def _read_challengers(root: Path) -> dict:
+    p = Path(root) / CHALLENGERS_FILE
+    if not p.exists():
+        return {"schema_version": 1, "challengers": []}
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
+def _write_challengers(root: Path, doc: dict) -> None:
+    root = Path(root); root.mkdir(parents=True, exist_ok=True)
+    (root / CHALLENGERS_FILE).write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def register_challenger(stack, evaluation: dict | None = None, note: str = "", actor: str | None = None,
+                        root: Path = SERVING_ROOT) -> dict:
+    """冪等：同 model_version 更新 evaluation／note，保留 registered_at 與 status。絕不碰 champion.json。"""
+    doc = _read_challengers(root)
+    ev = {"target_lift_at_5": None, "stop_ratio_at_5": None, "coverage": None, "worst_fold_lift_at_5": None,
+          **{k: v for k, v in (evaluation or {}).items()}}
+    existing = next((c for c in doc["challengers"] if c["model_version"] == stack.model_version), None)
+    if existing is None:
+        existing = {"model_version": stack.model_version,
+                    "registered_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "registered_by": actor,
+                    "status": "registered"}
+        doc["challengers"].append(existing)
+    existing.update({"dataset_version": stack.dataset_version, "feature_version": stack.feature_version,
+                     "policy_name": stack.policy_name, "code_commit": stack.code_commit, "evaluation": ev,
+                     "promotion_check": dict(stack.promotion_check or {}), "note": note})
+    _write_challengers(root, doc)
+    append_audit({"event": "register_challenger", "action": None, "actor": actor, "model_version": stack.model_version,
+                  "from_model_version": None, "reason": note or None}, root=root)
+    return existing
+
+
+def list_challengers(root: Path = SERVING_ROOT) -> list[dict]:
+    return list(_read_challengers(root)["challengers"])
+
+
+def mark_challenger(model_version: str, status: str, note: str = "", actor: str | None = None,
+                    root: Path = SERVING_ROOT) -> dict:
+    if status not in CHALLENGER_STATUSES:
+        raise ValueError(f"status must be one of {CHALLENGER_STATUSES}")
+    doc = _read_challengers(root)
+    c = next((c for c in doc["challengers"] if c["model_version"] == model_version), None)
+    if c is None:
+        raise KeyError(model_version)
+    c["status"] = status
+    if note:
+        c["note"] = note
+    _write_challengers(root, doc)
+    append_audit({"event": "mark_challenger", "action": status, "actor": actor, "model_version": model_version,
+                  "from_model_version": None, "reason": note or None}, root=root)
+    return c
+
+
+def rollback(actor: str, reason: str, root: Path = SERVING_ROOT):
+    """把 champion 切回 champion.json.previous_model_version。凍結中拒絕；只有函式，不接 CLI／API。"""
+    from .versions import ServingStack, load_champion, set_champion
+    root = Path(root)
+    p = root / "champion.json"
+    if not p.exists():
+        raise ValueError("no champion to roll back from")
+    cur = json.loads(p.read_text(encoding="utf-8"))
+    prev = cur.get("previous_model_version")
+    guard_champion_change("rollback", actor, prev, root)
+    if not prev or not (root / prev / "stack.json").exists():
+        raise ValueError(f"previous_model_version {prev!r} unavailable; cannot roll back")
+    stack = ServingStack.load(prev, root)
+    set_champion(stack, root, actor=actor)
+    append_audit({"event": "rollback", "action": "rollback", "actor": actor, "model_version": prev,
+                  "from_model_version": cur.get("model_version"), "reason": reason}, root=root)
+    return load_champion(root)
