@@ -62,6 +62,15 @@ def test_load_falls_back_to_day_level_when_sidecar_missing_or_stale(tmp_path, ca
     assert any("monitoring.json" in m for m in caplog.messages)
 
 
+def test_load_non_dict_sidecar_falls_back_without_exception(tmp_path, caplog):
+    ref = _ref(["ret_5d", "market_ret_1d"], day_level={"market_ret_1d"})
+    (tmp_path / SIDECAR_NAME).write_text("[]", encoding="utf-8")
+    with caplog.at_level("WARNING"):
+        modes, src = load_monitor_modes(tmp_path, ref)
+    assert src == "legacy_day_level_fallback" and modes == {"ret_5d": "continuous", "market_ret_1d": "skip"}
+    assert any("monitoring.json" in m for m in caplog.messages)
+
+
 def test_write_sidecar_touches_only_sidecar_and_is_idempotent(tmp_path):
     import hashlib
     from scripts.mlentry_feature_monitoring_sidecar import write_sidecar

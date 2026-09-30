@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from pathlib import Path
 
@@ -172,9 +173,12 @@ def test_four_health_gates_unchanged_by_observation_layer(env):
     with Session() as session:
         r = daily_run.run_daily(con, session, dates[60], cfg=cfg, monitoring=_lenient_mon())
     got = _gates_canonical(r.health)
-    if not BASELINE.exists():                                     # 只在基準尚不存在時寫入（改 daily_run 前跑一次）
-        BASELINE.parent.mkdir(exist_ok=True)
-        BASELINE.write_text(got, encoding="utf-8")
+    if not BASELINE.exists():
+        if os.environ.get("MLENTRY_WRITE_GATE_BASELINE") == "1":   # 只在明確要求時，於改 daily_run 前由舊碼產生
+            BASELINE.parent.mkdir(exist_ok=True)
+            BASELINE.write_text(got, encoding="utf-8")
+        else:
+            pytest.fail("baseline fixture missing; set MLENTRY_WRITE_GATE_BASELINE=1 to regenerate from pre-change code")
     assert got == BASELINE.read_text(encoding="utf-8")
 
 
@@ -195,6 +199,27 @@ def test_daily_run_writes_diagnostics_and_audit(env):
     assert a["requested_as_of"] == dates[60] and a["feature_snapshot_as_of"] == dates[60]
     assert len(a["data_snapshot_id"]) == 12 and a["serving_stack_hash"] and "daily_prices" in a["sources"]
     assert a["sources"]["daily_prices"]["rows_visible_at_as_of"] >= r.universe_count       # 有價格檔數 ≥ eligible 檔數
+    assert a["sources"]["market_index"]["rows_visible_at_as_of"] in (0, 1)
+
+
+def test_observation_prep_exception_never_aborts_run(env, monkeypatch):
+    from app.storage import models
+    con, Session, cfg, dates = env["con"], env["Session"], env["cfg"], env["dates"]
+    with Session() as session:
+        base = daily_run.run_daily(con, session, dates[62], cfg=cfg, monitoring=_lenient_mon())
+
+    def boom(*a, **k):
+        raise RuntimeError("secret prep")
+    monkeypatch.setattr(daily_run, "load_monitor_modes", boom)
+    with Session() as session:
+        r = daily_run.run_daily(con, session, dates[62], cfg=cfg, monitoring=_lenient_mon())
+        row = session.query(models.MLEntryRun).filter_by(run_id=r.run_id).one()
+    assert r.status == base.status
+    err = {"evaluated": False, "attention": False, "error_type": "RuntimeError"}
+    d = json.loads(row.health_json)["diagnostics"]
+    assert d == {k: err for k in ("freshness", "sanity", "feature_shift", "recommendation")}
+    assert json.loads(row.audit_json) == {"error_type": "RuntimeError"}
+    assert "secret prep" not in row.health_json and "secret prep" not in row.audit_json
 
 
 def test_diagnostic_exception_never_changes_status_or_leaks_message(env, monkeypatch):

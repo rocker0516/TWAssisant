@@ -45,11 +45,11 @@ def load_monitor_modes(stack_dir: Path, ref_full: dict) -> tuple[dict[str, str],
     if p.exists():
         try:
             side = json.loads(p.read_text(encoding="utf-8"))
-            if side.get("source_feature_reference_hash") == canonical_hash(ref_full):
+            if isinstance(side, dict) and side.get("source_feature_reference_hash") == canonical_hash(ref_full):
                 modes = {n: (side.get("features", {}).get(n) or {}).get("monitor_mode") for n in feats}
                 if all(m in ("continuous", "skip") for m in modes.values()):
                     return modes, "explicit"
-        except (ValueError, OSError):
+        except Exception:                                      # noqa: BLE001 — sidecar 壞檔一律走 fallback
             pass
         log.warning("%s ignored: hash mismatch or incomplete; using legacy day_level fallback", SIDECAR_NAME)
     else:
