@@ -25,7 +25,8 @@ from ..models.estimators import make_model
 from ..models.tasks import all_tasks, day_weights, task_frame
 from ..monitoring.monitor_modes import monitor_mode_for
 from ..recommendation.policy import load_policy
-from ..registry.versions import STATUS_RESEARCH_SHADOW, SERVING_ROOT, ServingStack, set_champion
+from ..registry.lifecycle import guard_champion_change
+from ..registry.versions import STATUS_RESEARCH_SHADOW, SERVING_ROOT, ServingStack, load_champion, set_champion
 from ..validation.purge import purged_train_positions
 
 log = logging.getLogger(__name__)
@@ -94,7 +95,8 @@ def refresh_feature_reference(stack: ServingStack, ds_dir: Path | None = None) -
 
 
 def train_stack(ds_dir: Path | None = None, policy_name: str = "policy_baseline_v1", root: Path = SERVING_ROOT,
-                models_cfg: dict | None = None, set_as_champion: bool = True) -> ServingStack:
+                models_cfg: dict | None = None, set_as_champion: bool = True,
+                register_as: str | None = None, actor: str | None = None, *, overwrite: bool = False) -> ServingStack:
     ds_dir = ds_dir or api.latest_dataset_dir()
     models_cfg = models_cfg or load_yaml("models")
     vcfg = load_yaml("validation")
@@ -114,6 +116,14 @@ def train_stack(ds_dir: Path | None = None, policy_name: str = "policy_baseline_
     policy = load_policy(policy_name)
     ver_tag = f"{ds_dir.name.split('_')[-1][:8]}_{trained_through.replace('-', '')}"
     model_version = f"mlentry_lgbm_{ver_tag}"
+    # 碰撞／凍結檢查必須在任何寫入之前：不得覆寫 champion 的 artifact 目錄（challenger 路徑亦然）
+    champ = load_champion(root)
+    if champ is not None and champ.model_version == model_version:
+        raise FileExistsError(f"model_version {model_version} is the current champion; refusing to overwrite its artifact directory")
+    if (root / model_version).exists() and not overwrite:
+        raise FileExistsError(f"model_version {model_version} already exists under {root}; pass overwrite=True to replace it")
+    if register_as != "challenger" and set_as_champion:
+        guard_champion_change("set_champion", actor, model_version, root)
     d = root / model_version; d.mkdir(parents=True, exist_ok=True)
 
     cal_methods = _calibration_methods(ds_dir)
@@ -183,7 +193,10 @@ def train_stack(ds_dir: Path | None = None, policy_name: str = "policy_baseline_
                          model_status=STATUS_RESEARCH_SHADOW, deployment_mode="SHADOW",
                          promotion_eligible=bool(promo.get("eligible", False)), promotion_check=promo, frozen_validation=frozen)
     stack.save(root)
-    if set_as_champion:
-        set_champion(stack, root)
+    if register_as == "challenger":
+        from ..registry.lifecycle import register_challenger
+        register_challenger(stack, evaluation=frozen, actor=actor, root=root)       # 不碰 champion（Spec B §24）
+    elif set_as_champion:
+        set_champion(stack, root, actor=actor)
     log.info("stack saved: %s (status=%s, promotion_eligible=%s)", model_version, stack.model_status, stack.promotion_eligible)
     return stack

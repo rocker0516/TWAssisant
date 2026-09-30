@@ -23,6 +23,7 @@ from ..config import get_settings
 from ..mlentry.config import load_yaml
 from ..mlentry.datasets import api as ds_api
 from ..mlentry.monitoring import performance
+from ..mlentry.registry import lifecycle as lc
 from ..mlentry.registry.versions import load_champion
 from ..mlentry.serving.audit import audit_summary
 from ..mlentry.serving.presentation import build_verdict, est_barrier_prices
@@ -140,6 +141,41 @@ def _frozen_stats(s) -> dict:
         return {}
 
 
+def _policy_file(s, name: str) -> dict | None:
+    """讀 data/mlentry/<champion dataset>/policy/<policy>/<name>；缺檔／壞檔回 None。"""
+    if s is None:
+        return None
+    try:
+        p = Path(ds_api.latest_dataset_dir()).parent / s.dataset_version / "policy" / s.policy_name / name
+        return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
+    except Exception:
+        return None
+
+
+def _lifecycle_block(session: Session) -> dict:
+    try:
+        st = lc.freeze_state(session)
+    except Exception:
+        st = {"observation_freeze": True, "freeze_until_mature_days": 60, "auto_retrain": False, "auto_promote": False, "mature_days": None}
+    try:
+        champ = json.loads((lc.SERVING_ROOT / "champion.json").read_text(encoding="utf-8"))
+    except Exception:
+        champ = {}
+    try:
+        audit = lc.read_audit(limit=1)
+    except Exception:
+        audit = []
+    try:
+        n_ch = len(lc.list_challengers())
+    except Exception:
+        n_ch = 0
+    return {**{k: st.get(k) for k in ("observation_freeze", "freeze_until_mature_days", "auto_retrain", "auto_promote")},
+            "mature_days": int(st.get("mature_days") or 0), "challengers_count": n_ch,
+            "previous_model_version": champ.get("previous_model_version"),
+            "last_audit_event": ({"at": audit[-1].get("at"), "event": audit[-1].get("event"), "action": audit[-1].get("action"),
+                                  "model_version": audit[-1].get("model_version")} if audit else None)}
+
+
 def _candidate_band(fs: dict) -> tuple[float, float] | None:
     lo, hi = fs.get("candidates_p05"), fs.get("candidates_p95")
     return (float(lo), float(hi)) if lo is not None and hi is not None else None
@@ -229,7 +265,8 @@ def status(session: Session = Depends(get_session)):
     return {"stack": _stack_info().model_dump(), "last_run": _run_info(r, band).model_dump() if r else None,
             "promotion_check": s.promotion_check if s else {}, "promotion_contract": contract,
             "final_holdout_access": False,
-            "live_progress": {"matured_days": int(live.get("matured_days") or 0), "observe_at": 20, "decide_at": 60}}
+            "live_progress": {"matured_days": int(live.get("matured_days") or 0), "observe_at": 20, "decide_at": 60},
+            "lifecycle": _lifecycle_block(session)}
 
 
 @router.get("/board", response_model=Board)
@@ -298,7 +335,10 @@ def health_page(limit: int = Query(60, ge=1, le=500), session: Session = Depends
               "note": "Frozen Validation：dev 4 個 validation fold 的 OOF（policy_baseline_v1，K=5）；Final Holdout 未開封。"}
     return {"stack": _stack_info().model_dump(), "frozen_validation": frozen, "live": live, "history": hist,
             "monitoring_thresholds": {k: mon[k] for k in ("data_quality", "feature_drift", "prediction_health")},
-            "convergence": performance.convergence(fv, live)}
+            "convergence": performance.convergence(fv, live),
+            "diagnostics_frozen": _policy_file(s, "diagnostics_frozen.json"),
+            "live_gate": {"mature_days": int(live.get("matured_days") or 0), "decide_at": 60,
+                          "live_unlocked": int(live.get("matured_days") or 0) >= 60}}
 
 
 @router.get("/runs", response_model=list[RunInfo])

@@ -66,15 +66,24 @@ class ServingStack:
         return s
 
 
-def set_champion(stack: ServingStack, root: Path = SERVING_ROOT) -> None:
-    """設定目前 serving champion（shadow 亦然）。狀態欄位一路帶到 run / ledger / API。"""
+def set_champion(stack: ServingStack, root: Path = SERVING_ROOT, *, actor: str | None = None) -> None:
+    """設定目前 serving champion（shadow 亦然）。凍結中拒絕（Spec B §24）；寫 previous_model_version 供 rollback。"""
+    from .lifecycle import append_audit, guard_champion_change          # 延遲 import 避免循環
+    guard_champion_change("set_champion", actor, stack.model_version, root)
     root.mkdir(parents=True, exist_ok=True)
-    (root / "champion.json").write_text(json.dumps({
+    p = root / "champion.json"
+    existing = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+    previous = existing.get("model_version")
+    keep_previous = existing.get("previous_model_version") if previous == stack.model_version else previous
+    p.write_text(json.dumps({
         "model_version": stack.model_version, "calibration_version": stack.calibration_version,
         "policy_version": stack.policy_version, "policy_name": stack.policy_name,
         "model_status": stack.model_status, "deployment_mode": stack.deployment_mode,
         "promotion_eligible": stack.promotion_eligible, "set_at": datetime.now(timezone.utc).isoformat(),
+        "previous_model_version": keep_previous,
     }, ensure_ascii=False, indent=2), encoding="utf-8")
+    append_audit({"event": "set_champion", "action": "set_champion", "actor": actor, "model_version": stack.model_version,
+                  "from_model_version": previous, "reason": None}, root=root)
 
 
 def load_champion(root: Path = SERVING_ROOT) -> ServingStack | None:
@@ -86,6 +95,8 @@ def load_champion(root: Path = SERVING_ROOT) -> ServingStack | None:
 
 def promote(stack: ServingStack, promotion_check: dict, approved_by: str, root: Path = SERVING_ROOT) -> ServingStack:
     """Promotion 必須通過 contract（promotion_check['eligible']）且有人核可；否則拒絕。"""
+    from .lifecycle import append_audit, guard_champion_change
+    guard_champion_change("promote", approved_by or None, stack.model_version, root)
     if not promotion_check.get("eligible"):
         raise PermissionError("promotion contract not satisfied; stack stays RESEARCH_SHADOW")
     if not approved_by:
@@ -96,5 +107,7 @@ def promote(stack: ServingStack, promotion_check: dict, approved_by: str, root: 
     stack.promotion_check = {**promotion_check, "approved_by": approved_by,
                              "approved_at": datetime.now(timezone.utc).isoformat()}
     stack.save(root)
-    set_champion(stack, root)
+    set_champion(stack, root, actor=approved_by)
+    append_audit({"event": "promote", "action": "promote", "actor": approved_by, "model_version": stack.model_version,
+                  "from_model_version": None, "reason": "promotion contract satisfied"}, root=root)
     return stack

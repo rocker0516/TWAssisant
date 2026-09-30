@@ -1,4 +1,4 @@
-import type { MLEntryConvergenceRow, MLEntryHealth as HealthT } from "../api/client";
+import type { MLEntryConvergenceRow, MLEntryDiagCell, MLEntryHealth as HealthT, MLEntryRegimeBlock } from "../api/client";
 
 // 模型體檢（spec §3，mockup convergence A）：前瞻進度 → Frozen vs Live 收斂對照 → 逐日成熟紀錄。
 // 收斂判定由後端 convergence() 提供（描述性；20 成熟日只看不決策、60 為判斷點）。
@@ -10,6 +10,34 @@ function fmt(v: number | null, f: MLEntryConvergenceRow["fmt"]): string {
   if (f === "pct") return `${(v * 100).toFixed(2)}%`;
   if (f === "num3") return v.toFixed(3);
   return v % 1 === 0 ? String(v) : v.toFixed(1);
+}
+
+// 診斷（只看，不用於 policy）：Frozen dev OOF；Live 欄一律「等待 60D」。數值與切點全來自後端 JSON。
+const DIAG_TAG = "Diagnostic only · Not used for policy selection";
+const x2 = (v: number | null | undefined) => (v == null ? "—" : `${v.toFixed(2)}×`);
+const p1 = (v: number | null | undefined) => (v == null ? "—" : `${(v * 100).toFixed(1)}%`);
+const n3 = (v: number | null | undefined) => (v == null ? "—" : v.toFixed(3));
+
+function DiagTable({ title, head, rows, liveLabel }: { title: string; head: string[]; rows: (string | number | null)[][]; liveLabel: string }) {
+  return (
+    <div className="rounded-lg border border-gray-800">
+      <div className="flex items-center justify-between px-3 py-1.5 text-xs">
+        <span className="font-semibold text-gray-300">{title}</span><span className="text-amber-300/80">{DIAG_TAG}</span>
+      </div>
+      <table className="w-full text-sm">
+        <thead className="bg-gray-900 text-left text-xs text-gray-400"><tr>{head.map((h) => <th key={h} className="px-3 py-1.5">{h}</th>)}<th className="px-3 py-1.5">Live</th></tr></thead>
+        <tbody>{rows.map((r, i) => (
+          <tr key={i} className="border-t border-gray-800/60 tabular-nums">
+            {r.map((c, j) => <td key={j} className="px-3 py-1.5" title={c == null ? "n<30" : undefined}>{c == null ? "—" : String(c)}</td>)}
+            <td className="px-3 py-1.5 text-gray-500">{liveLabel}</td>
+          </tr>))}</tbody>
+      </table>
+    </div>
+  );
+}
+
+function regimeRows(b: MLEntryRegimeBlock): (string | number | null)[][] {
+  return Object.entries(b.groups).map(([g, c]: [string, MLEntryDiagCell]) => [g, x2(c.lift_at_5), c.stop_ratio_at_5 == null ? null : c.stop_ratio_at_5.toFixed(2), c.n, c.days]);
 }
 
 const VERDICT_CLS: Record<string, string> = {
@@ -119,6 +147,32 @@ export function MLEntryHealthView({ health, isLoading }: { health: HealthT | und
           </table>
         </div>
       </section>
+
+      <details className="rounded-lg border border-gray-800 bg-gray-900/60 p-4">
+        <summary className="cursor-pointer text-sm font-semibold">診斷（只看，不用於 policy）<span className="ml-2 text-xs font-normal text-amber-300/80">{DIAG_TAG}</span></summary>
+        {(() => {
+          const d = health.diagnostics_frozen; const live = `等待 60D（目前 ${health.live_gate.mature_days}）`;
+          if (!d) return <div className="mt-2 text-sm text-gray-500">尚未產生：執行 <code>python -m scripts.mlentry_frozen_diagnostics</code></div>;
+          const lk = Object.entries(d.lift_at_k).map(([k, v]) => [`@${k}`, x2(v.row_weighted.target_lift), x2(v.day_weighted.target_lift),
+            v.row_weighted.stop_ratio == null ? null : v.row_weighted.stop_ratio.toFixed(2), v.row_weighted.n]);
+          const tm = [["P(target ≤ 3D)", p1(d.timing.p_target_le_3d as number | null)], ["P(target ≤ 5D)", p1(d.timing.p_target_le_5d as number | null)],
+            ["P(target ≤ 10D)", p1(d.timing.p_target_le_10d as number | null)], ["Median time-to-target", d.timing.median_time_to_target == null ? null : `${d.timing.median_time_to_target} 日`]];
+          const rk = [["Precision@K", p1(d.ranking.precision_at_k)], ["Recall@K", p1(d.ranking.recall_at_k)], ["NDCG@K", n3(d.ranking.ndcg_at_k)],
+            ["IC mean／std", `${n3(d.ranking.ic.mean)}／${n3(d.ranking.ic.std)}`], ["IC>0 日比例", p1(d.ranking.ic.positive_share)]];
+          return (
+            <div className="mt-3 space-y-3 text-xs text-gray-400">
+              <div>Frozen dev OOF・{d.dataset_version}・{d.policy_name}・K={d.k}・{d.n_days} 日 {d.n_eval_rows} 列・{d.generated_at}</div>
+              <DiagTable title="Lift@K" head={["K", "Lift（row）", "Lift（day）", "StopRatio", "n"]} rows={lk} liveLabel={live} />
+              <DiagTable title="Timing" head={["指標", "Frozen"]} rows={tm} liveLabel={live} />
+              <DiagTable title="Ranking" head={["指標", "Frozen"]} rows={rk} liveLabel={live} />
+              {(["market", "volatility", "breadth", "mcap", "industry"] as const).map((key) => (
+                <DiagTable key={key} title={`Regime：${key}${d.regime[key].cuts ? `（切點 ${d.regime[key].cuts!.map((c) => c.toFixed(3)).join(" / ")}）` : ""}${key === "mcap" ? `・${d.regime.mcap_basis}` : ""}`}
+                           head={["組", "Lift@5", "StopRatio@5", "n", "days"]} rows={regimeRows(d.regime[key])} liveLabel={live} />
+              ))}
+            </div>
+          );
+        })()}
+      </details>
     </div>
   );
 }

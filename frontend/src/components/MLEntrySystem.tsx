@@ -193,6 +193,15 @@ export function MLEntrySystemView({ status, health, isLoading, focusGate }: {
           <Row k="deployment_mode" v={s.deployment_mode} />
           <Row k="promotion_eligible" v={String(s.promotion_eligible)} />
           <Row k="final_holdout_access" v={String(status.final_holdout_access)} />
+          {status.lifecycle && (<>
+            <Row k="observation_freeze" v={status.lifecycle.observation_freeze
+              ? <span className="text-amber-300">true・觀察凍結中，promotion 已鎖（至 {status.lifecycle.freeze_until_mature_days} 成熟日，目前 {status.lifecycle.mature_days}）</span>
+              : "false"} />
+            <Row k="auto_retrain / auto_promote" v={`${status.lifecycle.auto_retrain} / ${status.lifecycle.auto_promote}`} />
+            <Row k="challengers" v={String(status.lifecycle.challengers_count)} />
+            <Row k="previous_model_version" v={status.lifecycle.previous_model_version ?? "—"} />
+            <Row k="last_audit_event" v={status.lifecycle.last_audit_event ? `${status.lifecycle.last_audit_event.event}${status.lifecycle.last_audit_event.action ? `(${status.lifecycle.last_audit_event.action})` : ""} ${status.lifecycle.last_audit_event.at ?? ""}` : "—"} />
+          </>)}
         </div>
       </details>
       {health?.monitoring_thresholds && (
