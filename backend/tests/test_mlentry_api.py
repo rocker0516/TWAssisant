@@ -27,7 +27,14 @@ def _db():
                                   model_status="RESEARCH_SHADOW", deployment_mode="SHADOW", promotion_eligible=False, code_commit="abc",
                                   status="OK", no_trade=False, no_trade_reason=None, universe_count=3, qualified_count=2,
                                   recommendation_count=1, health_json=json.dumps({"data_quality": {"ok": True}, "feature_health": {"ok": True, "n_drifted": 0, "drifted_psi": {}},
-                                                                   "recommendation": {"qualified_count": 2}})))
+                                                                   "recommendation": {"qualified_count": 2},
+                                                                   "diagnostics": {"freshness": {"evaluated": True, "attention": True, "sources": {}},
+                                                                                   "sanity": {"evaluated": False, "attention": False, "reason": "NO_DATA"},
+                                                                                   "feature_shift": {"evaluated": False, "attention": False, "error_type": "ValueError", "error": "should be stripped"},
+                                                                                   "recommendation": {"evaluated": True, "attention": False}}}),
+                                  audit_json=json.dumps({"requested_as_of": "2019-01-02", "feature_snapshot_as_of": "2019-01-02", "data_snapshot_id": "abcdef012345",
+                                                         "serving_stack_hash": "0123456789ab", "code_commit": "abc", "runtime": {"hostname": "SECRET-HOST"},
+                                                         "sources": {}, "config_hashes": {}})))
         s.flush()                                   # 無 ORM relationship：先落 run 列再寫 FK 子列
         for sid, rec, rank, gp in (("2330", True, 1, True), ("1101", False, 2, True), ("2317", False, None, False)):
             s.merge(models.MLEntryPrediction(run_id=RUN_ID, stock_id=sid, signal_date=SIGNAL, p_target_10d=0.2, p_stop_10d=0.3,
@@ -117,3 +124,42 @@ def test_tracking_unexpected_error_returns_empty(client, monkeypatch):
     j = r.json()
     assert j["as_of"] is None and j["items"] == []
     assert j["summary"] == {"n": 0, "target": 0, "stop": 0, "timeout": 0, "live": 0, "pending": 0}
+
+
+def test_run_info_diagnostics_and_audit_whitelist(client, monkeypatch):
+    monkeypatch.setattr(routes_mlentry, "load_champion", lambda: None)
+    j = client.get(f"/api/mlentry/board?signal_date={SIGNAL.isoformat()}").json()
+    run = j["run"]
+    assert set(run["diagnostics"]) == {"freshness", "sanity", "feature_shift", "recommendation"}
+    assert run["diagnostics"]["feature_shift"] == {"evaluated": False, "attention": False, "error_type": "ValueError"}
+    assert run["audit"] == {"requested_as_of": "2019-01-02", "feature_snapshot_as_of": "2019-01-02", "data_snapshot_id": "abcdef012345",
+                            "serving_stack_hash": "0123456789ab", "code_commit": "abc", "as_of_mismatch": False}
+    assert "SECRET-HOST" not in json.dumps(j) and "should be stripped" not in json.dumps(j)
+
+
+def test_health_history_attention_count(client, monkeypatch):
+    monkeypatch.setattr(routes_mlentry, "load_champion", lambda: None)
+    j = client.get("/api/mlentry/health?limit=5").json()
+    h = next(x for x in j["history"] if x["signal_date"] == SIGNAL.isoformat())
+    assert h["attention_count"] == 1
+
+
+def test_legacy_run_without_diagnostics_or_audit(client, monkeypatch):
+    from app.storage.database import session_scope
+    rid = "2019-01-03_legacy_000000000000"
+    with session_scope() as s:
+        s.merge(models.MLEntryRun(run_id=rid, signal_date=date(2019, 1, 3), as_of_timestamp=datetime(2019, 1, 3, 21, 30),
+                                  dataset_version="ds_t", universe_version="u", feature_version="f", label_version="l",
+                                  model_version="test_stack", calibration_version="c", policy_version="p", policy_name="policy_baseline_v1",
+                                  model_status="RESEARCH_SHADOW", deployment_mode="SHADOW", promotion_eligible=False, code_commit="abc",
+                                  status="NO_TRADE", no_trade=True, no_trade_reason="POLICY_NO_CANDIDATE", universe_count=3,
+                                  qualified_count=0, recommendation_count=0, health_json=json.dumps({"data_quality": {"ok": True}})))
+    try:
+        monkeypatch.setattr(routes_mlentry, "load_champion", lambda: None)
+        r = client.get(f"/api/mlentry/runs/{rid}"); assert r.status_code == 200
+        assert r.json()["diagnostics"] is None and r.json()["audit"] is None
+        j = client.get("/api/mlentry/health?limit=5").json()
+        assert next(x for x in j["history"] if x["signal_date"] == "2019-01-03")["attention_count"] is None
+    finally:
+        with session_scope() as s:
+            s.query(models.MLEntryRun).filter_by(run_id=rid).delete()
