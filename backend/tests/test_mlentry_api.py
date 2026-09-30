@@ -106,3 +106,14 @@ def test_tracking_shape(client):
     r = client.get("/api/mlentry/tracking?days=10"); assert r.status_code == 200
     j = r.json()
     assert set(j) == {"as_of", "summary", "items"} and j["summary"]["n"] == len(j["items"])
+
+
+def test_tracking_unexpected_error_returns_empty(client, monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(routes_mlentry, "load_tracking", boom)
+    r = client.get("/api/mlentry/tracking?days=10")
+    assert r.status_code == 200
+    j = r.json()
+    assert j["as_of"] is None and j["items"] == []
+    assert j["summary"] == {"n": 0, "target": 0, "stop": 0, "timeout": 0, "live": 0, "pending": 0}

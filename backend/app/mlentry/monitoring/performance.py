@@ -56,7 +56,7 @@ def rolling_live_metrics(df: pd.DataFrame, windows=(20, 60, 120), k: int = 5, co
         item["coverage"] = float(((per_day["n_rec"] > 0) & (per_day["st"] != "SYSTEM_NO_TRADE")).mean())
         q_med = pd.to_numeric(per_day["q"], errors="coerce").median()
         item["candidates_median"] = None if pd.isna(q_med) else float(q_med)
-        item["no_trade_rate"] = float(per_day["nt"].fillna(False).astype(bool).mean())
+        item["no_trade_rate"] = float(per_day["nt"].eq(True).mean())
         if len(rec):
             item.update({"target_rate": float(rec["target_hit_10d"].mean()), "target_lift": float(rec["target_hit_10d"].mean() / base_t) if base_t > 0 else None,
                          "stop_rate": float(rec["stop_hit_10d"].mean()), "stop_ratio": float(rec["stop_hit_10d"].mean() / base_s) if base_s > 0 else None,

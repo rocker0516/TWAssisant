@@ -217,7 +217,7 @@ def test_load_tracking_in_memory(monkeypatch):
 
     def fake_matrices(con, cal, cols):
         return {k: pd.DataFrame(100.0, index=cal.dates, columns=cols) for k in ("open", "high", "low", "close")}
-    monkeypatch.setattr(tracking.prices, "load_matrices", fake_matrices)
+    monkeypatch.setattr(tracking, "_load_window_matrices", fake_matrices)
 
     eng = create_engine("sqlite://")
     models.Base.metadata.create_all(eng)
@@ -269,3 +269,28 @@ def test_load_tracking_in_memory(monkeypatch):
         s.add(pred("2026-09-11_m_150000", d11, "1101", 1))
         s.commit()
         assert tracking.load_tracking(sqlite3.connect(":memory:"), s, days=10)["items"] == []
+
+
+def test_load_window_matrices_bounded():
+    import sqlite3
+
+    from app.mlentry.data.calendar import TradingCalendar
+    from app.mlentry.serving import tracking
+
+    con = sqlite3.connect(":memory:")
+    con.execute("CREATE TABLE daily_prices (stock_id TEXT, date TEXT, open REAL, high REAL, low REAL, close REAL, volume REAL)")
+    rows = []
+    for sid in ("1101", "1102", "9999"):
+        for d in ("2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03"):
+            rows.append((sid, d, 1.0, 2.0, 0.5, 1.5, 10))
+    con.executemany("INSERT INTO daily_prices VALUES (?,?,?,?,?,?,?)", rows)
+    cal = TradingCalendar(["2026-09-01", "2026-09-02", "2026-09-03"])
+    cols = pd.Index(["1101", "1102", "1103"], name="stock_id")      # 1103 無資料
+    m = tracking._load_window_matrices(con, cal, cols)
+    assert set(m) == {"open", "high", "low", "close"}
+    for k, df in m.items():
+        assert df.shape == (3, 3)
+        assert list(df.index) == ["2026-09-01", "2026-09-02", "2026-09-03"] and list(df.columns) == ["1101", "1102", "1103"]
+        assert df["1103"].isna().all()
+        assert df[["1101", "1102"]].notna().all().all()
+    assert m["high"].iloc[0, 0] == 2.0

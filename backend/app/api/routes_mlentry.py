@@ -9,6 +9,7 @@ frozen validation（B9 metrics）、promotion.yaml。門檻與解讀文案在後
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from datetime import date
 from pathlib import Path
@@ -24,7 +25,7 @@ from ..mlentry.datasets import api as ds_api
 from ..mlentry.monitoring import performance
 from ..mlentry.registry.versions import load_champion
 from ..mlentry.serving.presentation import build_verdict, est_barrier_prices
-from ..mlentry.serving.tracking import load_tracking
+from ..mlentry.serving.tracking import load_tracking, summarize
 from ..storage import models
 from .deps import get_session
 
@@ -281,5 +282,8 @@ def tracking(days: int = Query(10, ge=1, le=30), session: Session = Depends(get_
     con = sqlite3.connect(str(get_settings().db_path))
     try:
         return load_tracking(con, session, days=days)
+    except Exception:
+        logging.getLogger(__name__).exception("mlentry /tracking failed")
+        return {"as_of": None, "summary": summarize([]), "items": []}
     finally:
         con.close()

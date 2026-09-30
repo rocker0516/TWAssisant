@@ -17,7 +17,6 @@ from sqlalchemy.orm import Session
 from app.storage import models
 
 from ..config import LabelConfig, load_config
-from ..data import prices
 from ..data.calendar import TradingCalendar, load_calendar
 from ..labels.barriers import EntryStatus, Event, run_barriers
 
@@ -85,6 +84,26 @@ def summarize(rows: list[dict]) -> dict:
             "timeout": s.count("TIMEOUT"), "live": s.count("LIVE"), "pending": s.count("PENDING_ENTRY")}
 
 
+def _load_window_matrices(con, cal: TradingCalendar, columns: pd.Index) -> dict[str, pd.DataFrame]:
+    """只讀 [cal.dates[0], 今] × 指定股票的 OHLC（daily_prices.date 為 ISO 字串），不掃全表。"""
+    ids = [str(c) for c in columns]
+    out = {k: pd.DataFrame(np.nan, index=cal.dates, columns=columns) for k in ("open", "high", "low", "close")}
+    if not ids or len(cal) == 0:
+        return out
+    q = ("SELECT stock_id, date, open, high, low, close FROM daily_prices "
+         f"WHERE date >= ? AND stock_id IN ({','.join('?' * len(ids))})")
+    df = pd.read_sql_query(q, con, params=[str(cal.dates[0]), *ids])
+    if df.empty:
+        return out
+    df["stock_id"] = df["stock_id"].astype(str)
+    df["date"] = df["date"].astype(str)
+    res = {}
+    for k in ("open", "high", "low", "close"):
+        pv = df.pivot_table(index="date", columns="stock_id", values=k, aggfunc="last")
+        res[k] = pv.reindex(index=cal.dates, columns=columns).astype("float64")
+    return res
+
+
 def load_tracking(con, session: Session, days: int = 10, cfg: LabelConfig | None = None) -> dict:
     """近 days 個交易日、每個 signal_date 最後一個 run 的推薦追蹤列。as_of = 日曆最後一個交易日。"""
     cfg = cfg or load_config().labels
@@ -116,7 +135,7 @@ def load_tracking(con, session: Session, days: int = 10, cfg: LabelConfig | None
         return {"as_of": window[-1], "summary": summarize([]), "items": []}
     sub = TradingCalendar(cal.dates[i0:])
     cols = pd.Index(sorted({sid for _, sid in items}), name="stock_id")
-    m = prices.load_matrices(con, sub, cols)
+    m = _load_window_matrices(con, sub, cols)
     rows = track_paths(m, items, cfg, ledger)
     meta = {(str(p.signal_date), str(p.stock_id)): (p.name, p.rank) for p in preds}
     for r in rows:
