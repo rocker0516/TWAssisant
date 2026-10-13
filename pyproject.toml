@@ -1,0 +1,40 @@
+[project]
+name = "twassistant"
+version = "0.1.0"
+description = "台股資訊統整、推薦與自動交易系統"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic-settings>=2.5",
+    "sqlalchemy>=2.0",
+    "psycopg[binary]>=3.2",
+    "alembic>=1.13",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.7",
+]
+
+[tool.uv]
+# 這是應用程式，不是要發佈的套件
+package = false
+# 新發佈的套件版本等 7 天才採用，降低供應鏈攻擊風險
+exclude-newer = "7 days"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+# 預設不跑需要資料庫的測試；用 `pytest -m integration` 指定執行
+addopts = "-m 'not integration'"
+markers = [
+    "integration: 需要實際啟動的資料庫（docker compose up -d db）",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

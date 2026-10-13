@@ -1,0 +1,21 @@
+# 機密
+.env
+*.pem
+*.p12
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# 資料與模型產出
+/storage/
+*.parquet
+mlruns/
+
+# 工具
+.remember/
+.idea/
+.vscode/
